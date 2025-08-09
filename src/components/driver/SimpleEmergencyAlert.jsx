@@ -7,7 +7,7 @@ const SimpleEmergencyAlert = () => {
     const { user } = useAuth();
     const [showModal, setShowModal] = useState(false);
     const [message, setMessage] = useState('');
-    const [adminReplies, setAdminReplies] = useState([]);
+    // const [adminReplies, setAdminReplies] = useState([]); // For future use
     const modalRef = useRef(null);
 
     // Handle click outside modal

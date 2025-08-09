@@ -3,7 +3,8 @@ import { io } from 'socket.io-client';
 class SocketService {
     constructor() {
         this.socket = null;
-        this.isConnected = false;
+        this.connected = false;
+        this.initialized = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
     }
@@ -25,7 +26,8 @@ class SocketService {
             });
 
             this.setupEventListeners();
-            this.isConnected = true;
+            this.connected = true;
+            this.initialized = true;
 
             console.log('🔌 Socket connected:', { userId, userType });
         } catch (error) {
@@ -38,13 +40,13 @@ class SocketService {
 
         this.socket.on('connect', () => {
             console.log('🔌 Socket connected successfully');
-            this.isConnected = true;
+            this.connected = true;
             this.reconnectAttempts = 0;
         });
 
         this.socket.on('disconnect', (reason) => {
             console.log('🔌 Socket disconnected:', reason);
-            this.isConnected = false;
+            this.connected = false;
         });
 
         this.socket.on('connect_error', (error) => {
@@ -58,7 +60,7 @@ class SocketService {
 
         this.socket.on('reconnect', (attemptNumber) => {
             console.log('🔌 Socket reconnected after', attemptNumber, 'attempts');
-            this.isConnected = true;
+            this.connected = true;
             this.reconnectAttempts = 0;
         });
 
@@ -75,13 +77,14 @@ class SocketService {
         if (this.socket) {
             this.socket.disconnect();
             this.socket = null;
-            this.isConnected = false;
+            this.connected = false;
+            this.initialized = false;
             console.log('🔌 Socket disconnected');
         }
     }
 
     emit(event, data) {
-        if (this.socket && this.isConnected) {
+        if (this.socket && this.connected) {
             this.socket.emit(event, data);
         } else {
             console.warn('Socket not connected, cannot emit:', event);
@@ -119,9 +122,19 @@ class SocketService {
         return this.socket;
     }
 
+    // Check if socket is initialized
+    isInitialized() {
+        return this.initialized;
+    }
+
     // Check connection status
+    isConnected() {
+        return this.connected && this.socket?.connected;
+    }
+
+    // Alternative method name for consistency
     isSocketConnected() {
-        return this.isConnected && this.socket?.connected;
+        return this.connected && this.socket?.connected;
     }
 }
 

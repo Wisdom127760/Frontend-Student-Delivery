@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SimpleDriverNotifications from '../driver/SimpleDriverNotifications';
@@ -6,6 +6,8 @@ import SimpleEmergencyAlert from '../driver/SimpleEmergencyAlert';
 import Avatar from '../common/Avatar';
 import SoundPermissionModal from '../common/SoundPermissionModal';
 import GlobalSearch from '../common/GlobalSearch';
+import socketService from '../../services/socketService';
+import toast from 'react-hot-toast';
 import {
     TruckIcon,
     UserCircleIcon,
@@ -18,6 +20,18 @@ import {
     MagnifyingGlassIcon,
     CommandLineIcon
 } from '@heroicons/react/24/outline';
+
+// Create context for driver status
+const DriverStatusContext = createContext();
+
+// Hook to use driver status
+export const useDriverStatus = () => {
+    const context = useContext(DriverStatusContext);
+    if (!context) {
+        throw new Error('useDriverStatus must be used within DriverLayout');
+    }
+    return context;
+};
 
 const DriverLayout = ({ children }) => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -34,6 +48,9 @@ const DriverLayout = ({ children }) => {
     const loadDriverStatus = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
+
+            console.log('🔍 Loading driver status from database...');
+
             const response = await fetch(`${API_BASE_URL}/driver/profile`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -41,19 +58,61 @@ const DriverLayout = ({ children }) => {
                 }
             });
 
+            console.log('📡 Profile API response status:', response.status);
+
             if (response.ok) {
                 const result = await response.json();
-                if (result.success && result.data.isOnline !== undefined) {
-                    setIsOnline(result.data.isOnline);
+                console.log('📊 Profile API result:', result);
+
+                if (result.success && result.data) {
+                    // Check multiple possible field names for status
+                    let statusValue = null;
+
+                    if (result.data.isOnline !== undefined) {
+                        statusValue = result.data.isOnline;
+                        console.log('✅ Found isOnline field:', statusValue);
+                    } else if (result.data.isActive !== undefined) {
+                        statusValue = result.data.isActive;
+                        console.log('✅ Found isActive field:', statusValue);
+                    } else if (result.data.status !== undefined) {
+                        statusValue = result.data.status === 'online' || result.data.status === 'active';
+                        console.log('✅ Found status field:', result.data.status, '-> converted to:', statusValue);
+                    } else {
+                        console.log('⚠️ No status field found in response. Available fields:', Object.keys(result.data));
+                        // Default to false if no status found
+                        statusValue = false;
+                    }
+
+                    console.log('🎯 Setting isOnline status to:', statusValue);
+                    setIsOnline(statusValue);
+                } else {
+                    console.log('❌ API returned unsuccessful response or no data');
+                    // Try fallback approach with mock data
+                    console.log('🔄 Using fallback status (offline)');
+                    setIsOnline(false);
                 }
+            } else {
+                console.log('❌ Profile API request failed with status:', response.status);
+                const errorText = await response.text();
+                console.log('Error response:', errorText);
+                // Default to offline if API fails
+                setIsOnline(false);
             }
         } catch (error) {
-            console.error('Error loading driver status:', error);
+            console.error('💥 Error loading driver status:', error);
+            // Default to offline on error
+            setIsOnline(false);
         }
     }, [API_BASE_URL]);
 
     useEffect(() => {
         loadDriverStatus(); // Call loadDriverStatus on component mount
+
+        // Sync status with database every 30 seconds
+        const statusSyncInterval = setInterval(() => {
+            console.log('🔄 Syncing status with database...');
+            loadDriverStatus();
+        }, 30000);
 
         // Check if sound permission has been requested before
         const soundPermissionRequested = localStorage.getItem('soundPermissionRequested');
@@ -63,6 +122,11 @@ const DriverLayout = ({ children }) => {
                 setShowSoundPermission(true);
             }, 2000);
         }
+
+        // Cleanup interval on unmount
+        return () => {
+            clearInterval(statusSyncInterval);
+        };
     }, [loadDriverStatus]);
 
 
@@ -89,62 +153,107 @@ const DriverLayout = ({ children }) => {
 
             console.log('Toggling active status from', isOnline, 'to', newStatus);
 
-            // Show immediate visual feedback
+            // Show immediate visual feedback (optimistic update)
             setIsOnline(newStatus);
+
+            // Emit status change via socket.io immediately
+            if (socketService.isConnected()) {
+                socketService.emit('driver-status-change', {
+                    driverId: user?.id,
+                    status: newStatus ? 'online' : 'offline',
+                    timestamp: new Date().toISOString(),
+                    action: 'toggle-active'
+                });
+                console.log('📡 Socket status update sent:', newStatus ? 'online' : 'offline');
+            } else {
+                console.log('⚠️ Socket.io not connected - status update not sent in real-time');
+                toast.warning('Status updated (real-time sync unavailable)');
+            }
 
             // Try to update backend
             try {
+                console.log('📡 Sending status update to backend...');
+
                 const response = await fetch(`${API_BASE_URL}/driver/toggle-active`, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({
+                        isActive: newStatus,
+                        status: newStatus ? 'online' : 'offline'
+                    })
                 });
 
-                console.log('Response status:', response.status);
+                console.log('📊 Backend response status:', response.status);
 
                 if (response.ok) {
                     const result = await response.json();
-                    console.log('Response data:', result);
+                    console.log('📊 Backend toggle result:', result);
 
                     if (result.success) {
-                        // Status updated successfully in database
-                        console.log(`Driver is now ${newStatus ? 'active' : 'inactive'}`);
-
                         // Update the local state with the actual status from backend
                         if (result.data && result.data.isActive !== undefined) {
+                            console.log('✅ Backend confirmed status:', result.data.isActive);
                             setIsOnline(result.data.isActive);
-                            console.log('Updated local state to:', result.data.isActive);
+                        } else if (result.data && result.data.isOnline !== undefined) {
+                            console.log('✅ Backend confirmed status (isOnline):', result.data.isOnline);
+                            setIsOnline(result.data.isOnline);
                         }
 
-                        // Show success message
+                        // Show success toast
                         if (newStatus) {
-                            console.log('✅ You are now active and visible to customers');
+                            toast.success('🟢 You are now active and visible to customers');
                         } else {
-                            console.log('🔴 You are now inactive and hidden from customers');
+                            toast.success('🔴 You are now inactive and hidden from customers');
                         }
+
+                        console.log('✅ Status successfully updated in database');
+
+                        // Reload status from database to confirm
+                        setTimeout(() => {
+                            loadDriverStatus();
+                        }, 1000);
                     } else {
                         // Revert local state if API fails
                         setIsOnline(!newStatus);
-                        console.error('Failed to update status:', result.error);
+                        toast.error('Failed to update status');
+
+                        // Emit revert via socket.io
+                        if (socketService.isConnected()) {
+                            socketService.emit('driver-status-change', {
+                                driverId: user?.id,
+                                status: !newStatus ? 'online' : 'offline',
+                                timestamp: new Date().toISOString(),
+                                action: 'revert-toggle'
+                            });
+                        }
                     }
                 } else {
                     const errorText = await response.text();
-                    console.error('HTTP Error:', response.status, errorText);
-
-                    // Keep the local state change for better UX
-                    console.log('Backend update failed, but keeping local state change');
+                    console.log('❌ Backend update failed:', response.status, errorText);
+                    toast.warning('Status updated locally (backend unavailable)');
                 }
             } catch (backendError) {
-                console.error('Backend error:', backendError);
-                // Keep the local state change for better UX
                 console.log('Backend unavailable, but keeping local state change');
+                toast.warning('Status updated locally (backend unavailable)');
             }
         } catch (error) {
             // Revert local state if there's a critical error
             setIsOnline(!isOnline);
+            toast.error('Failed to update status');
             console.error('Critical error updating driver status:', error);
+
+            // Emit revert via socket.io
+            if (socketService.isConnected()) {
+                socketService.emit('driver-status-change', {
+                    driverId: user?.id,
+                    status: isOnline ? 'online' : 'offline',
+                    timestamp: new Date().toISOString(),
+                    action: 'error-revert'
+                });
+            }
         }
     };
 
@@ -163,7 +272,7 @@ const DriverLayout = ({ children }) => {
                 <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white">
                     <div className="flex items-center">
                         <img
-                            src="/White.svg"
+                            src="/White.png"
                             alt="Student Delivery Logo"
                             className="w-10 h-10 object-contain rounded-xl shadow-lg"
                         />
@@ -203,7 +312,7 @@ const DriverLayout = ({ children }) => {
                 </nav>
 
                 {/* Footer Toggle (STAYS at Bottom Now) */}
-                <div className="px-4 pb-4">
+                {/* <div className="px-4 pb-4">
                     <div className="bg-white rounded-lg border border-gray-200 p-3">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-3">
@@ -237,7 +346,7 @@ const DriverLayout = ({ children }) => {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div> */}
             </div>
 
             {/* Main Content Area */}
@@ -337,7 +446,14 @@ const DriverLayout = ({ children }) => {
                 {/* Page Content */}
                 <main className="flex-1 p-4 sm:p-6 bg-gray-50 overflow-auto">
                     <div className="max-w-7xl mx-auto">
-                        {children}
+                        <DriverStatusContext.Provider value={{
+                            isOnline,
+                            setIsOnline,
+                            toggleActiveStatus,
+                            loadDriverStatus
+                        }}>
+                            {children}
+                        </DriverStatusContext.Provider>
                     </div>
                 </main>
             </div>
@@ -365,6 +481,55 @@ const DriverLayout = ({ children }) => {
 
             {/* Global Search Modal */}
             <GlobalSearch />
+
+            {/* Fixed Bottom Left Active Status Button */}
+            <div className="fixed bottom-6 left-6 z-50">
+                <button
+                    onClick={() => {
+                        console.log('Bottom status toggle clicked, current state:', isOnline);
+                        toggleActiveStatus();
+                    }}
+                    className={`group relative flex items-center justify-center w-16 h-16 rounded-full shadow-lg transition-all duration-300 ease-in-out transform hover:scale-110 focus:outline-none focus:ring-4 focus:ring-offset-2 ${isOnline
+                        ? 'bg-gradient-to-r from-green-400 to-green-600 focus:ring-green-500 shadow-green-200'
+                        : 'bg-gradient-to-r from-gray-400 to-gray-600 focus:ring-gray-500 shadow-gray-200'
+                        }`}
+                >
+                    {/* Pulsing effect when online */}
+                    {isOnline && (
+                        <div className="absolute inset-0 rounded-full bg-green-400 opacity-75 animate-ping"></div>
+                    )}
+
+                    {/* Icon */}
+                    <div className="relative z-10 flex items-center justify-center w-8 h-8 text-white font-bold text-sm">
+                        {isOnline ? (
+                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                        ) : (
+                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                        )}
+                    </div>
+
+                    {/* Tooltip */}
+                    <div className={`absolute left-full ml-4 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap ${isOnline ? 'bg-green-800' : 'bg-gray-800'
+                        }`}>
+                        {isOnline ? 'Active - Click to go offline' : 'Inactive - Click to go active'}
+                        <div className="absolute left-0 top-1/2 transform -translate-y-1/2 -translate-x-1 w-2 h-2 bg-gray-900 rotate-45"></div>
+                    </div>
+                </button>
+
+                {/* Status Text */}
+                <div className="mt-2 text-center">
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${isOnline
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-gray-100 text-gray-600'
+                        }`}>
+                        {isOnline ? 'ACTIVE' : 'OFFLINE'}
+                    </span>
+                </div>
+            </div>
         </div>
     );
 };

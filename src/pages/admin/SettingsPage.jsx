@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { isSuperAdmin } from '../../utils/userHelpers';
 import {
     Cog6ToothIcon,
     BellIcon,
@@ -23,7 +24,7 @@ const SettingsPage = () => {
     const [saving, setSaving] = useState(false);
 
     // Check if user has earnings management permission
-    const canManageEarnings = user?.role === 'super_admin' || user?.permissions?.includes('manage_earnings');
+    const canManageEarnings = isSuperAdmin(user) || user?.permissions?.includes('manage_earnings');
     const [settings, setSettings] = useState({
         notifications: {
             email: true,

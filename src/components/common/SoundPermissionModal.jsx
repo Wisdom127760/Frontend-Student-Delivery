@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import soundService from '../../services/soundService';
-import { SpeakerWaveIcon, SpeakerXMarkIcon } from '@heroicons/react/24/outline';
+import { SpeakerWaveIcon } from '@heroicons/react/24/outline';
 
 const SoundPermissionModal = ({ isOpen, onClose, onPermissionGranted }) => {
     const [permissionStatus, setPermissionStatus] = useState(null);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isSuperAdmin } from '../../utils/userHelpers';
 import SimpleNotifications from '../admin/SimpleNotifications';
 import Avatar from '../common/Avatar';
 import GlobalSearch from '../common/GlobalSearch';
@@ -36,11 +37,11 @@ const AdminLayout = ({ children }) => {
         { name: 'Drivers', href: '/admin/drivers', icon: UserGroupIcon },
         { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
         // Only show earnings management for super admins
-        ...(user?.role === 'super_admin' ? [{ name: 'Earnings', href: '/admin/earnings', icon: CurrencyDollarIcon }] : []),
+        ...(isSuperAdmin(user) ? [{ name: 'Earnings', href: '/admin/earnings', icon: CurrencyDollarIcon }] : []),
         // Only show remittances for super admins
-        ...(user?.role === 'super_admin' ? [{ name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon }] : []),
+        ...(isSuperAdmin(user) ? [{ name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon }] : []),
         // Only show admin management for super admins
-        ...(user?.role === 'super_admin' ? [{ name: 'Admin Management', href: '/admin/admins', icon: ShieldCheckIcon }] : []),
+        ...(isSuperAdmin(user) ? [{ name: 'Admin Management', href: '/admin/admins', icon: ShieldCheckIcon }] : []),
     ];
 
     const handleLogout = async () => {
@@ -71,7 +72,7 @@ const AdminLayout = ({ children }) => {
                 <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white">
                     <div className="flex items-center">
                         <img
-                            src="/White.svg"
+                            src="/White.png"
                             alt="Student Delivery Logo"
                             className="w-10 h-10 object-contain rounded-xl shadow-lg"
                         />

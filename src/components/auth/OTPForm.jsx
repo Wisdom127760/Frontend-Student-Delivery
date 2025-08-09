@@ -26,7 +26,7 @@ const OTPForm = ({ email, userType, onBack }) => {
 
   const handleOtpChange = (index, value) => {
     if (value.length > 1) return;
-    
+
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
@@ -48,7 +48,7 @@ const OTPForm = ({ email, userType, onBack }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     const otpString = otp.join('');
-    
+
     if (otpString.length !== 6) {
       toast.error('Please enter a valid 6-digit OTP');
       return;
@@ -57,8 +57,7 @@ const OTPForm = ({ email, userType, onBack }) => {
     setIsLoading(true);
     try {
       await login(email, otpString, userType);
-      toast.success('Login successful!');
-      
+
       if (userType === 'admin') {
         navigate('/admin');
       } else {

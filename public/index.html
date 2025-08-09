@@ -2,16 +2,37 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.svg" />
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0D965E" />
+    <meta name="theme-color" content="#000000" />
+    <!-- CSP temporarily disabled for testing -->
+    <!-- <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: http://localhost:3001; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:3001;"
+    /> -->
     <meta
       name="description"
       content="Student Delivery System - Modern OTP-based delivery management"
     />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/White.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <title>Greep GO! - Student Delivery System</title>
+    <title>Student Delivery System</title>
+    <script>
+      // Suppress React Router future flag warnings
+      const originalWarn = console.warn;
+      console.warn = function (...args) {
+        const message = args[0];
+        if (
+          typeof message === "string" &&
+          (message.includes("React Router Future Flag Warning") ||
+            message.includes("v7_startTransition") ||
+            message.includes("v7_relativeSplatPath"))
+        ) {
+          return;
+        }
+        originalWarn.apply(console, args);
+      };
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
