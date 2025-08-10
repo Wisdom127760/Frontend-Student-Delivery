@@ -18,6 +18,7 @@ let globalInitialized = false;
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
+    const [profile, setProfile] = useState(null);
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [sessionWarning, setSessionWarning] = useState(false);
@@ -67,6 +68,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('lastActivity');
+        localStorage.removeItem('driverProfile'); // Clear saved profile data
         setUser(null);
         setIsAuthenticated(false);
         setSessionWarning(false);
@@ -139,6 +141,20 @@ export const AuthProvider = ({ children }) => {
             throw new Error(error.response?.data?.message || 'Failed to send OTP');
         }
     }, []);
+
+    // Function to update profile data
+    const updateProfile = useCallback((profileData) => {
+        console.log('🔄 Updating profile data in AuthContext:', profileData);
+        setProfile(profileData);
+
+        // Also update user object with profile image if available
+        if (profileData?.profileImage && user) {
+            setUser(prevUser => ({
+                ...prevUser,
+                profileImage: profileData.profileImage
+            }));
+        }
+    }, [user]);
 
     // Initialize session once on mount - using global flag to prevent duplicates
     useEffect(() => {
@@ -245,11 +261,13 @@ export const AuthProvider = ({ children }) => {
 
     const value = {
         user,
+        profile,
         isAuthenticated,
         isLoading,
         login,
         logout,
         sendOTP,
+        updateProfile,
         sessionWarning,
         timeLeft,
         resetInactivityTimer

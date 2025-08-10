@@ -14,6 +14,8 @@ import DriverProfilePage from './pages/driver/ProfilePage';
 import MyDeliveries from './pages/driver/MyDeliveries';
 import EarningsPage from './pages/driver/EarningsPage';
 import RemittancePage from './pages/driver/RemittancePage';
+import NotificationsPage from './pages/driver/NotificationsPage';
+import NotFoundPage from './components/common/NotFoundPage';
 import './index.css';
 
 // Create a client
@@ -96,13 +98,12 @@ function App() {
                   <DriverProfilePage />
                 </ProtectedRoute>
               } />
-              <Route path="*" element={<div className="min-h-screen flex items-center justify-center bg-red-100">
-                <div className="text-center">
-                  <h1 className="text-2xl font-bold text-red-600 mb-4">404 - Page Not Found</h1>
-                  <p className="text-gray-600">Current URL: {window.location.pathname}</p>
-                  <a href="/" className="mt-4 inline-block bg-blue-500 text-white px-4 py-2 rounded">Go Home</a>
-                </div>
-              </div>} />
+              <Route path="/driver/notifications" element={
+                <ProtectedRoute allowedRoles={['driver']}>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              } />
+              <Route path="*" element={<NotFoundPage />} />
             </Routes>
 
             <Toaster

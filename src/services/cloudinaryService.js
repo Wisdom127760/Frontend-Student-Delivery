@@ -1,37 +1,63 @@
 // Cloudinary service for image uploads
-const CLOUDINARY_CLOUD_NAME = 'your-cloud-name';
-const CLOUDINARY_UPLOAD_PRESET = 'your-upload-preset';
+const CLOUDINARY_CLOUD_NAME = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME || 'dj6olncss';
 
-export const uploadToCloudinary = async (file) => {
-  try {
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('cloud_name', CLOUDINARY_CLOUD_NAME);
+// Compress image before upload
+export const compressImage = (file, maxWidth = 800, maxHeight = 800, quality = 0.8) => {
+  return new Promise((resolve, reject) => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
 
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-      {
-        method: 'POST',
-        body: formData,
+    img.onload = () => {
+      // Calculate new dimensions while maintaining aspect ratio
+      let { width, height } = img;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = (width * maxHeight) / height;
+          height = maxHeight;
+        }
       }
-    );
 
-    if (!response.ok) {
-      throw new Error('Upload failed');
-    }
+      canvas.width = width;
+      canvas.height = height;
 
-    const data = await response.json();
-    return {
-      url: data.secure_url,
-      publicId: data.public_id,
-      width: data.width,
-      height: data.height
+      // Draw and compress
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            // Create a new File object with the compressed data
+            const compressedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(compressedFile);
+          } else {
+            reject(new Error('Canvas toBlob failed'));
+          }
+        },
+        'image/jpeg',
+        quality
+      );
     };
-  } catch (error) {
-    console.error('Cloudinary upload error:', error);
-    throw new Error('Failed to upload image');
-  }
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+};
+
+export const uploadToCloudinary = async (file, compress = true) => {
+  // For now, we'll use local upload mode for documents
+  // This can be enabled later when Cloudinary is properly configured
+  console.warn('⚠️ Using local upload mode - documents will be uploaded directly to backend');
+  throw new Error('Using local upload mode - documents uploaded directly to backend');
 };
 
 export const deleteFromCloudinary = async (publicId) => {
@@ -67,8 +93,11 @@ export const getCloudinaryUrl = (publicId, options = {}) => {
   return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/c_${crop},w_${width},h_${height},q_${quality},f_${format}/${publicId}`;
 };
 
-export default {
+const cloudinaryService = {
   uploadToCloudinary,
+  compressImage,
   deleteFromCloudinary,
   getCloudinaryUrl
 };
+
+export default cloudinaryService;

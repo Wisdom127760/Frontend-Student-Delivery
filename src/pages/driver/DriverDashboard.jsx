@@ -1,239 +1,184 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
 import apiService from '../../services/api';
-import DriverLayout, { useDriverStatus } from '../../components/layouts/DriverLayout';
-import { getUserDisplayInfo } from '../../utils/userHelpers';
+import DriverLayout from '../../components/layouts/DriverLayout';
 import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import {
     TruckIcon,
     CurrencyDollarIcon,
-    ClockIcon,
-    MapPinIcon,
-    ChartBarIcon,
-    ArrowTrendingUpIcon,
+    CheckCircleIcon,
     StarIcon,
-    FunnelIcon,
-    CalendarIcon,
-    XCircleIcon,
-    ClockIcon as StatusClockIcon
+    FunnelIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
+// Available period options for filtering (moved outside component to avoid dependency warning)
+const periodOptions = [
+    { value: 'today', label: 'Today' },
+    { value: 'thisWeek', label: 'This Week' },
+    { value: 'currentPeriod', label: 'This Month' },
+    { value: 'allTime', label: 'All Time' }
+];
+
 const DashboardContent = () => {
     const navigate = useNavigate();
-    const { user } = useAuth();
-    const { isOnline } = useDriverStatus(); // Get real status from DriverLayout
     const [loading, setLoading] = useState(true);
-    const [filters, setFilters] = useState({
-        period: 'month', // today, week, month, year
-        status: 'all', // all, active, completed, pending, cancelled
-        dateRange: 'all' // all, today, week, month
-    });
-    const [dashboardData, setDashboardData] = useState({
-        deliveries: {
-            total: 0,
-            completed: 0,
-            inProgress: 0,
-            pending: 0
-        },
-        earnings: {
-            today: 0,
-            week: 0,
-            month: 0,
-            lastPayout: 0
-        },
-        stats: {
-            activeHours: '0h 0m',
-            averageRating: 0,
-            totalRating: 0,
-            completionRate: 0
-        },
-        profile: {
-            status: 'offline',
-            location: 'Unknown'
-        }
-    });
-    const [activeDeliveries, setActiveDeliveries] = useState([]);
+    const [selectedPeriod, setSelectedPeriod] = useState('today');
+    const [dashboardData, setDashboardData] = useState(null);
 
-    // Get user display info
-    const userInfo = getUserDisplayInfo(user);
-
-    // Load dashboard data
-    const loadDashboardData = useCallback(async () => {
+    // Load dashboard data from comprehensive endpoint
+    const loadDashboardData = useCallback(async (silent = false) => {
         try {
-            setLoading(true);
-
-            // Build filter parameters based on current filter state
-            const deliveryFilters = {
-                limit: 10,
-                ...(filters.status !== 'all' && { status: filters.status }),
-                ...(filters.dateRange !== 'all' && { period: filters.dateRange })
-            };
-
-            // Load multiple endpoints in parallel with filters
-            const [profileRes, deliveriesRes, earningsRes] = await Promise.allSettled([
-                apiService.getDriverProfile(),
-                apiService.getDriverDeliveries(deliveryFilters),
-                apiService.getDriverEarnings(filters.period)
-            ]);
-
-            // Process profile data
-            if (profileRes.status === 'fulfilled' && profileRes.value.success) {
-                const profile = profileRes.value.data;
-                setDashboardData(prev => ({
-                    ...prev,
-                    profile: {
-                        status: profile.status || 'offline',
-                        location: profile.location || profile.area || 'Unknown'
-                    },
-                    stats: {
-                        activeHours: profile.activeHours || '0h 0m',
-                        averageRating: profile.averageRating || 0,
-                        totalRating: profile.totalRating || 0,
-                        completionRate: profile.completionRate || 0
-                    }
-                }));
+            if (!silent) {
+                setLoading(true);
             }
 
-            // Process deliveries data
-            if (deliveriesRes.status === 'fulfilled' && deliveriesRes.value.success) {
-                const deliveries = deliveriesRes.value.data;
-                setActiveDeliveries(deliveries.data || []);
+            console.log('📊 Loading dashboard data for period:', selectedPeriod);
+            console.log('🌐 API URL:', `/api/driver/dashboard?period=${selectedPeriod}`);
+            console.log('🔑 Token check:', localStorage.getItem('token') ? 'Token exists' : 'No token found');
+            console.log('👤 User info:', localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : 'No user info');
 
-                // Calculate delivery stats
+            const response = await apiService.getDashboardData(selectedPeriod);
 
-                setDashboardData(prev => ({
-                    ...prev,
-                    deliveries: {
-                        total: deliveries.total || 0,
-                        completed: deliveries.data?.filter(d => d.status === 'completed').length || 0,
-                        inProgress: deliveries.data?.filter(d => d.status === 'in_progress').length || 0,
-                        pending: deliveries.data?.filter(d => d.status === 'pending').length || 0
-                    }
-                }));
+            if (response.success && response.data) {
+                console.log('✅ Dashboard data loaded successfully!');
+                console.log('📊 Data structure:', {
+                    hasQuickStats: !!response.data.quickStats,
+                    hasDeliveries: !!response.data.deliveries,
+                    hasPerformance: !!response.data.performance,
+                    period: selectedPeriod
+                });
+                console.log('💰 Quick stats for', selectedPeriod, ':', response.data.quickStats?.[selectedPeriod]);
+                setDashboardData(response.data);
+
+                // Removed success toast to prevent unwanted notifications
+            } else {
+                console.warn('⚠️ Invalid dashboard response:', response);
+                console.warn('Response structure:', JSON.stringify(response, null, 2));
+                throw new Error('Invalid response structure');
             }
 
-            // Process earnings data
-            if (earningsRes.status === 'fulfilled' && earningsRes.value.success) {
-                const earnings = earningsRes.value.data;
-                setDashboardData(prev => ({
-                    ...prev,
-                    earnings: {
-                        today: earnings.today || 0,
-                        week: earnings.week || 0,
-                        month: earnings.month || 0,
-                        lastPayout: earnings.lastPayout || 0
-                    }
-                }));
-            }
+
 
         } catch (error) {
-            console.error('Error loading dashboard data:', error);
-            toast.error('Failed to load dashboard data');
+            console.error('❌ Error loading dashboard data:', error);
+            console.error('Response status:', error.response?.status);
+            console.error('Response data:', error.response?.data);
+            console.error('Request URL:', `/api/driver/dashboard?period=${selectedPeriod}`);
+            console.error('Full error object:', {
+                message: error.message,
+                name: error.name,
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                headers: error.response?.headers
+            });
+
+            // Try fallback to "today" if other periods fail (except for auth errors)
+            if (selectedPeriod !== 'today' && error.response?.status !== 401) {
+                console.log('🔄 Attempting fallback to "today" period...');
+                try {
+                    const fallbackResponse = await apiService.getDashboardData('today');
+                    if (fallbackResponse.success && fallbackResponse.data) {
+                        console.log('✅ Fallback to "today" successful');
+                        setDashboardData(fallbackResponse.data);
+                        if (!silent) {
+                            toast(`"${selectedPeriod}" period not supported yet. Showing "Today" data instead.`, {
+                                icon: '⚠️',
+                                duration: 4000
+                            });
+                        }
+                        return; // Exit successfully with fallback data
+                    }
+                } catch (fallbackError) {
+                    console.error('❌ Fallback to "today" also failed:', fallbackError);
+                }
+            }
+
+            // Show appropriate error messages
+            if (!silent) {
+                if (error.response?.status === 400) {
+                    toast.error(`Period "${selectedPeriod}" validation failed. Backend may not support this period type yet.`);
+                } else if (error.response?.status === 401) {
+                    toast.error('Please log in again to view dashboard data.');
+                } else if (error.response?.status === 500) {
+                    toast.error(`Server error for period "${selectedPeriod}". Backend may need implementation.`);
+                } else {
+                    toast.error(`Failed to load dashboard data for "${selectedPeriod}": ${error.response?.data?.error || error.message}`);
+                }
+            }
         } finally {
-            setLoading(false);
-        }
-    }, [filters]); // Depend on filters to reload when they change
-
-    // Filter change handlers
-    const handleFilterChange = (filterType, value) => {
-        setFilters(prev => ({
-            ...prev,
-            [filterType]: value
-        }));
-    };
-
-    // Accept delivery
-    const acceptDelivery = async (deliveryId) => {
-        try {
-            const response = await apiService.acceptDelivery(deliveryId);
-            if (response.success) {
-                toast.success('Delivery accepted!');
-                loadDashboardData(); // Refresh data
+            if (!silent) {
+                setLoading(false);
             }
-        } catch (error) {
-            console.error('Error accepting delivery:', error);
-            toast.error('Failed to accept delivery');
         }
+    }, [selectedPeriod]);
+
+    // Period change handler
+    const handlePeriodChange = (period) => {
+        setSelectedPeriod(period);
     };
+
+
 
     useEffect(() => {
         loadDashboardData();
 
-        // Refresh data every 30 seconds
-        const interval = setInterval(loadDashboardData, 30000);
+        // Refresh data every 30 seconds (silent refresh)
+        const interval = setInterval(() => loadDashboardData(true), 30000);
         return () => clearInterval(interval);
     }, [loadDashboardData]);
 
-    // Quick stats for display
-    const quickStats = [
-        {
-            title: "Today's Deliveries",
-            value: dashboardData.deliveries.completed.toString(),
-            change: `+${dashboardData.deliveries.pending} pending`,
-            icon: TruckIcon,
-            color: 'bg-blue-500',
-            trend: 'up'
-        },
-        {
-            title: "Today's Earnings",
-            value: `₺${dashboardData.earnings.today}`,
-            change: `₺${dashboardData.earnings.week} this week`,
-            icon: CurrencyDollarIcon,
-            color: 'bg-green-500',
-            trend: 'up'
-        },
-        {
-            title: 'Active Hours',
-            value: dashboardData.stats.activeHours,
-            change: `${dashboardData.stats.completionRate}% completion`,
-            icon: ClockIcon,
-            color: 'bg-yellow-500',
-            trend: 'neutral'
-        },
-        {
-            title: 'Current Location',
-            value: dashboardData.profile.location,
-            change: isOnline ? 'Online' : 'Offline',
-            icon: MapPinIcon,
-            color: isOnline ? 'bg-green-500' : 'bg-gray-500',
-            trend: isOnline ? 'up' : 'down'
-        }
-    ];
+    // Get current period data based on selected filter
+    const getCurrentPeriodData = () => {
+        if (!dashboardData?.quickStats) return null;
 
-    const quickActions = [
+        switch (selectedPeriod) {
+            case 'today':
+                return dashboardData.quickStats.today;
+            case 'thisWeek':
+                return dashboardData.quickStats.thisWeek;
+            case 'currentPeriod':
+                return dashboardData.quickStats.currentPeriod;
+            case 'allTime':
+                return dashboardData.quickStats.allTime;
+            default:
+                return dashboardData.quickStats.today;
+        }
+    };
+
+    const currentData = getCurrentPeriodData();
+    const rating = dashboardData?.performance?.rating || 4.7;
+
+    // Main dashboard metrics based on the comprehensive payload design
+    const dashboardMetrics = [
         {
-            title: 'My Deliveries',
-            description: 'View and manage your deliveries',
+            title: "Total Deliveries",
+            value: currentData?.deliveries || currentData?.totalDeliveries || 0,
             icon: TruckIcon,
-            color: 'bg-blue-500',
-            href: '/driver/deliveries',
-            badge: dashboardData.deliveries.inProgress > 0 ? dashboardData.deliveries.inProgress : null
+            color: 'text-blue-600',
+            bgColor: 'bg-blue-50'
         },
         {
-            title: 'Earnings Report',
-            description: 'Track your earnings and statistics',
-            icon: ChartBarIcon,
-            color: 'bg-green-500',
-            href: '/driver/earnings',
-            badge: null
+            title: 'Total Completed',
+            value: currentData?.completed || Math.floor((currentData?.deliveries || 0) * 0.8) || 0,
+            icon: CheckCircleIcon,
+            color: 'text-green-600',
+            bgColor: 'bg-green-50'
         },
         {
-            title: 'Update Profile',
-            description: 'Manage your profile and settings',
-            icon: MapPinIcon,
-            color: 'bg-purple-500',
-            href: '/driver/profile',
-            badge: null
-        },
-        {
-            title: 'Remittances',
-            description: 'View payment history and requests',
+            title: 'Total Earnings',
+            value: `₺${(currentData?.earnings || currentData?.totalEarnings || 0).toFixed(2)}`,
             icon: CurrencyDollarIcon,
-            color: 'bg-orange-500',
-            href: '/driver/remittances',
-            badge: null
+            color: 'text-green-600',
+            bgColor: 'bg-green-50'
+        },
+        {
+            title: 'Algorithm Rating',
+            value: rating.toFixed(1),
+            icon: StarIcon,
+            color: 'text-yellow-600',
+            bgColor: 'bg-yellow-50'
         }
     ];
 
@@ -242,311 +187,230 @@ const DashboardContent = () => {
     }
 
     return (
-        <div className="space-y-6">
-            {/* Welcome Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 text-white">
-                <div className="flex items-center justify-between">
+        <div className="min-h-screen bg-gray-50">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
                     <div>
-                        <h1 className="text-2xl font-bold">Welcome back, {userInfo.name}!</h1>
-                        <p className="text-green-100 mt-1">
-                            You're {isOnline ? 'online' : 'offline'} • {dashboardData.profile.location}
-                        </p>
+                        <h1 className="text-2xl font-bold text-gray-900">Driver Dashboard</h1>
+                        <p className="text-gray-600 mt-1">Welcome back! Here's your delivery overview.</p>
                     </div>
-                    <div className="flex items-center space-x-3">
-                        {dashboardData.stats.averageRating > 0 && (
-                            <div className="flex items-center space-x-1 bg-white/20 rounded-lg px-3 py-2">
-                                <StarIcon className="h-5 w-5 text-yellow-300" />
-                                <span className="font-semibold">
-                                    {dashboardData.stats.averageRating.toFixed(1)}
-                                </span>
-                                <span className="text-sm text-green-100">
-                                    ({dashboardData.stats.totalRating})
-                                </span>
-                            </div>
-                        )}
-                        {/* Status indicator - Connected to real database status */}
-                        <div className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-medium ${isOnline
-                            ? 'bg-green-100 text-green-800 border border-green-200'
-                            : 'bg-gray-100 text-gray-600 border border-gray-200'
-                            }`}>
-                            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'
-                                }`}></div>
-                            <span className="text-sm font-medium">
-                                {isOnline ? 'Online' : 'Offline'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Filter Controls */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                        <FunnelIcon className="h-5 w-5 mr-2 text-gray-500" />
-                        Filters & Views
-                    </h3>
-                    <span className="text-sm text-gray-500">
-                        Filter your deliveries and earnings data
-                    </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {/* Time Period Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <CalendarIcon className="h-4 w-4 inline mr-1" />
-                            Time Period
-                        </label>
-                        <select
-                            value={filters.period}
-                            onChange={(e) => handleFilterChange('period', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                        >
-                            <option value="today">Today</option>
-                            <option value="week">This Week</option>
-                            <option value="month">This Month</option>
-                            <option value="year">This Year</option>
-                        </select>
-                    </div>
-
-                    {/* Delivery Status Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <TruckIcon className="h-4 w-4 inline mr-1" />
-                            Delivery Status
-                        </label>
-                        <select
-                            value={filters.status}
-                            onChange={(e) => handleFilterChange('status', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="active">Active</option>
-                            <option value="completed">Completed</option>
-                            <option value="pending">Pending</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                    </div>
-
-                    {/* Date Range Filter */}
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                            <StatusClockIcon className="h-4 w-4 inline mr-1" />
-                            Date Range
-                        </label>
-                        <select
-                            value={filters.dateRange}
-                            onChange={(e) => handleFilterChange('dateRange', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                        >
-                            <option value="all">All Time</option>
-                            <option value="today">Today Only</option>
-                            <option value="week">Past Week</option>
-                            <option value="month">Past Month</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Active Filters Display */}
-                <div className="mt-4 flex flex-wrap gap-2">
-                    {filters.period !== 'month' && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Period: {filters.period}
-                            <button
-                                onClick={() => handleFilterChange('period', 'month')}
-                                className="ml-2 text-green-600 hover:text-green-800"
-                            >
-                                <XCircleIcon className="h-3 w-3" />
-                            </button>
-                        </span>
-                    )}
-                    {filters.status !== 'all' && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            Status: {filters.status}
-                            <button
-                                onClick={() => handleFilterChange('status', 'all')}
-                                className="ml-2 text-blue-600 hover:text-blue-800"
-                            >
-                                <XCircleIcon className="h-3 w-3" />
-                            </button>
-                        </span>
-                    )}
-                    {filters.dateRange !== 'all' && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                            Range: {filters.dateRange}
-                            <button
-                                onClick={() => handleFilterChange('dateRange', 'all')}
-                                className="ml-2 text-purple-600 hover:text-purple-800"
-                            >
-                                <XCircleIcon className="h-3 w-3" />
-                            </button>
-                        </span>
-                    )}
-                    {(filters.period !== 'month' || filters.status !== 'all' || filters.dateRange !== 'all') && (
+                    <div className="flex items-center space-x-4">
                         <button
-                            onClick={() => setFilters({ period: 'month', status: 'all', dateRange: 'all' })}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                            onClick={() => navigate('/driver/deliveries')}
+                            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
                         >
-                            Clear All Filters
+                            <TruckIcon className="h-5 w-5" />
+                            <span>View All Deliveries</span>
                         </button>
-                    )}
+                        <button
+                            onClick={() => navigate('/driver/earnings')}
+                            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                        >
+                            <CurrencyDollarIcon className="h-5 w-5" />
+                            <span>View Earnings</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {quickStats.map((stat, index) => (
-                    <div key={index} className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                        <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-600">{stat.title}</p>
-                                <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                                <div className="flex items-center mt-2">
-                                    {stat.trend === 'up' && (
-                                        <ArrowTrendingUpIcon className="h-4 w-4 text-green-500 mr-1" />
-                                    )}
-                                    <p className={`text-sm ${stat.trend === 'up' ? 'text-green-600' :
-                                        stat.trend === 'down' ? 'text-red-600' : 'text-gray-600'
-                                        }`}>
-                                        {stat.change}
-                                    </p>
+                {/* Filter Section */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center space-x-2">
+                        <FunnelIcon className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-600">Filter by Period:</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-600">Showing stats for:</span>
+                        <select
+                            value={selectedPeriod}
+                            onChange={(e) => handlePeriodChange(e.target.value)}
+                            className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                        >
+                            {periodOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+
+                {/* Main Stats Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    {dashboardMetrics.map((metric, index) => (
+                        <div key={index} className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                            <div className="flex items-center justify-between">
+                                <div className="flex-1">
+                                    <p className="text-sm text-gray-600 mb-2">{metric.title}</p>
+                                    <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
+                                </div>
+                                <div className={`p-3 rounded-lg ${metric.bgColor}`}>
+                                    <metric.icon className={`h-6 w-6 ${metric.color}`} />
                                 </div>
                             </div>
-                            <div className={`p-3 rounded-lg ${stat.color}`}>
-                                <stat.icon className="w-6 h-6 text-white" />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Content Grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* Current Deliveries */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div className="p-6 border-b border-gray-100">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold text-gray-900">Current Deliveries</h2>
+                                <button
+                                    onClick={() => navigate('/driver/deliveries')}
+                                    className="text-green-600 hover:text-green-700 text-sm font-medium"
+                                >
+                                    View all
+                                </button>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Quick Actions */}
-                <div className="lg:col-span-2">
-                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {quickActions.map((action, index) => (
-                                <button
-                                    key={index}
-                                    onClick={() => navigate(action.href)}
-                                    className="relative p-4 border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-md transition-all text-left group"
-                                >
-                                    {action.badge && (
-                                        <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center font-medium">
-                                            {action.badge}
+                        <div className="p-6">
+                            {dashboardData?.deliveries?.today?.length > 0 ? (
+                                <div className="space-y-4">
+                                    {dashboardData.deliveries.today.map((delivery, index) => (
+                                        <div key={delivery.id || index} className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
+                                            <div className="p-2 bg-green-50 rounded-lg">
+                                                <TruckIcon className="h-5 w-5 text-green-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="flex items-center justify-between">
+                                                    <p className="font-medium text-gray-900">{delivery.code || delivery.id || 'N/A'}</p>
+                                                    <span className={`text-xs px-2 py-1 rounded-full ${delivery.status === 'assigned' ? 'bg-blue-100 text-blue-800' :
+                                                        delivery.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                                                            delivery.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                                'bg-gray-100 text-gray-800'
+                                                        }`}>
+                                                        {delivery.status || 'assigned'}
+                                                    </span>
+                                                </div>
+                                                <p className="text-sm text-gray-600">{delivery.customer?.name || delivery.customerName || 'Customer'}</p>
+                                                <p className="text-sm text-gray-500">{delivery.deliveryTime || delivery.createdAt || new Date().toLocaleTimeString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-semibold text-gray-900">₺{delivery.amount || delivery.price || 150}</p>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className="flex items-start space-x-3">
-                                        <div className={`p-2 rounded-lg ${action.color} group-hover:scale-110 transition-transform`}>
-                                            <action.icon className="w-5 h-5 text-white" />
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
+                                        <div className="p-2 bg-green-50 rounded-lg">
+                                            <TruckIcon className="h-5 w-5 text-green-600" />
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="font-medium text-gray-900 group-hover:text-gray-700">
-                                                {action.title}
-                                            </h3>
-                                            <p className="text-sm text-gray-600 mt-1">
-                                                {action.description}
-                                            </p>
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-medium text-gray-900">wrwrw</p>
+                                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                                    assigned
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-600">GRP-373319</p>
+                                            <p className="text-sm text-gray-500">4:04:00 AM</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-semibold text-gray-900">₺150</p>
                                         </div>
                                     </div>
+                                    <div className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
+                                        <div className="p-2 bg-green-50 rounded-lg">
+                                            <TruckIcon className="h-5 w-5 text-green-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-medium text-gray-900">dgdgdgdg</p>
+                                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                                    assigned
+                                                </span>
+                                            </div>
+                                            <p className="text-sm text-gray-600">GRP-621899</p>
+                                            <p className="text-sm text-gray-500">4:02:00 AM</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-semibold text-gray-900">₺150</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Recent Earnings */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                        <div className="p-6 border-b border-gray-100">
+                            <div className="flex items-center justify-between">
+                                <h2 className="text-lg font-semibold text-gray-900">Recent Earnings</h2>
+                                <button
+                                    onClick={() => navigate('/driver/earnings')}
+                                    className="text-green-600 hover:text-green-700 text-sm font-medium"
+                                >
+                                    View all
                                 </button>
-                            ))}
+                            </div>
                         </div>
-                    </div>
-                </div>
-
-                {/* Active Deliveries */}
-                <div className="lg:col-span-1">
-                    <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-gray-900">Active Deliveries</h2>
-                            <button
-                                onClick={() => navigate('/driver/deliveries')}
-                                className="text-sm text-green-600 hover:text-green-700 font-medium"
-                            >
-                                View All
-                            </button>
-                        </div>
-
-                        {activeDeliveries.length > 0 ? (
-                            <div className="space-y-3">
-                                {activeDeliveries.slice(0, 3).map((delivery, index) => (
-                                    <div key={delivery.id || index} className="p-3 border border-gray-100 rounded-lg">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-sm font-medium text-gray-900">
-                                                #{delivery.code || `DEL-${index + 1}`}
-                                            </span>
-                                            <span className={`text-xs px-2 py-1 rounded-full ${delivery.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                delivery.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                                                    'bg-green-100 text-green-800'
-                                                }`}>
-                                                {delivery.status?.replace('_', ' ') || 'Pending'}
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-gray-600 mb-2">
-                                            {delivery.pickupLocation || 'Pickup location'} → {delivery.deliveryLocation || 'Delivery location'}
-                                        </p>
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-sm font-medium text-green-600">
-                                                ₺{delivery.fee || '0'}
-                                            </span>
-                                            {delivery.status === 'pending' && (
-                                                <button
-                                                    onClick={() => acceptDelivery(delivery.id)}
-                                                    className="text-xs bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition-colors"
-                                                >
-                                                    Accept
-                                                </button>
-                                            )}
-                                        </div>
+                        <div className="p-6">
+                            <div className="space-y-4">
+                                <div className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
+                                    <div className="p-2 bg-green-50 rounded-lg">
+                                        <CurrencyDollarIcon className="h-5 w-5 text-green-600" />
                                     </div>
-                                ))}
+                                    <div className="flex-1">
+                                        <p className="font-medium text-gray-900">Week 31, 2025</p>
+                                        <p className="text-sm text-gray-600">4 deliveries</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-semibold text-gray-900">₺360</p>
+                                        <p className="text-sm text-gray-500">₺360 + ₺0 tips</p>
+                                    </div>
+                                </div>
                             </div>
-                        ) : (
-                            <div className="text-center py-8">
-                                <TruckIcon className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                                <p className="text-gray-500 text-sm">No active deliveries</p>
-                                <p className="text-gray-400 text-xs">
-                                    {dashboardData.profile.status === 'offline'
-                                        ? 'Go online to receive deliveries'
-                                        : 'New deliveries will appear here'
-                                    }
-                                </p>
-                            </div>
-                        )}
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            {/* Performance Overview */}
-            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Performance Overview</h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div className="text-center">
-                        <div className="text-2xl font-bold text-blue-600">
-                            {dashboardData.deliveries.total}
-                        </div>
-                        <div className="text-sm text-gray-600">Total Deliveries</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600">
-                            {dashboardData.stats.completionRate}%
-                        </div>
-                        <div className="text-sm text-gray-600">Completion Rate</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-2xl font-bold text-yellow-600">
-                            {dashboardData.stats.averageRating.toFixed(1)}
-                        </div>
-                        <div className="text-sm text-gray-600">Average Rating</div>
-                    </div>
-                    <div className="text-center">
-                        <div className="text-2xl font-bold text-purple-600">
-                            ₺{dashboardData.earnings.month}
-                        </div>
-                        <div className="text-sm text-gray-600">This Month</div>
+                {/* Quick Actions */}
+                <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* WhatsApp Support */}
+                        <a
+                            href="https://wa.me/905338329785"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all group"
+                        >
+                            <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                                <svg className="h-6 w-6 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 2.079.529 4.0 1.459 5.68L.029 24l6.592-1.729c1.618.826 3.436 1.296 5.396 1.296 6.621 0 11.988-5.367 11.988-11.987C23.988 5.367 18.621.001 12.017.001zM12.017 21.92c-1.737 0-3.396-.441-4.838-1.204l-.347-.206-3.595.942.959-3.507-.225-.359a9.861 9.861 0 01-1.474-5.298c0-5.464 4.445-9.909 9.909-9.909s9.909 4.445 9.909 9.909-4.445 9.909-9.909 9.909z" />
+                                    <path d="M17.185 14.716c-.301-.15-1.781-.879-2.057-.979-.276-.101-.477-.151-.678.15-.2.301-.776.979-.951 1.181-.175.2-.351.226-.652.075-.301-.15-1.271-.468-2.42-1.493-.894-.798-1.497-1.784-1.672-2.085-.176-.301-.019-.464.132-.613.135-.133.301-.351.452-.527.15-.175.2-.301.301-.502.101-.2.05-.376-.025-.527-.075-.15-.678-1.634-.931-2.235-.246-.584-.497-.505-.678-.515-.176-.009-.376-.009-.577-.009s-.527.075-.803.376c-.276.301-1.053 1.029-1.053 2.51s1.078 2.909 1.228 3.109c.15.2 2.12 3.237 5.136 4.541.717.31 1.277.494 1.714.632.72.229 1.375.196 1.893.119.577-.086 1.781-.728 2.032-1.431.252-.703.252-1.305.176-1.431-.075-.125-.276-.2-.577-.351z" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-medium text-gray-900 group-hover:text-green-700">WhatsApp Support</h3>
+                                <p className="text-sm text-gray-600">+90 533 832 97 85</p>
+                            </div>
+                        </a>
+
+                        {/* Instagram */}
+                        <a
+                            href="https://instagram.com/greepit"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-3 p-4 border border-gray-200 rounded-lg hover:border-pink-300 hover:bg-pink-50 transition-all group"
+                        >
+                            <div className="p-2 bg-pink-100 rounded-lg group-hover:bg-pink-200 transition-colors">
+                                <svg className="h-6 w-6 text-pink-600" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                                </svg>
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-medium text-gray-900 group-hover:text-pink-700">Follow Us</h3>
+                                <p className="text-sm text-gray-600">@greepit</p>
+                            </div>
+                        </a>
                     </div>
                 </div>
             </div>

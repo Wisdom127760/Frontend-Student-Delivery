@@ -34,8 +34,8 @@ api.interceptors.response.use(
     (error) => {
         if (error.response?.status === 401) {
             // Token expired or invalid
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
             window.location.href = '/';
         }
         return Promise.reject(error);
@@ -138,8 +138,39 @@ class ApiService {
         return response.data;
     }
 
+    async getDashboardData(period = null) {
+        const params = period ? `?period=${period}` : '';
+        const response = await api.get(`/driver/dashboard${params}`);
+        return response.data;
+    }
+
     async updateDriverProfile(profileData) {
         const response = await api.put('/driver/profile', profileData);
+        return response.data;
+    }
+
+    async uploadDriverProfileImage(formData) {
+        const response = await api.post('/driver/profile/image', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    }
+
+    async getDriverRemittances() {
+        const response = await api.get('/driver/remittances');
+        return response.data;
+    }
+
+    async requestRemittance(amount, method) {
+        const response = await api.post('/driver/remittances/request', { amount, method });
+        return response.data;
+    }
+
+    // Admin endpoints
+    async getAdminDriverStatus() {
+        const response = await api.get('/admin/drivers/status');
         return response.data;
     }
 
@@ -199,6 +230,45 @@ class ApiService {
                 'Content-Type': 'multipart/form-data',
             },
         });
+        return response.data;
+    }
+
+    // Document upload for driver verification
+    async uploadDriverDocument(documentType, formData) {
+        const response = await api.post(`/driver/documents/${documentType}/upload`, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    }
+
+    // Notification endpoints
+    async getDriverNotifications(filters = {}) {
+        const params = new URLSearchParams();
+        if (filters) {
+            Object.entries(filters).forEach(([key, value]) => {
+                if (value !== undefined && value !== null) {
+                    params.append(key, String(value));
+                }
+            });
+        }
+        const response = await api.get(`/driver/notifications?${params.toString()}`);
+        return response.data;
+    }
+
+    async getDriverUnreadNotificationsCount() {
+        const response = await api.get('/driver/notifications/unread-count');
+        return response.data;
+    }
+
+    async markNotificationAsRead(notificationId) {
+        const response = await api.put(`/driver/notifications/${notificationId}/read`);
+        return response.data;
+    }
+
+    async markAllNotificationsAsRead() {
+        const response = await api.put('/driver/notifications/mark-all-read');
         return response.data;
     }
 }

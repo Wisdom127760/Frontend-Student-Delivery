@@ -12,6 +12,7 @@ import {
 import { getDashboardData, getRecentDeliveries, getTopDrivers } from '../../services/dashboardService';
 import { formatCurrency } from '../../services/systemSettings';
 import RealTimeDriverStatus from '../../components/admin/RealTimeDriverStatus';
+import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
 
 const AdminDashboard = () => {
@@ -20,36 +21,69 @@ const AdminDashboard = () => {
     const [recentDeliveries, setRecentDeliveries] = useState([]);
     const [topDrivers, setTopDrivers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const loadDashboardData = async (silent = false) => {
+        try {
+            if (!silent) {
+                setIsLoading(true);
+            } else {
+                setIsRefreshing(true);
+            }
+
+            const [dashboard, deliveries, drivers] = await Promise.all([
+                getDashboardData(),
+                getRecentDeliveries(),
+                getTopDrivers()
+            ]);
+
+            setDashboardData(dashboard);
+            setRecentDeliveries(deliveries);
+            setTopDrivers(drivers);
+        } catch (error) {
+            if (!silent) {
+                toast.error('Failed to load dashboard data');
+            }
+        } finally {
+            if (!silent) {
+                setIsLoading(false);
+            } else {
+                setIsRefreshing(false);
+            }
+        }
+    };
 
     useEffect(() => {
-        const fetchDashboardData = async () => {
-            try {
-                const [dashboard, deliveries, drivers] = await Promise.all([
-                    getDashboardData(),
-                    getRecentDeliveries(),
-                    getTopDrivers()
-                ]);
+        loadDashboardData();
 
-                setDashboardData(dashboard);
-                setRecentDeliveries(deliveries);
-                setTopDrivers(drivers);
-            } catch (error) {
-                toast.error('Failed to load dashboard data');
-            } finally {
-                setIsLoading(false);
-            }
-        };
+        // Set up auto-refresh every 30 seconds
+        const interval = setInterval(() => {
+            loadDashboardData(true); // Silent refresh
+        }, 30000);
 
-        fetchDashboardData();
+        return () => clearInterval(interval);
     }, []);
 
-    // Show loading state
+    // Show skeleton loading state - silent and matches content structure
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading dashboard...</p>
+            <div className="min-h-screen bg-gray-50">
+                {/* Header skeleton */}
+                <div className="bg-white shadow-sm border-b">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex justify-between items-center py-6">
+                            <div className="flex items-center space-x-4">
+                                <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                <div className="w-48 h-8 bg-gray-200 rounded animate-pulse"></div>
+                            </div>
+                            <div className="w-40 h-5 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Main content skeleton */}
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <DashboardSkeleton />
                 </div>
             </div>
         );
@@ -88,6 +122,13 @@ const AdminDashboard = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
+            {/* Subtle refresh indicator */}
+            {isRefreshing && (
+                <div className="fixed top-0 left-0 right-0 z-50">
+                    <div className="h-1 bg-gradient-to-r from-green-400 to-green-600 animate-pulse"></div>
+                </div>
+            )}
+
             {/* Header */}
             <div className="bg-white shadow-sm border-b">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

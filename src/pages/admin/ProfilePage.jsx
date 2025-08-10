@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getProfile, updateProfile } from '../../services/profileService';
 import ProfileImageUpload from '../../components/common/ProfileImageUpload';
+import { ProfilePageSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
 import { UserIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
@@ -74,10 +75,9 @@ const ProfilePage = () => {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading profile...</p>
+            <div className="min-h-screen bg-gray-50">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                    <ProfilePageSkeleton />
                 </div>
             </div>
         );

@@ -36,49 +36,9 @@ const isBackendAvailable = async () => {
 export const getDashboardData = async (period = 'month') => {
   const backendAvailable = await isBackendAvailable();
 
+  // No fallback - backend must be available
   if (!backendAvailable) {
-    return {
-      totalDeliveries: 1247,
-      totalRevenue: 45600,
-      activeDrivers: 23,
-      successRate: 98.5,
-      recentDeliveries: [
-        {
-          id: '1',
-          customerName: 'John Doe',
-          pickupLocation: 'Famagusta Center',
-          deliveryLocation: 'Eastern Mediterranean University',
-          status: 'completed',
-          amount: 25.50,
-          createdAt: new Date().toISOString()
-        },
-        {
-          id: '2',
-          customerName: 'Jane Smith',
-          pickupLocation: 'City Mall',
-          deliveryLocation: 'Student Housing',
-          status: 'in_progress',
-          amount: 18.75,
-          createdAt: new Date(Date.now() - 3600000).toISOString()
-        }
-      ],
-      topDrivers: [
-        {
-          id: '1',
-          name: 'Ahmed Hassan',
-          deliveries: 45,
-          earnings: 1250.00,
-          rating: 4.8
-        },
-        {
-          id: '2',
-          name: 'Mehmet Yilmaz',
-          deliveries: 38,
-          earnings: 1100.00,
-          rating: 4.9
-        }
-      ]
-    };
+    throw new Error('Backend is not available');
   }
 
   try {
@@ -223,36 +183,9 @@ export const getTopDrivers = async (limit = 5) => {
 export const getRealTimeDriverStatus = async () => {
   const backendAvailable = await isBackendAvailable();
 
+  // No fallback - backend must be available
   if (!backendAvailable) {
-    return {
-      online: 12,
-      busy: 8,
-      offline: 15,
-      total: 35,
-      drivers: [
-        {
-          id: '1',
-          name: 'Ahmed Hassan',
-          status: 'online',
-          lastActive: new Date().toISOString(),
-          currentLocation: 'Famagusta Center'
-        },
-        {
-          id: '2',
-          name: 'Mehmet Yilmaz',
-          status: 'busy',
-          lastActive: new Date(Date.now() - 300000).toISOString(),
-          currentLocation: 'Eastern Mediterranean University'
-        },
-        {
-          id: '3',
-          name: 'Ali Kaya',
-          status: 'offline',
-          lastActive: new Date(Date.now() - 1800000).toISOString(),
-          currentLocation: 'City Mall'
-        }
-      ]
-    };
+    throw new Error('Backend is not available');
   }
 
   try {

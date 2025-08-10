@@ -1,7 +1,7 @@
 import React from 'react';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
 
-const Avatar = ({ user, size = 'md', className = '' }) => {
+const Avatar = ({ user, profile, size = 'md', className = '' }) => {
     const sizeClasses = {
         sm: 'h-8 w-8',
         md: 'h-10 w-10',
@@ -27,24 +27,49 @@ const Avatar = ({ user, size = 'md', className = '' }) => {
             .slice(0, 2);
     };
 
-    const initials = getInitials(user?.name || user?.email);
+    // Get the best available name for initials
+    const userName = user?.name ||
+        user?.profile?.personalDetails?.fullName ||
+        profile?.profile?.personalDetails?.fullName ||
+        user?.email;
 
-    if (user?.avatar || user?.profileImage) {
+    const initials = getInitials(userName);
+
+    // Check for profile image in various possible locations
+    const profileImage = user?.avatar ||
+        user?.profileImage ||
+        user?.profile?.profileImage ||
+        user?.profile?.personalDetails?.profileImage ||
+        profile?.profileImage ||
+        profile?.profile?.profileImage;
+
+    if (profileImage) {
         return (
             <img
-                src={user.avatar || user.profileImage}
-                alt={user.name || 'User avatar'}
+                src={profileImage}
+                alt={userName || 'User avatar'}
                 className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
+                onError={(e) => {
+                    // Fallback to initials if image fails to load
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                }}
             />
         );
     }
 
     return (
-        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} ${className}`}>
-            {initials !== '?' ? initials : (
-                <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
-            )}
-        </div>
+        <>
+            {/* Hidden fallback div that shows when image fails to load */}
+            <div
+                className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} ${className}`}
+                style={{ display: profileImage ? 'none' : 'flex' }}
+            >
+                {initials !== '?' ? initials : (
+                    <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
+                )}
+            </div>
+        </>
     );
 };
 

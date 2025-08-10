@@ -46,7 +46,7 @@ const AdminLayout = ({ children }) => {
 
     const handleLogout = async () => {
         await logout();
-        navigate('/login');
+        navigate('/');
     };
 
     // Updated isActive logic for better path matching

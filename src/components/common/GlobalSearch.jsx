@@ -355,7 +355,7 @@ const GlobalSearch = () => {
                     </div>
 
                     {/* Footer */}
-                    <div className="border-t border-gray-100 p-4 bg-gray-50">
+                    <div className="border-t border-gray-100 p-4 bg-gray-50 rounded-b-2xl">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-4 text-sm text-gray-600">
                                 <div className="flex items-center space-x-2">

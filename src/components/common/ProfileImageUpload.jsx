@@ -39,7 +39,7 @@ const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
     try {
       const file = fileInputRef.current.files[0];
       const result = await uploadProfileImage(userId, file);
-      
+
       toast.success('Profile image updated successfully!');
       onImageUpdate(result.imageUrl);
       setPreviewImage(null);
@@ -76,7 +76,7 @@ const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
               <CameraIcon className="w-8 h-8 text-gray-400" />
             )}
           </div>
-          
+
           {previewImage && (
             <button
               onClick={handleCancel}
@@ -91,7 +91,7 @@ const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Profile Image
           </label>
-          
+
           <div className="flex space-x-2">
             <input
               ref={fileInputRef}
@@ -100,14 +100,14 @@ const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
               onChange={handleImageSelect}
               className="hidden"
             />
-            
+
             <button
               onClick={() => fileInputRef.current?.click()}
               className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
             >
               Choose Image
             </button>
-            
+
             {previewImage && (
               <button
                 onClick={handleUpload}
@@ -118,7 +118,7 @@ const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
               </button>
             )}
           </div>
-          
+
           <p className="text-xs text-gray-500 mt-1">
             JPG, PNG or GIF. Max size 5MB.
           </p>

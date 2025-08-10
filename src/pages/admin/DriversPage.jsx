@@ -2,36 +2,56 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getDrivers, deleteDriver } from '../../services/dashboardService';
 import { getStatusColor, getStatusText, formatCurrency, formatDateTime } from '../../services/systemSettings';
 import { ArrowPathIcon, MagnifyingGlassIcon, TrashIcon, EyeIcon } from '@heroicons/react/24/outline';
+import { TableRowSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
 
 const DriversPage = () => {
   const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [lastUpdate, setLastUpdate] = useState(null);
 
-  const fetchDrivers = useCallback(async () => {
-    setIsLoading(true);
+  const fetchDrivers = useCallback(async (silent = false) => {
+    if (!silent) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
     try {
       const filters = {
         status: statusFilter !== 'all' ? statusFilter : undefined,
         search: searchTerm || undefined
       };
-      
+
       const data = await getDrivers(filters);
       setDrivers(data.drivers || data);
       setLastUpdate(new Date());
     } catch (error) {
-      toast.error('Failed to fetch drivers');
+      if (!silent) {
+        toast.error('Failed to fetch drivers');
+      }
       console.error('Error fetching drivers:', error);
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
     }
   }, [searchTerm, statusFilter]);
 
   useEffect(() => {
     fetchDrivers();
+
+    // Set up auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchDrivers(true); // Silent refresh
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, [fetchDrivers]);
 
   const handleDeleteDriver = async (driverId, driverName) => {
@@ -50,18 +70,25 @@ const DriversPage = () => {
   };
 
   const handleRefresh = () => {
-    fetchDrivers();
+    fetchDrivers(false); // Force refresh with loading state
   };
 
   const filteredDrivers = drivers.filter(driver => {
     const matchesSearch = driver.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         driver.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      driver.email?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === 'all' || driver.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Subtle refresh indicator */}
+      {isRefreshing && (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <div className="h-1 bg-gradient-to-r from-green-400 to-green-600 animate-pulse"></div>
+        </div>
+      )}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -77,7 +104,7 @@ const DriversPage = () => {
                 )}
               </p>
             </div>
-            
+
             <button
               onClick={handleRefresh}
               disabled={isLoading}
@@ -162,72 +189,79 @@ const DriversPage = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredDrivers.map((driver) => (
-                  <tr key={driver.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                          {driver.profileImage ? (
-                            <img
-                              src={driver.profileImage}
-                              alt={driver.name}
-                              className="w-10 h-10 rounded-full object-cover"
-                            />
-                          ) : (
-                            <span className="text-sm font-medium text-gray-600">
-                              {driver.name?.charAt(0).toUpperCase()}
-                            </span>
-                          )}
+                {isLoading ? (
+                  // Show skeleton rows while loading
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRowSkeleton key={index} columns={7} />
+                  ))
+                ) : (
+                  filteredDrivers.map((driver) => (
+                    <tr key={driver.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                            {driver.profileImage ? (
+                              <img
+                                src={driver.profileImage}
+                                alt={driver.name}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <span className="text-sm font-medium text-gray-600">
+                                {driver.name?.charAt(0).toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <div className="ml-4">
+                            <div className="text-sm font-medium text-gray-900">{driver.name}</div>
+                            <div className="text-sm text-gray-500">ID: {driver.id}</div>
+                          </div>
                         </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{driver.name}</div>
-                          <div className="text-sm text-gray-500">ID: {driver.id}</div>
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-900">{driver.email}</div>
+                        <div className="text-sm text-gray-500">{driver.phone}</div>
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(driver.status)}`}>
+                          {getStatusText(driver.status)}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {driver.deliveries || 0}
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {formatCurrency(driver.earnings || 0)}
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {driver.lastActive ? formatDateTime(driver.lastActive) : 'Never'}
+                      </td>
+
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            className="text-blue-600 hover:text-blue-900 p-1"
+                            title="View Details"
+                          >
+                            <EyeIcon className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteDriver(driver.id, driver.name)}
+                            className="text-red-600 hover:text-red-900 p-1"
+                            title="Delete Driver"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
                         </div>
-                      </div>
-                    </td>
-                    
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{driver.email}</div>
-                      <div className="text-sm text-gray-500">{driver.phone}</div>
-                    </td>
-                    
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(driver.status)}`}>
-                        {getStatusText(driver.status)}
-                      </span>
-                    </td>
-                    
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {driver.deliveries || 0}
-                    </td>
-                    
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatCurrency(driver.earnings || 0)}
-                    </td>
-                    
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {driver.lastActive ? formatDateTime(driver.lastActive) : 'Never'}
-                    </td>
-                    
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          className="text-blue-600 hover:text-blue-900 p-1"
-                          title="View Details"
-                        >
-                          <EyeIcon className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteDriver(driver.id, driver.name)}
-                          className="text-red-600 hover:text-red-900 p-1"
-                          title="Delete Driver"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -240,7 +274,7 @@ const DriversPage = () => {
                 </svg>
                 <h3 className="mt-2 text-sm font-medium text-gray-900">No drivers found</h3>
                 <p className="mt-1 text-sm text-gray-500">
-                  {searchTerm || statusFilter !== 'all' 
+                  {searchTerm || statusFilter !== 'all'
                     ? 'Try adjusting your search or filter criteria.'
                     : 'No drivers are currently registered.'
                   }

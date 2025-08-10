@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import SimpleDriverNotifications from '../driver/SimpleDriverNotifications';
 import SimpleEmergencyAlert from '../driver/SimpleEmergencyAlert';
+import NotificationsDropdown from '../driver/NotificationsDropdown';
 import Avatar from '../common/Avatar';
 import SoundPermissionModal from '../common/SoundPermissionModal';
 import GlobalSearch from '../common/GlobalSearch';
@@ -18,7 +19,8 @@ import {
     ArrowRightOnRectangleIcon,
     DocumentTextIcon,
     MagnifyingGlassIcon,
-    CommandLineIcon
+    CommandLineIcon,
+    BellIcon
 } from '@heroicons/react/24/outline';
 
 // Create context for driver status
@@ -41,7 +43,7 @@ const DriverLayout = ({ children }) => {
     const [showSoundPermission, setShowSoundPermission] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, logout } = useAuth();
+    const { user, profile, logout } = useAuth();
 
     const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -136,12 +138,13 @@ const DriverLayout = ({ children }) => {
         { name: 'My Deliveries', href: '/driver/deliveries', icon: TruckIcon },
         { name: 'Earnings', href: '/driver/earnings', icon: CurrencyDollarIcon },
         { name: 'Remittances', href: '/driver/remittances', icon: DocumentTextIcon },
+        { name: 'Notifications', href: '/driver/notifications', icon: BellIcon },
         { name: 'Profile', href: '/driver/profile', icon: UserCircleIcon },
     ];
 
     const handleLogout = async () => {
         await logout();
-        navigate('/login');
+        navigate('/');
     };
 
     const isActive = (path) => location.pathname === path;
@@ -384,7 +387,7 @@ const DriverLayout = ({ children }) => {
                         </button>
 
                         {/* Notifications */}
-                        <SimpleDriverNotifications />
+                        <NotificationsDropdown />
 
                         {/* User Menu */}
                         <div className="relative">
@@ -392,9 +395,9 @@ const DriverLayout = ({ children }) => {
                                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                                 className="flex items-center space-x-2 sm:space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                             >
-                                <Avatar user={user} size="md" />
+                                <Avatar user={user} profile={profile} size="md" />
                                 <div className="hidden sm:block text-left">
-                                    <p className="text-sm font-semibold text-gray-900 capitalize">{user?.name || 'Driver User'}</p>
+                                    <p className="text-sm font-semibold text-gray-900 capitalize">{profile?.profile?.personalDetails?.fullName || user?.name || 'Driver User'}</p>
                                     <p className="text-xs text-gray-500">{user?.email}</p>
                                 </div>
                                 <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
@@ -404,7 +407,7 @@ const DriverLayout = ({ children }) => {
                             {userMenuOpen && (
                                 <div className="absolute right-0 mt-2 w-48 sm:w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
                                     <div className="px-4 py-3 border-b border-gray-100">
-                                        <p className="text-sm font-semibold text-gray-900 capitalize">{user?.name || 'Driver User'}</p>
+                                        <p className="text-sm font-semibold text-gray-900 capitalize">{profile?.profile?.personalDetails?.fullName || user?.name || 'Driver User'}</p>
                                         <p className="text-xs text-gray-500">{user?.email}</p>
                                     </div>
                                     <div className="py-1">
