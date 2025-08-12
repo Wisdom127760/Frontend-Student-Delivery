@@ -14,8 +14,7 @@ import {
     CurrencyDollarIcon,
     CurrencyEuroIcon,
     CurrencyPoundIcon,
-    CurrencyYenIcon,
-    SpeakerWaveIcon
+    CurrencyYenIcon
 } from '@heroicons/react/24/outline';
 
 const SettingsPage = () => {
@@ -182,14 +181,14 @@ const SettingsPage = () => {
     };
 
     // Create audio context for sound generation
-    const createAudioContext = () => {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        // Resume audio context if suspended (required for some browsers)
-        if (audioContext.state === 'suspended') {
-            audioContext.resume();
-        }
-        return audioContext;
-    };
+    // const createAudioContext = () => {
+    //     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    //     // Resume audio context if suspended (required for some browsers)
+    //     if (audioContext.state === 'suspended') {
+    //         audioContext.resume();
+    //     }
+    //     return audioContext;
+    // };
 
 
 

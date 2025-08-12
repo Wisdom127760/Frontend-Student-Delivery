@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { getRealTimeDriverStatus } from '../../services/dashboardService';
 import { getStatusColor, getStatusText } from '../../services/systemSettings';
-import { socket } from '../../services/socketService';
+import socketService from '../../services/socketService';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 
 const RealTimeDriverStatus = () => {
@@ -17,7 +17,7 @@ const RealTimeDriverStatus = () => {
 
   const fetchDriverStatus = useCallback(async (silent = false) => {
     if (!silent) setIsLoading(true);
-    
+
     try {
       const data = await getRealTimeDriverStatus();
       setDriverStatus(data);
@@ -31,7 +31,7 @@ const RealTimeDriverStatus = () => {
 
   useEffect(() => {
     fetchDriverStatus();
-    
+
     // Set up auto-refresh every 30 seconds
     const interval = setInterval(() => {
       fetchDriverStatus(true);
@@ -42,17 +42,24 @@ const RealTimeDriverStatus = () => {
 
   // Socket.IO event listeners for real-time updates
   useEffect(() => {
+    // Check if socket is available
+    const socket = socketService.getSocket();
+    if (!socket || !socketService.isConnected()) {
+      console.log('Socket not available for RealTimeDriverStatus');
+      return;
+    }
+
     const handleDriverOnline = (driver) => {
       setDriverStatus(prev => {
-        const updatedDrivers = prev.drivers.map(d => 
+        const updatedDrivers = prev.drivers.map(d =>
           d.id === driver.id ? { ...d, status: 'online', lastActive: new Date().toISOString() } : d
         );
-        
+
         const counts = updatedDrivers.reduce((acc, d) => {
           acc[d.status] = (acc[d.status] || 0) + 1;
           return acc;
         }, { online: 0, busy: 0, offline: 0 });
-        
+
         return {
           ...prev,
           drivers: updatedDrivers,
@@ -64,15 +71,15 @@ const RealTimeDriverStatus = () => {
 
     const handleDriverOffline = (driver) => {
       setDriverStatus(prev => {
-        const updatedDrivers = prev.drivers.map(d => 
+        const updatedDrivers = prev.drivers.map(d =>
           d.id === driver.id ? { ...d, status: 'offline', lastActive: new Date().toISOString() } : d
         );
-        
+
         const counts = updatedDrivers.reduce((acc, d) => {
           acc[d.status] = (acc[d.status] || 0) + 1;
           return acc;
         }, { online: 0, busy: 0, offline: 0 });
-        
+
         return {
           ...prev,
           drivers: updatedDrivers,
@@ -84,15 +91,15 @@ const RealTimeDriverStatus = () => {
 
     const handleDriverBusy = (driver) => {
       setDriverStatus(prev => {
-        const updatedDrivers = prev.drivers.map(d => 
+        const updatedDrivers = prev.drivers.map(d =>
           d.id === driver.id ? { ...d, status: 'busy', lastActive: new Date().toISOString() } : d
         );
-        
+
         const counts = updatedDrivers.reduce((acc, d) => {
           acc[d.status] = (acc[d.status] || 0) + 1;
           return acc;
         }, { online: 0, busy: 0, offline: 0 });
-        
+
         return {
           ...prev,
           drivers: updatedDrivers,
@@ -108,9 +115,11 @@ const RealTimeDriverStatus = () => {
     socket.on('driver:busy', handleDriverBusy);
 
     return () => {
-      socket.off('driver:online', handleDriverOnline);
-      socket.off('driver:offline', handleDriverOffline);
-      socket.off('driver:busy', handleDriverBusy);
+      if (socket) {
+        socket.off('driver:online', handleDriverOnline);
+        socket.off('driver:offline', handleDriverOffline);
+        socket.off('driver:busy', handleDriverBusy);
+      }
     };
   }, []);
 
@@ -149,7 +158,7 @@ const RealTimeDriverStatus = () => {
             )}
           </p>
         </div>
-        
+
         <button
           onClick={() => fetchDriverStatus()}
           disabled={isLoading}
@@ -162,7 +171,7 @@ const RealTimeDriverStatus = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {statusCards.map((card, index) => (
-          <div key={index} className="bg-gray-50 rounded-lg p-4">
+          <div key={`status-${card.title}-${index}`} className="bg-gray-50 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-600">{card.title}</p>
@@ -179,8 +188,8 @@ const RealTimeDriverStatus = () => {
       <div className="space-y-3">
         <h3 className="text-sm font-medium text-gray-700">Recent Activity</h3>
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {driverStatus.drivers.slice(0, 5).map((driver) => (
-            <div key={driver.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          {driverStatus.drivers.slice(0, 5).map((driver, index) => (
+            <div key={driver._id || driver.id || `driver-status-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-3">
                 <div className={`w-3 h-3 rounded-full ${getStatusColor(driver.status).split(' ')[0]}`}></div>
                 <div>

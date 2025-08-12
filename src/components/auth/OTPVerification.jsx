@@ -125,7 +125,7 @@ const OTPVerification = () => {
                     </p>
 
                     {/* Development Helper */}
-                    {process.env.NODE_ENV === 'development' && (
+                    {/* {process.env.NODE_ENV === 'development' && (
                         <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                             <p className="text-xs text-yellow-800">
                                 <strong>Development Mode:</strong> Check your email or try common test codes
@@ -134,7 +134,7 @@ const OTPVerification = () => {
                                 If this is a real backend, check server logs for the actual OTP
                             </p>
                         </div>
-                    )}
+                    )} */}
                 </div>
 
                 {/* Form */}

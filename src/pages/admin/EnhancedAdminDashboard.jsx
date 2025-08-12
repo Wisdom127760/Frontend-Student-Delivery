@@ -1,15 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     ChartBarIcon,
     TruckIcon,
     UserGroupIcon,
     CurrencyDollarIcon,
+    BellIcon,
     ExclamationTriangleIcon,
     CheckCircleIcon,
     ClockIcon,
-    ArrowUpIcon,
-    ArrowDownIcon
+    MapPinIcon
 } from '@heroicons/react/24/outline';
 import { getDashboardData, getRecentDeliveries, getTopDrivers } from '../../services/dashboardService';
 import { formatCurrency } from '../../services/systemSettings';
@@ -18,7 +18,7 @@ import RealTimeNotifications from '../../components/admin/RealTimeNotifications'
 import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
 
-const AdminDashboard = () => {
+const EnhancedAdminDashboard = () => {
     const navigate = useNavigate();
     const [dashboardData, setDashboardData] = useState(null);
     const [recentDeliveries, setRecentDeliveries] = useState([]);
@@ -27,7 +27,7 @@ const AdminDashboard = () => {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [selectedPeriod, setSelectedPeriod] = useState('today');
 
-    const loadDashboardData = useCallback(async (silent = false) => {
+    const loadDashboardData = async (silent = false) => {
         try {
             if (!silent) {
                 setIsLoading(true);
@@ -55,7 +55,7 @@ const AdminDashboard = () => {
                 setIsRefreshing(false);
             }
         }
-    }, [selectedPeriod]);
+    };
 
     useEffect(() => {
         loadDashboardData();
@@ -66,7 +66,7 @@ const AdminDashboard = () => {
         }, 30000);
 
         return () => clearInterval(interval);
-    }, [loadDashboardData]);
+    }, [selectedPeriod]);
 
     // Show skeleton loading state
     if (isLoading) {
@@ -86,8 +86,7 @@ const AdminDashboard = () => {
             change: dashboardData?.deliveryGrowth || '+0%',
             icon: TruckIcon,
             color: 'bg-blue-500',
-            description: 'All time deliveries',
-            trend: 'up'
+            description: 'All time deliveries'
         },
         {
             title: 'Active Drivers',
@@ -95,8 +94,7 @@ const AdminDashboard = () => {
             change: dashboardData?.driverGrowth || '+0%',
             icon: UserGroupIcon,
             color: 'bg-green-500',
-            description: 'Currently online',
-            trend: 'up'
+            description: 'Currently online'
         },
         {
             title: 'Total Revenue',
@@ -104,8 +102,7 @@ const AdminDashboard = () => {
             change: dashboardData?.revenueGrowth || '+0%',
             icon: CurrencyDollarIcon,
             color: 'bg-yellow-500',
-            description: 'Platform earnings',
-            trend: 'up'
+            description: 'Platform earnings'
         },
         {
             title: 'Pending Deliveries',
@@ -113,8 +110,7 @@ const AdminDashboard = () => {
             change: dashboardData?.pendingGrowth || '+0%',
             icon: ClockIcon,
             color: 'bg-orange-500',
-            description: 'Awaiting assignment',
-            trend: 'down'
+            description: 'Awaiting assignment'
         }
     ];
 
@@ -136,13 +132,6 @@ const AdminDashboard = () => {
             case 'cancelled': return <ExclamationTriangleIcon className="w-4 h-4" />;
             default: return <ClockIcon className="w-4 h-4" />;
         }
-    };
-
-    const getTrendIcon = (trend) => {
-        if (trend === 'up') {
-            return <ArrowUpIcon className="w-4 h-4 text-green-600" />;
-        }
-        return <ArrowDownIcon className="w-4 h-4 text-red-600" />;
     };
 
     return (
@@ -195,8 +184,7 @@ const AdminDashboard = () => {
                                     </div>
                                 </div>
                                 <div className="mt-4 flex items-center">
-                                    {getTrendIcon(stat.trend)}
-                                    <span className={`text-sm font-medium ml-1 ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
+                                    <span className={`text-sm font-medium ${stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'}`}>
                                         {stat.change}
                                     </span>
                                     <span className="text-sm text-gray-500 ml-2">from last period</span>
@@ -345,5 +333,5 @@ const AdminDashboard = () => {
     );
 };
 
-export default AdminDashboard;
+export default EnhancedAdminDashboard;
 

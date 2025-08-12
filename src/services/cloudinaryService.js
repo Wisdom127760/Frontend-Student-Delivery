@@ -1,3 +1,6 @@
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+
 // Cloudinary service for image uploads
 const CLOUDINARY_CLOUD_NAME = process.env.REACT_APP_CLOUDINARY_CLOUD_NAME || 'dj6olncss';
 
@@ -62,7 +65,7 @@ export const uploadToCloudinary = async (file, compress = true) => {
 
 export const deleteFromCloudinary = async (publicId) => {
   try {
-    const response = await fetch(`/api/cloudinary/delete`, {
+    const response = await fetch(`${API_BASE_URL}/cloudinary/delete`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
-import DriverLayout from '../../components/layouts/DriverLayout';
 import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import {
     TruckIcon,
@@ -74,26 +73,7 @@ const DashboardContent = () => {
                 headers: error.response?.headers
             });
 
-            // Try fallback to "today" if other periods fail (except for auth errors)
-            if (selectedPeriod !== 'today' && error.response?.status !== 401) {
-                console.log('🔄 Attempting fallback to "today" period...');
-                try {
-                    const fallbackResponse = await apiService.getDashboardData('today');
-                    if (fallbackResponse.success && fallbackResponse.data) {
-                        console.log('✅ Fallback to "today" successful');
-                        setDashboardData(fallbackResponse.data);
-                        if (!silent) {
-                            toast(`"${selectedPeriod}" period not supported yet. Showing "Today" data instead.`, {
-                                icon: '⚠️',
-                                duration: 4000
-                            });
-                        }
-                        return; // Exit successfully with fallback data
-                    }
-                } catch (fallbackError) {
-                    console.error('❌ Fallback to "today" also failed:', fallbackError);
-                }
-            }
+
 
             // Show appropriate error messages
             if (!silent) {
@@ -148,34 +128,34 @@ const DashboardContent = () => {
     };
 
     const currentData = getCurrentPeriodData();
-    const rating = dashboardData?.performance?.rating || 4.7;
+    const rating = dashboardData?.performance?.rating || null;
 
     // Main dashboard metrics based on the comprehensive payload design
     const dashboardMetrics = [
         {
             title: "Total Deliveries",
-            value: currentData?.deliveries || currentData?.totalDeliveries || 0,
+            value: currentData?.deliveries || currentData?.totalDeliveries || null,
             icon: TruckIcon,
             color: 'text-blue-600',
             bgColor: 'bg-blue-50'
         },
         {
-            title: 'Total Completed',
-            value: currentData?.completed || Math.floor((currentData?.deliveries || 0) * 0.8) || 0,
+            title: 'Completion Rate',
+            value: currentData?.completionRate || null,
             icon: CheckCircleIcon,
             color: 'text-green-600',
             bgColor: 'bg-green-50'
         },
         {
             title: 'Total Earnings',
-            value: `₺${(currentData?.earnings || currentData?.totalEarnings || 0).toFixed(2)}`,
+            value: currentData?.earnings || currentData?.totalEarnings || null,
             icon: CurrencyDollarIcon,
             color: 'text-green-600',
             bgColor: 'bg-green-50'
         },
         {
             title: 'Algorithm Rating',
-            value: rating.toFixed(1),
+            value: rating || null,
             icon: StarIcon,
             color: 'text-yellow-600',
             bgColor: 'bg-yellow-50'
@@ -242,7 +222,13 @@ const DashboardContent = () => {
                             <div className="flex items-center justify-between">
                                 <div className="flex-1">
                                     <p className="text-sm text-gray-600 mb-2">{metric.title}</p>
-                                    <p className="text-3xl font-bold text-gray-900">{metric.value}</p>
+                                    <p className="text-3xl font-bold text-gray-900">
+                                        {metric.value === null ? '0' :
+                                            metric.title === 'Total Earnings' ? `₺${metric.value?.toFixed(2) || '0.00'}` :
+                                                metric.title === 'Algorithm Rating' ? metric.value?.toFixed(1) || '0' :
+                                                    metric.title === 'Completion Rate' ? `${metric.value || 0}%` :
+                                                        metric.value || '0'}
+                                    </p>
                                 </div>
                                 <div className={`p-3 rounded-lg ${metric.bgColor}`}>
                                     <metric.icon className={`h-6 w-6 ${metric.color}`} />
@@ -277,7 +263,7 @@ const DashboardContent = () => {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="flex items-center justify-between">
-                                                    <p className="font-medium text-gray-900">{delivery.code || delivery.id || 'N/A'}</p>
+                                                    <p className="font-medium text-gray-900">{delivery.code || delivery.id || '0'}</p>
                                                     <span className={`text-xs px-2 py-1 rounded-full ${delivery.status === 'assigned' ? 'bg-blue-100 text-blue-800' :
                                                         delivery.status === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
                                                             delivery.status === 'completed' ? 'bg-green-100 text-green-800' :
@@ -290,49 +276,15 @@ const DashboardContent = () => {
                                                 <p className="text-sm text-gray-500">{delivery.deliveryTime || delivery.createdAt || new Date().toLocaleTimeString()}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-semibold text-gray-900">₺{delivery.amount || delivery.price || 150}</p>
+                                                <p className="font-semibold text-gray-900">₺{delivery.amount || delivery.price || 0}</p>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    <div className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
-                                        <div className="p-2 bg-green-50 rounded-lg">
-                                            <TruckIcon className="h-5 w-5 text-green-600" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <p className="font-medium text-gray-900">wrwrw</p>
-                                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                                    assigned
-                                                </span>
-                                            </div>
-                                            <p className="text-sm text-gray-600">GRP-373319</p>
-                                            <p className="text-sm text-gray-500">4:04:00 AM</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-semibold text-gray-900">₺150</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
-                                        <div className="p-2 bg-green-50 rounded-lg">
-                                            <TruckIcon className="h-5 w-5 text-green-600" />
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center justify-between">
-                                                <p className="font-medium text-gray-900">dgdgdgdg</p>
-                                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
-                                                    assigned
-                                                </span>
-                                            </div>
-                                            <p className="text-sm text-gray-600">GRP-621899</p>
-                                            <p className="text-sm text-gray-500">4:02:00 AM</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="font-semibold text-gray-900">₺150</p>
-                                        </div>
-                                    </div>
+                                <div className="text-center py-8">
+                                    <TruckIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                    <p className="text-gray-500">No current deliveries</p>
                                 </div>
                             )}
                         </div>
@@ -352,21 +304,30 @@ const DashboardContent = () => {
                             </div>
                         </div>
                         <div className="p-6">
-                            <div className="space-y-4">
-                                <div className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
-                                    <div className="p-2 bg-green-50 rounded-lg">
-                                        <CurrencyDollarIcon className="h-5 w-5 text-green-600" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <p className="font-medium text-gray-900">Week 31, 2025</p>
-                                        <p className="text-sm text-gray-600">4 deliveries</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="font-semibold text-gray-900">₺360</p>
-                                        <p className="text-sm text-gray-500">₺360 + ₺0 tips</p>
-                                    </div>
+                            {dashboardData?.earnings?.recent?.length > 0 ? (
+                                <div className="space-y-4">
+                                    {dashboardData.earnings.recent.map((earning, index) => (
+                                        <div key={index} className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
+                                            <div className="p-2 bg-green-50 rounded-lg">
+                                                <CurrencyDollarIcon className="h-5 w-5 text-green-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-medium text-gray-900">{earning.period || '0'}</p>
+                                                <p className="text-sm text-gray-600">{earning.deliveries || 0} deliveries</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-semibold text-gray-900">₺{earning.amount || 0}</p>
+                                                <p className="text-sm text-gray-500">₺{earning.amount || 0} + ₺{earning.tips || 0} tips</p>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <CurrencyDollarIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                                    <p className="text-gray-500">No recent earnings data</p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -420,11 +381,7 @@ const DashboardContent = () => {
 
 // Main wrapper component
 const DriverDashboard = () => {
-    return (
-        <DriverLayout>
-            <DashboardContent />
-        </DriverLayout>
-    );
+    return <DashboardContent />;
 };
 
 export default DriverDashboard;

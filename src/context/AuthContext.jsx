@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import apiService from '../services/api';
+import socketService from '../services/socketService';
 
 const AuthContext = createContext();
 
@@ -65,6 +66,14 @@ export const AuthProvider = ({ children }) => {
     const logout = useCallback((showToast = true, forceRedirect = false) => {
         console.log('🚪 Logout called');
 
+        // Disconnect socket
+        try {
+            socketService.disconnect();
+            console.log('🔌 Socket disconnected');
+        } catch (error) {
+            console.warn('⚠️ Socket disconnection failed:', error);
+        }
+
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         localStorage.removeItem('lastActivity');
@@ -118,6 +127,16 @@ export const AuthProvider = ({ children }) => {
 
             setUser(userData);
             setIsAuthenticated(true);
+
+            // Initialize socket connection for real-time features
+            if (userData._id) {
+                try {
+                    socketService.connect(userData._id, userData.userType || userData.role);
+                    console.log('🔌 Socket initialized for user:', userData._id);
+                } catch (error) {
+                    console.warn('⚠️ Socket initialization failed:', error);
+                }
+            }
 
             console.log('✅ Auth state updated successfully');
 
@@ -179,6 +198,16 @@ export const AuthProvider = ({ children }) => {
                     setUser(userData);
                     setIsAuthenticated(true);
                     updateLastActivity();
+
+                    // Initialize socket connection for restored session
+                    if (userData._id) {
+                        try {
+                            socketService.connect(userData._id, userData.userType || userData.role);
+                            console.log('🔌 Socket initialized for restored session:', userData._id);
+                        } catch (error) {
+                            console.warn('⚠️ Socket initialization failed for restored session:', error);
+                        }
+                    }
                 } catch (error) {
                     console.error('❌ Error parsing saved user data:', error);
                     // Clear invalid data but don't redirect if on protected route

@@ -60,7 +60,7 @@ export const whatsAppUtils = {
         if (!cleanNumber.startsWith('+')) {
             // For international compatibility, we'll keep the number as is
             // Users should enter the full international format
-            cleanNumber = cleanNumber;
+            // cleanNumber remains unchanged
         }
 
         const encodedMessage = encodeURIComponent(message);

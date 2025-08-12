@@ -1,10 +1,11 @@
-// Import removed as it's not used in this file
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
 // Profile service for user profile management
 export const getProfile = async (userId) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/profile/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/profile/${userId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -24,7 +25,7 @@ export const getProfile = async (userId) => {
 export const updateProfile = async (userId, profileData) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/profile/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/profile/${userId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -47,9 +48,9 @@ export const uploadProfileImage = async (userId, imageFile) => {
   try {
     const token = localStorage.getItem('token');
     const formData = new FormData();
-    formData.append('image', imageFile);
+    formData.append('profilePicture', imageFile);
 
-    const response = await fetch(`/api/profile/${userId}/image`, {
+    const response = await fetch(`${API_BASE_URL}/profile/${userId}/image`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`
@@ -70,7 +71,7 @@ export const uploadProfileImage = async (userId, imageFile) => {
 export const getDriverEarnings = async (driverId, period = 'month') => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/drivers/${driverId}/earnings?period=${period}`, {
+    const response = await fetch(`${API_BASE_URL}/drivers/${driverId}/earnings?period=${period}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -98,7 +99,7 @@ export const getDriverDeliveries = async (driverId, filters = {}) => {
     if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
     if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
 
-    const response = await fetch(`/api/drivers/${driverId}/deliveries?${queryParams}`, {
+    const response = await fetch(`${API_BASE_URL}/drivers/${driverId}/deliveries?${queryParams}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -118,7 +119,7 @@ export const getDriverDeliveries = async (driverId, filters = {}) => {
 export const updateDriverLocation = async (driverId, location) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/drivers/${driverId}/location`, {
+    const response = await fetch(`${API_BASE_URL}/drivers/${driverId}/location`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -140,7 +141,7 @@ export const updateDriverLocation = async (driverId, location) => {
 export const updateDriverStatus = async (driverId, status) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`/api/drivers/${driverId}/status`, {
+    const response = await fetch(`${API_BASE_URL}/drivers/${driverId}/status`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,

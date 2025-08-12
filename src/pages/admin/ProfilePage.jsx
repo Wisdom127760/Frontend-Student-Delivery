@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getProfile, updateProfile } from '../../services/profileService';
 import ProfileImageUpload from '../../components/common/ProfileImageUpload';
+import CapitalizedInput from '../../components/common/CapitalizedInput';
 import { ProfilePageSkeleton } from '../../components/common/SkeletonLoader';
+import { capitalizeName } from '../../utils/capitalize';
 import toast from 'react-hot-toast';
 import { UserIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
@@ -114,7 +116,7 @@ const ProfilePage = () => {
                                         </label>
                                         <div className="relative">
                                             <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                            <input
+                                            <CapitalizedInput
                                                 type="text"
                                                 id="name"
                                                 name="name"
@@ -122,6 +124,7 @@ const ProfilePage = () => {
                                                 onChange={handleInputChange}
                                                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                                 placeholder="Enter your full name"
+                                                capitalizeMode="words"
                                             />
                                         </div>
                                     </div>

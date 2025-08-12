@@ -79,8 +79,34 @@ class ApiService {
         return response.data;
     }
 
+    async get(url) {
+        const response = await api.get(url);
+        return response.data;
+    }
+
     async createDriver(driverData) {
         const response = await api.post('/admin/drivers', driverData);
+        return response.data;
+    }
+
+    // Driver invitation endpoints
+    async inviteDriver(driverData) {
+        const response = await api.post('/admin/drivers/invite', driverData);
+        return response.data;
+    }
+
+    async getPendingInvitations(page = 1, limit = 20) {
+        const response = await api.get(`/admin/drivers/invitations?page=${page}&limit=${limit}`);
+        return response.data;
+    }
+
+    async cancelInvitation(invitationId) {
+        const response = await api.post(`/admin/drivers/invitations/${invitationId}/cancel`);
+        return response.data;
+    }
+
+    async resendInvitation(invitationId) {
+        const response = await api.post(`/admin/drivers/invitations/${invitationId}/resend`);
         return response.data;
     }
 
@@ -150,13 +176,41 @@ class ApiService {
     }
 
     async uploadDriverProfileImage(formData) {
-        const response = await api.post('/driver/profile/image', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-        return response.data;
+        try {
+            console.log('🚀 Uploading profile image to backend...', {
+                hasProfilePicture: formData.has('profilePicture'),
+                originalSize: formData.get('originalSize'),
+                compressedSize: formData.get('compressedSize'),
+                fileType: formData.get('fileType'),
+                endpoint: '/driver/profile/image'
+            });
+
+            const response = await api.post('/driver/profile/image', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                timeout: 30000, // 30 second timeout for image uploads
+            });
+
+            console.log('📥 Upload response received:', {
+                status: response.status,
+                statusText: response.statusText,
+                data: response.data,
+                headers: response.headers
+            });
+            return response.data;
+        } catch (error) {
+            console.error('API upload error:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+            throw error;
+        }
     }
+
+
 
     async getDriverRemittances() {
         const response = await api.get('/driver/remittances');
@@ -235,12 +289,32 @@ class ApiService {
 
     // Document upload for driver verification
     async uploadDriverDocument(documentType, formData) {
-        const response = await api.post(`/driver/documents/${documentType}/upload`, formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-        return response.data;
+        try {
+            // Get the current token to ensure it's available
+            const token = localStorage.getItem('token');
+            console.log('🔑 Document upload - Token available:', !!token);
+            console.log('📤 Uploading to correct endpoint:', `/driver/documents/${documentType}/upload`);
+
+            // Use the correct document upload endpoint that exists in the backend
+            const response = await api.post(`/driver/documents/${documentType}/upload`, formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
+                timeout: 30000, // 30 second timeout for document uploads
+            });
+
+            console.log('✅ Document upload successful:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ Document upload failed:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message,
+                endpoint: `/driver/documents/${documentType}/upload`
+            });
+            throw error;
+        }
     }
 
     // Notification endpoints
@@ -269,6 +343,36 @@ class ApiService {
 
     async markAllNotificationsAsRead() {
         const response = await api.put('/driver/notifications/mark-all-read');
+        return response.data;
+    }
+
+    // Admin Document Verification endpoints
+    async getPendingDocuments(filter = 'all') {
+        const params = filter !== 'all' ? `?status=${filter}` : '';
+        const response = await api.get(`/admin/documents${params}`);
+        return response.data;
+    }
+
+    async updateDocumentStatus(documentId, statusData) {
+        const response = await api.put(`/admin/documents/${documentId}/status`, statusData);
+        return response.data;
+    }
+
+    async startAIVerification(documentId) {
+        const response = await api.post(`/admin/documents/${documentId}/verify-ai`);
+        return response.data;
+    }
+
+    async getDocumentVerificationStatus(documentId) {
+        const response = await api.get(`/admin/documents/${documentId}/verification-status`);
+        return response.data;
+    }
+
+    async batchVerifyDocuments(documentIds, action) {
+        const response = await api.post('/admin/documents/batch-verify', {
+            documentIds,
+            action
+        });
         return response.data;
     }
 }

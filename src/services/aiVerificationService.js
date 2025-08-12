@@ -1,3 +1,6 @@
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+
 // AI Document Verification Service
 // This service handles automatic verification of uploaded documents using AI capabilities
 
@@ -5,17 +8,17 @@ class AIVerificationService {
     constructor() {
         this.verificationEndpoints = {
             // Document classification and validation
-            classify: '/api/ai/documents/classify',
+            classify: `${API_BASE_URL}/ai/documents/classify`,
             // OCR text extraction
-            extractText: '/api/ai/documents/extract-text',
+            extractText: `${API_BASE_URL}/ai/documents/extract-text`,
             // Face detection and comparison
-            detectFace: '/api/ai/documents/detect-face',
+            detectFace: `${API_BASE_URL}/ai/documents/detect-face`,
             // Document authenticity verification
-            verifyAuthenticity: '/api/ai/documents/verify-authenticity',
+            verifyAuthenticity: `${API_BASE_URL}/ai/documents/verify-authenticity`,
             // Fraud detection
-            detectFraud: '/api/ai/documents/detect-fraud',
+            detectFraud: `${API_BASE_URL}/ai/documents/detect-fraud`,
             // Complete verification pipeline
-            verifyDocument: '/api/ai/documents/verify'
+            verifyDocument: `${API_BASE_URL}/ai/documents/verify`
         };
     }
 
@@ -169,7 +172,7 @@ class AIVerificationService {
     // Get verification status for a document
     async getVerificationStatus(documentId) {
         try {
-            const response = await fetch(`/api/ai/documents/status/${documentId}`, {
+            const response = await fetch(`${API_BASE_URL}/ai/documents/status/${documentId}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`

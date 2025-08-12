@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import DriverLayout from '../../components/layouts/DriverLayout';
 import { StatCardSkeleton, RemittanceItemSkeleton } from '../../components/common/SkeletonLoader';
 import apiService from '../../services/api';
 import Pagination from '../../components/common/Pagination';
@@ -196,40 +195,43 @@ const RemittancePage = () => {
     const paginatedRemittances = filteredRemittances.slice(startIndex, endIndex);
 
     // Format currency
-    const formatCurrency = (amount) => `₺${Number(amount).toFixed(2)}`;
+    const formatCurrency = (amount) => {
+        if (amount === null || amount === undefined || isNaN(amount)) {
+            return '₺0.00';
+        }
+        return `₺${Number(amount).toFixed(2)}`;
+    };
 
     if (loading) {
         return (
-            <DriverLayout>
-                <div className="space-y-6">
-                    {/* Balance Cards Skeleton */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <StatCardSkeleton />
-                        <StatCardSkeleton />
-                        <StatCardSkeleton />
-                    </div>
+            <div className="space-y-6">
+                {/* Balance Cards Skeleton */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <StatCardSkeleton />
+                    <StatCardSkeleton />
+                    <StatCardSkeleton />
+                </div>
 
-                    {/* Remittances List Skeleton */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div className="space-y-4">
-                            <div className="flex justify-between items-center">
-                                <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
-                                <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
-                            </div>
-                            <div className="space-y-3">
-                                {[1, 2, 3, 4, 5].map((i) => (
-                                    <RemittanceItemSkeleton key={i} />
-                                ))}
-                            </div>
+                {/* Remittances List Skeleton */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                            <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
+                            <div className="h-10 bg-gray-200 rounded w-32 animate-pulse"></div>
+                        </div>
+                        <div className="space-y-3">
+                            {[1, 2, 3, 4, 5].map((i) => (
+                                <RemittanceItemSkeleton key={i} />
+                            ))}
                         </div>
                     </div>
                 </div>
-            </DriverLayout>
+            </div>
         );
     }
 
     return (
-        <DriverLayout>
+        <>
             <div className="min-h-screen bg-gray-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     {/* Header */}
@@ -247,14 +249,18 @@ const RemittancePage = () => {
                                 <ArrowPathIcon className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
                                 <span>Refresh</span>
                             </button>
-                            <button
-                                onClick={() => setShowRequestModal(true)}
-                                disabled={summary.availableBalance <= 0}
-                                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
-                            >
-                                <PlusIcon className="w-4 h-4" />
-                                <span>Request Payout</span>
-                            </button>
+                            <div className="relative">
+                                <button
+                                    disabled={true}
+                                    className="bg-gray-400 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2 cursor-not-allowed opacity-50"
+                                >
+                                    <PlusIcon className="w-4 h-4" />
+                                    <span>Request Payout</span>
+                                </button>
+                                <div className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                    Coming Soon
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -266,7 +272,7 @@ const RemittancePage = () => {
                                 <div className="flex-1">
                                     <p className="text-sm text-gray-600 mb-2">Available Balance</p>
                                     <p className="text-3xl font-bold text-gray-900">
-                                        {formatCurrency(summary.availableBalance || 285.75)}
+                                        {formatCurrency(summary.availableBalance || 0)}
                                     </p>
                                 </div>
                                 <div className="p-3 rounded-lg bg-green-50">
@@ -281,7 +287,7 @@ const RemittancePage = () => {
                                 <div className="flex-1">
                                     <p className="text-sm text-gray-600 mb-2">Pending Payouts</p>
                                     <p className="text-3xl font-bold text-gray-900">
-                                        {formatCurrency(summary.pendingAmount || 410.75)}
+                                        {formatCurrency(summary.pendingAmount || 0)}
                                     </p>
                                 </div>
                                 <div className="p-3 rounded-lg bg-yellow-50">
@@ -296,7 +302,7 @@ const RemittancePage = () => {
                                 <div className="flex-1">
                                     <p className="text-sm text-gray-600 mb-2">Total Paid Out</p>
                                     <p className="text-3xl font-bold text-gray-900">
-                                        {formatCurrency(summary.totalPaidOut || 2850.25)}
+                                        {formatCurrency(summary.totalPaidOut || 0)}
                                     </p>
                                 </div>
                                 <div className="p-3 rounded-lg bg-blue-50">
@@ -311,7 +317,7 @@ const RemittancePage = () => {
                                 <div className="flex-1">
                                     <p className="text-sm text-gray-600 mb-2">Last Payout</p>
                                     <p className="text-3xl font-bold text-gray-900">
-                                        {formatCurrency(summary.lastPayout?.amount || 450.75)}
+                                        {formatCurrency(summary.lastPayout?.amount || 0)}
                                     </p>
                                 </div>
                                 <div className="p-3 rounded-lg bg-purple-50">
@@ -430,15 +436,18 @@ const RemittancePage = () => {
                                         "You haven't made any payout requests yet."
                                     }
                                 </p>
-                                {summary.availableBalance > 0 && (
+                                <div className="relative inline-block">
                                     <button
-                                        onClick={() => setShowRequestModal(true)}
-                                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                        disabled={true}
+                                        className="inline-flex items-center px-4 py-2 bg-gray-400 text-white rounded-lg cursor-not-allowed opacity-50"
                                     >
                                         <PlusIcon className="w-4 h-4 mr-2" />
                                         Request Your First Payout
                                     </button>
-                                )}
+                                    <div className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                        Coming Soon
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -569,18 +578,23 @@ const RemittancePage = () => {
                                 >
                                     Cancel
                                 </button>
-                                <button
-                                    onClick={handleRequestRemittance}
-                                    className="flex-1 px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 transition-colors"
-                                >
-                                    Request Payout
-                                </button>
+                                <div className="flex-1 relative">
+                                    <button
+                                        disabled={true}
+                                        className="w-full px-4 py-2 text-sm font-medium text-white bg-gray-400 border border-transparent rounded-md cursor-not-allowed opacity-50"
+                                    >
+                                        Request Payout
+                                    </button>
+                                    <div className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs px-1 py-0.5 rounded-full font-medium">
+                                        Coming Soon
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
-        </DriverLayout>
+        </>
     );
 };
 

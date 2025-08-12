@@ -46,9 +46,12 @@ const RealTimeNotifications = () => {
     }, [removeNotification]);
 
     useEffect(() => {
-        if (!user) return;
+        if (!user) {
+            console.log('🔌 No user available for admin notifications');
+            return;
+        }
 
-        console.log('🔌 Setting up admin notifications for user:', user._id);
+        console.log('🔌 Setting up admin notifications for user:', user._id || user.id);
 
         // Clear old notifications on mount
         setNotifications([]);

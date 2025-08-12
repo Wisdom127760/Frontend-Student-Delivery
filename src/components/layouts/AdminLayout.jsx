@@ -5,6 +5,7 @@ import { isSuperAdmin } from '../../utils/userHelpers';
 import SimpleNotifications from '../admin/SimpleNotifications';
 import Avatar from '../common/Avatar';
 import GlobalSearch from '../common/GlobalSearch';
+import toast from 'react-hot-toast';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -19,7 +20,9 @@ import {
     XMarkIcon,
     DocumentTextIcon,
     MagnifyingGlassIcon,
-    CommandLineIcon
+    CommandLineIcon,
+    DocumentMagnifyingGlassIcon,
+    BellIcon
 } from '@heroicons/react/24/outline';
 
 const AdminLayout = ({ children }) => {
@@ -35,7 +38,9 @@ const AdminLayout = ({ children }) => {
         { name: 'Dashboard', href: '/admin', icon: HomeIcon },
         { name: 'Deliveries', href: '/admin/deliveries', icon: TruckIcon },
         { name: 'Drivers', href: '/admin/drivers', icon: UserGroupIcon },
+        { name: 'Document Verification', href: '/admin/documents', icon: DocumentMagnifyingGlassIcon },
         { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
+        { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
         // Only show earnings management for super admins
         ...(isSuperAdmin(user) ? [{ name: 'Earnings', href: '/admin/earnings', icon: CurrencyDollarIcon }] : []),
         // Only show remittances for super admins
@@ -132,8 +137,14 @@ const AdminLayout = ({ children }) => {
                         {/* Global Search Trigger */}
                         <button
                             onClick={() => {
-                                // This will be handled by the GlobalSearch component's keyboard listener
-                                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+                                // Check authentication before opening search
+                                const token = localStorage.getItem('token');
+                                if (token) {
+                                    // This will be handled by the GlobalSearch component's keyboard listener
+                                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+                                } else {
+                                    toast.error('Please log in to use search');
+                                }
                             }}
                             className="group flex items-center space-x-2 px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 border border-gray-200/50 hover:border-gray-300 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                         >

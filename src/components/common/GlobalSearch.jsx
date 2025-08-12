@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import toast from 'react-hot-toast';
 import {
     MagnifyingGlassIcon,
     TruckIcon,
@@ -22,143 +23,164 @@ const GlobalSearch = () => {
     const inputRef = useRef(null);
     const modalRef = useRef(null);
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
+
+    // Debug authentication state
+    useEffect(() => {
+        console.log('🔍 GlobalSearch - Auth state:', { user, isAuthenticated });
+    }, [user, isAuthenticated]);
 
     // Search categories based on user role
-    const searchCategories = useMemo(() => user?.role === 'admin' ? [
-        {
-            id: 'deliveries',
-            name: 'Deliveries',
-            icon: TruckIcon,
-            color: 'text-blue-600',
-            bgColor: 'bg-blue-50',
-            items: [
-                { id: 'all-deliveries', name: 'All Deliveries', path: '/admin/deliveries', description: 'View and manage all deliveries' },
-                { id: 'pending-deliveries', name: 'Pending Deliveries', path: '/admin/deliveries?status=pending', description: 'Deliveries awaiting assignment' },
-                { id: 'assigned-deliveries', name: 'Assigned Deliveries', path: '/admin/deliveries?status=assigned', description: 'Deliveries assigned to drivers' },
-                { id: 'picked-up-deliveries', name: 'Picked Up Deliveries', path: '/admin/deliveries?status=picked_up', description: 'Deliveries picked up by drivers' },
-                { id: 'delivered-deliveries', name: 'Delivered', path: '/admin/deliveries?status=delivered', description: 'Completed deliveries' },
-                { id: 'cancelled-deliveries', name: 'Cancelled Deliveries', path: '/admin/deliveries?status=cancelled', description: 'Cancelled deliveries' },
-                { id: 'create-delivery', name: 'Create New Delivery', path: '/admin/deliveries?action=create', description: 'Add a new delivery' }
-            ]
-        },
-        {
-            id: 'drivers',
-            name: 'Drivers',
-            icon: UserIcon,
-            color: 'text-green-600',
-            bgColor: 'bg-green-50',
-            items: [
-                { id: 'all-drivers', name: 'All Drivers', path: '/admin/drivers', description: 'View and manage all drivers' },
-                { id: 'active-drivers', name: 'Active Drivers', path: '/admin/drivers?status=active', description: 'Currently active drivers' },
-                { id: 'suspended-drivers', name: 'Suspended Drivers', path: '/admin/drivers?status=suspended', description: 'Suspended drivers' },
-                { id: 'add-driver', name: 'Add New Driver', path: '/admin/drivers?action=add', description: 'Register a new driver' }
-            ]
-        },
-        {
-            id: 'analytics',
-            name: 'Analytics',
-            icon: ChartBarIcon,
-            color: 'text-purple-600',
-            bgColor: 'bg-purple-50',
-            items: [
-                { id: 'dashboard', name: 'Dashboard', path: '/admin/dashboard', description: 'Overview and key metrics' },
-                { id: 'analytics-page', name: 'Analytics', path: '/admin/analytics', description: 'Detailed analytics and reports' },
-                { id: 'earnings-management', name: 'Earnings Management', path: '/admin/earnings', description: 'Manage driver earnings and payments' }
-            ]
-        },
-        {
-            id: 'notifications',
-            name: 'Notifications',
-            icon: BellIcon,
-            color: 'text-orange-600',
-            bgColor: 'bg-orange-50',
-            items: [
-                { id: 'all-notifications', name: 'All Notifications', path: '/admin/notifications', description: 'View all system notifications' },
-                { id: 'unread-notifications', name: 'Unread Notifications', path: '/admin/notifications?filter=unread', description: 'Unread notifications' },
-                { id: 'urgent-notifications', name: 'Urgent Notifications', path: '/admin/notifications?filter=urgent', description: 'High priority notifications' }
-            ]
-        },
-        {
-            id: 'remittance',
-            name: 'Remittance',
-            icon: CurrencyDollarIcon,
-            color: 'text-yellow-600',
-            bgColor: 'bg-yellow-50',
-            items: [
-                { id: 'remittance-page', name: 'Remittance Management', path: '/admin/remittance', description: 'Manage driver remittances' },
-                { id: 'pending-remittances', name: 'Pending Remittances', path: '/admin/remittance?status=pending', description: 'Pending remittance requests' },
-                { id: 'completed-remittances', name: 'Completed Remittances', path: '/admin/remittance?status=completed', description: 'Completed remittances' }
-            ]
-        },
-        {
-            id: 'settings',
-            name: 'Settings',
-            icon: CogIcon,
-            color: 'text-gray-600',
-            bgColor: 'bg-gray-50',
-            items: [
-                { id: 'system-settings', name: 'System Settings', path: '/admin/settings', description: 'Configure system parameters' },
-                { id: 'profile-settings', name: 'Profile Settings', path: '/admin/profile', description: 'Manage your profile' },
-                { id: 'admin-management', name: 'Admin Management', path: '/admin/management', description: 'Manage admin accounts' }
-            ]
+    const searchCategories = useMemo(() => {
+        const userRole = user?.role || user?.userType;
+        console.log('🔍 User role for search:', userRole);
+
+        if (userRole === 'admin' || userRole === 'super_admin') {
+            return [
+                {
+                    id: 'deliveries',
+                    name: 'Deliveries',
+                    icon: TruckIcon,
+                    color: 'text-blue-600',
+                    bgColor: 'bg-blue-50',
+                    items: [
+                        { id: 'all-deliveries', name: 'All Deliveries', path: '/admin/deliveries', description: 'View and manage all deliveries' },
+                        { id: 'pending-deliveries', name: 'Pending Deliveries', path: '/admin/deliveries?status=pending', description: 'Deliveries awaiting assignment' },
+                        { id: 'assigned-deliveries', name: 'Assigned Deliveries', path: '/admin/deliveries?status=assigned', description: 'Deliveries assigned to drivers' },
+                        { id: 'picked-up-deliveries', name: 'Picked Up Deliveries', path: '/admin/deliveries?status=picked_up', description: 'Deliveries picked up by drivers' },
+                        { id: 'delivered-deliveries', name: 'Delivered', path: '/admin/deliveries?status=delivered', description: 'Completed deliveries' },
+                        { id: 'cancelled-deliveries', name: 'Cancelled Deliveries', path: '/admin/deliveries?status=cancelled', description: 'Cancelled deliveries' },
+                        { id: 'create-delivery', name: 'Create New Delivery', path: '/admin/deliveries?action=create', description: 'Add a new delivery' }
+                    ]
+                },
+                {
+                    id: 'drivers',
+                    name: 'Drivers',
+                    icon: UserIcon,
+                    color: 'text-green-600',
+                    bgColor: 'bg-green-50',
+                    items: [
+                        { id: 'all-drivers', name: 'All Drivers', path: '/admin/drivers', description: 'View and manage all drivers' },
+                        { id: 'active-drivers', name: 'Active Drivers', path: '/admin/drivers?status=active', description: 'Currently active drivers' },
+                        { id: 'suspended-drivers', name: 'Suspended Drivers', path: '/admin/drivers?status=suspended', description: 'Suspended drivers' },
+                        { id: 'add-driver', name: 'Add New Driver', path: '/admin/drivers?action=add', description: 'Register a new driver' }
+                    ]
+                },
+                {
+                    id: 'analytics',
+                    name: 'Analytics',
+                    icon: ChartBarIcon,
+                    color: 'text-purple-600',
+                    bgColor: 'bg-purple-50',
+                    items: [
+                        { id: 'dashboard', name: 'Dashboard', path: '/admin', description: 'Overview and key metrics' },
+                        { id: 'analytics-page', name: 'Analytics', path: '/admin/analytics', description: 'Detailed analytics and reports' },
+                        { id: 'earnings-management', name: 'Earnings Management', path: '/admin/earnings', description: 'Manage driver earnings and payments' }
+                    ]
+                },
+                {
+                    id: 'notifications',
+                    name: 'Notifications',
+                    icon: BellIcon,
+                    color: 'text-orange-600',
+                    bgColor: 'bg-orange-50',
+                    items: [
+                        { id: 'all-notifications', name: 'All Notifications', path: '/admin/notifications', description: 'View all system notifications' },
+                        { id: 'unread-notifications', name: 'Unread Notifications', path: '/admin/notifications?filter=unread', description: 'Unread notifications' },
+                        { id: 'urgent-notifications', name: 'Urgent Notifications', path: '/admin/notifications?filter=urgent', description: 'High priority notifications' }
+                    ]
+                },
+                {
+                    id: 'remittance',
+                    name: 'Remittance',
+                    icon: CurrencyDollarIcon,
+                    color: 'text-yellow-600',
+                    bgColor: 'bg-yellow-50',
+                    items: [
+                        { id: 'remittance-page', name: 'Remittance Management', path: '/admin/remittances', description: 'Manage driver remittances' },
+                        { id: 'pending-remittances', name: 'Pending Remittances', path: '/admin/remittances?status=pending', description: 'Pending remittance requests' },
+                        { id: 'completed-remittances', name: 'Completed Remittances', path: '/admin/remittances?status=completed', description: 'Completed remittances' }
+                    ]
+                },
+                {
+                    id: 'settings',
+                    name: 'Settings',
+                    icon: CogIcon,
+                    color: 'text-gray-600',
+                    bgColor: 'bg-gray-50',
+                    items: [
+                        { id: 'system-settings', name: 'System Settings', path: '/admin/settings', description: 'Configure system parameters' },
+                        { id: 'profile-settings', name: 'Profile Settings', path: '/admin/profile', description: 'Manage your profile' },
+                        { id: 'admin-management', name: 'Admin Management', path: '/admin/management', description: 'Manage admin accounts' }
+                    ]
+                }
+            ];
+        } else {
+            return [
+                {
+                    id: 'deliveries',
+                    name: 'My Deliveries',
+                    icon: TruckIcon,
+                    color: 'text-blue-600',
+                    bgColor: 'bg-blue-50',
+                    items: [
+                        { id: 'my-deliveries', name: 'My Deliveries', path: '/driver/deliveries', description: 'View your assigned deliveries' },
+                        { id: 'pending-deliveries', name: 'Pending Deliveries', path: '/driver/deliveries?status=pending', description: 'Deliveries awaiting pickup' },
+                        { id: 'active-deliveries', name: 'Active Deliveries', path: '/driver/deliveries?status=assigned', description: 'Currently active deliveries' },
+                        { id: 'completed-deliveries', name: 'Completed Deliveries', path: '/driver/deliveries?status=delivered', description: 'Completed deliveries' }
+                    ]
+                },
+                {
+                    id: 'earnings',
+                    name: 'Earnings',
+                    icon: CurrencyDollarIcon,
+                    color: 'text-green-600',
+                    bgColor: 'bg-green-50',
+                    items: [
+                        { id: 'earnings-page', name: 'Earnings Overview', path: '/driver/earnings', description: 'View your earnings and statistics' },
+                        { id: 'earnings-history', name: 'Earnings History', path: '/driver/earnings?tab=history', description: 'Historical earnings data' },
+                        { id: 'remittance-page', name: 'Remittance', path: '/driver/remittances', description: 'Request and track remittances' }
+                    ]
+                },
+                {
+                    id: 'notifications',
+                    name: 'Notifications',
+                    icon: BellIcon,
+                    color: 'text-orange-600',
+                    bgColor: 'bg-orange-50',
+                    items: [
+                        { id: 'all-notifications', name: 'All Notifications', path: '/driver/notifications', description: 'View all notifications' },
+                        { id: 'unread-notifications', name: 'Unread Notifications', path: '/driver/notifications?filter=unread', description: 'Unread notifications' }
+                    ]
+                },
+                {
+                    id: 'profile',
+                    name: 'Profile',
+                    icon: UserIcon,
+                    color: 'text-purple-600',
+                    bgColor: 'bg-purple-50',
+                    items: [
+                        { id: 'profile-page', name: 'Profile Settings', path: '/driver/profile', description: 'Manage your profile and settings' },
+                        { id: 'dashboard', name: 'Dashboard', path: '/driver', description: 'Your delivery dashboard' }
+                    ]
+                }
+            ];
         }
-    ] : [
-        {
-            id: 'deliveries',
-            name: 'My Deliveries',
-            icon: TruckIcon,
-            color: 'text-blue-600',
-            bgColor: 'bg-blue-50',
-            items: [
-                { id: 'my-deliveries', name: 'My Deliveries', path: '/driver/deliveries', description: 'View your assigned deliveries' },
-                { id: 'pending-deliveries', name: 'Pending Deliveries', path: '/driver/deliveries?status=pending', description: 'Deliveries awaiting pickup' },
-                { id: 'active-deliveries', name: 'Active Deliveries', path: '/driver/deliveries?status=assigned', description: 'Currently active deliveries' },
-                { id: 'completed-deliveries', name: 'Completed Deliveries', path: '/driver/deliveries?status=delivered', description: 'Completed deliveries' }
-            ]
-        },
-        {
-            id: 'earnings',
-            name: 'Earnings',
-            icon: CurrencyDollarIcon,
-            color: 'text-green-600',
-            bgColor: 'bg-green-50',
-            items: [
-                { id: 'earnings-page', name: 'Earnings Overview', path: '/driver/earnings', description: 'View your earnings and statistics' },
-                { id: 'earnings-history', name: 'Earnings History', path: '/driver/earnings?tab=history', description: 'Historical earnings data' },
-                { id: 'remittance-page', name: 'Remittance', path: '/driver/remittance', description: 'Request and track remittances' }
-            ]
-        },
-        {
-            id: 'notifications',
-            name: 'Notifications',
-            icon: BellIcon,
-            color: 'text-orange-600',
-            bgColor: 'bg-orange-50',
-            items: [
-                { id: 'all-notifications', name: 'All Notifications', path: '/driver/notifications', description: 'View all notifications' },
-                { id: 'unread-notifications', name: 'Unread Notifications', path: '/driver/notifications?filter=unread', description: 'Unread notifications' }
-            ]
-        },
-        {
-            id: 'profile',
-            name: 'Profile',
-            icon: UserIcon,
-            color: 'text-purple-600',
-            bgColor: 'bg-purple-50',
-            items: [
-                { id: 'profile-page', name: 'Profile Settings', path: '/driver/profile', description: 'Manage your profile and settings' },
-                { id: 'dashboard', name: 'Dashboard', path: '/driver/dashboard', description: 'Your delivery dashboard' }
-            ]
-        }
-    ], [user?.role]);
+    }, [user]);
 
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
                 e.preventDefault();
-                setIsOpen(true);
+                // Only open search if user is authenticated
+                if (isAuthenticated && user) {
+                    console.log('🔍 Opening search - user authenticated:', user);
+                    setIsOpen(true);
+                } else {
+                    console.log('🔍 Search blocked - user not authenticated');
+                    toast.error('Please log in to use search');
+                }
             }
             if (e.key === 'Escape') {
                 setIsOpen(false);
@@ -167,7 +189,7 @@ const GlobalSearch = () => {
 
         document.addEventListener('keydown', handleKeyDown);
         return () => document.removeEventListener('keydown', handleKeyDown);
-    }, []);
+    }, [isAuthenticated, user]);
 
     // Search functionality
     const performSearch = useCallback((searchQuery) => {
@@ -205,10 +227,41 @@ const GlobalSearch = () => {
 
     // Handle result selection
     const handleResultSelect = (result) => {
-        navigate(result.path);
-        setIsOpen(false);
-        setQuery('');
-        setResults([]);
+        try {
+            console.log('🔍 Navigating to:', result.path);
+
+            // Validate the path before navigation
+            const validPaths = [
+                '/admin',
+                '/admin/deliveries',
+                '/admin/drivers',
+                '/admin/analytics',
+                '/admin/documents',
+                '/admin/notifications',
+                '/admin/remittances',
+                '/admin/settings',
+                '/admin/profile',
+                '/driver',
+                '/driver/deliveries',
+                '/driver/earnings',
+                '/driver/remittances',
+                '/driver/profile',
+                '/driver/notifications'
+            ];
+
+            if (validPaths.includes(result.path)) {
+                navigate(result.path);
+                setIsOpen(false);
+                setQuery('');
+                setResults([]);
+            } else {
+                console.warn('🔍 Invalid path:', result.path);
+                toast.error('Invalid navigation path');
+            }
+        } catch (error) {
+            console.error('🔍 Navigation error:', error);
+            toast.error('Navigation failed');
+        }
     };
 
     // Handle keyboard navigation
@@ -246,6 +299,11 @@ const GlobalSearch = () => {
 
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isOpen]);
+
+    // Don't render if not authenticated
+    if (!isAuthenticated || !user) {
+        return null;
+    }
 
     if (!isOpen) return null;
 
@@ -313,7 +371,10 @@ const GlobalSearch = () => {
                                         {searchCategories.slice(0, 4).map(category => (
                                             <button
                                                 key={category.id}
-                                                onClick={() => navigate(category.items[0].path)}
+                                                onClick={() => {
+                                                    navigate(category.items[0].path);
+                                                    setIsOpen(false);
+                                                }}
                                                 className="group flex items-center p-4 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all duration-200 shadow-sm hover:shadow-md"
                                             >
                                                 <div className={`p-2 rounded-lg ${category.bgColor} mr-3 group-hover:scale-105 transition-transform`}>

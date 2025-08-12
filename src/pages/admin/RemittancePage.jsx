@@ -1,18 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+// import { useAuth } from '../../context/AuthContext';
 import {
     CurrencyDollarIcon,
     ClockIcon,
     CheckCircleIcon,
     XCircleIcon,
     PlusIcon,
-    FunnelIcon,
-    CalendarIcon
+    FunnelIcon
 } from '@heroicons/react/24/outline';
 import api from '../../services/api';
+import Pagination from '../../components/common/Pagination';
 
 const RemittancePage = () => {
-    const { user } = useAuth();
+    // const { user } = useAuth();
     const [remittances, setRemittances] = useState([]);
     const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -37,34 +37,44 @@ const RemittancePage = () => {
     const [unsettledDeliveries, setUnsettledDeliveries] = useState([]);
     const [selectedDriver, setSelectedDriver] = useState(null);
 
-    useEffect(() => {
-        fetchRemittances();
-        fetchDrivers();
-        fetchStats();
-    }, [filters]);
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalItems, setTotalItems] = useState(0);
+    const [itemsPerPage, setItemsPerPage] = useState(20);
 
-    const fetchRemittances = async () => {
+    const fetchRemittances = useCallback(async () => {
         try {
             const params = new URLSearchParams();
             Object.keys(filters).forEach(key => {
                 if (filters[key]) params.append(key, filters[key]);
             });
 
+            // Add pagination parameters
+            params.append('page', currentPage.toString());
+            params.append('limit', itemsPerPage.toString());
+
             const response = await api.get(`/remittance?${params}`);
             if (response.data && response.data.remittances) {
                 setRemittances(response.data.remittances);
+                setTotalPages(response.data.totalPages || 1);
+                setTotalItems(response.data.totalItems || response.data.remittances.length);
             } else {
                 setRemittances([]);
+                setTotalPages(1);
+                setTotalItems(0);
             }
         } catch (error) {
             console.error('Error fetching remittances:', error);
             setRemittances([]);
+            setTotalPages(1);
+            setTotalItems(0);
         } finally {
             setLoading(false);
         }
-    };
+    }, [filters, currentPage, itemsPerPage]);
 
-    const fetchDrivers = async () => {
+    const fetchDrivers = useCallback(async () => {
         try {
             setDriversLoading(true);
             console.log('Fetching drivers...');
@@ -98,9 +108,9 @@ const RemittancePage = () => {
         } finally {
             setDriversLoading(false);
         }
-    };
+    }, []);
 
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async () => {
         try {
             const response = await api.get('/remittance/stats');
             if (response.data && response.data.stats) {
@@ -112,6 +122,16 @@ const RemittancePage = () => {
             console.error('Error fetching stats:', error);
             setStats({});
         }
+    }, []);
+
+    useEffect(() => {
+        fetchRemittances();
+        fetchDrivers();
+        fetchStats();
+    }, [fetchRemittances, fetchDrivers, fetchStats]);
+
+    const handlePageChange = (page) => {
+        setCurrentPage(page);
     };
 
     const fetchUnsettledDeliveries = async (driverId) => {
@@ -236,8 +256,8 @@ const RemittancePage = () => {
             {/* Toast Notification */}
             {toast.show && (
                 <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${toast.type === 'success'
-                        ? 'bg-green-500 text-white'
-                        : 'bg-red-500 text-white'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-red-500 text-white'
                     }`}>
                     <div className="flex items-center">
                         <span className="mr-2">
@@ -470,6 +490,19 @@ const RemittancePage = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                    <div className="mt-6">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalItems={totalItems}
+                            itemsPerPage={itemsPerPage}
+                            onPageChange={handlePageChange}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Calculate Remittance Modal */}
@@ -489,7 +522,7 @@ const RemittancePage = () => {
                                             const driverId = e.target.value;
                                             setFormData({ ...formData, driverId });
                                             if (driverId) {
-                                                const data = await fetchUnsettledDeliveries(driverId);
+                                                await fetchUnsettledDeliveries(driverId);
                                                 setSelectedDriver(drivers.find(d => d._id === driverId));
                                             } else {
                                                 setUnsettledDeliveries([]);

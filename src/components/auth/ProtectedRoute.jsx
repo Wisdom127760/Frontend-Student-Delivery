@@ -18,7 +18,8 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
         userRole,
         allowedRoles,
         hasAccess,
-        currentPath: location.pathname
+        currentPath: location.pathname,
+        token: localStorage.getItem('token') ? 'Present' : 'Missing'
     });
 
     if (isLoading) {

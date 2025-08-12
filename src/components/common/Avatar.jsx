@@ -6,20 +6,27 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
         sm: 'h-8 w-8',
         md: 'h-10 w-10',
         lg: 'h-16 w-16',
-        xl: 'h-24 w-24'
+        xl: 'h-24 w-24',
+        '2xl': 'h-32 w-32'
     };
 
     const textSizeClasses = {
         sm: 'text-xs',
         md: 'text-sm',
         lg: 'text-lg',
-        xl: 'text-2xl'
+        xl: 'text-2xl',
+        '2xl': 'text-3xl'
     };
 
     // Get user initials
     const getInitials = (name) => {
         if (!name) return '?';
-        return name
+        // First capitalize the name, then get initials
+        const capitalizedName = name.split(' ').map(word =>
+            word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+        ).join(' ');
+
+        return capitalizedName
             .split(' ')
             .map(word => word.charAt(0))
             .join('')
@@ -36,40 +43,57 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
     const initials = getInitials(userName);
 
     // Check for profile image in various possible locations
-    const profileImage = user?.avatar ||
+    let profileImage = user?.avatar ||
         user?.profileImage ||
+        user?.profilePicture ||
         user?.profile?.profileImage ||
+        user?.profile?.profilePicture ||
         user?.profile?.personalDetails?.profileImage ||
+        user?.profile?.personalDetails?.profilePicture ||
         profile?.profileImage ||
-        profile?.profile?.profileImage;
+        profile?.profilePicture ||
+        profile?.profile?.profileImage ||
+        profile?.profile?.profilePicture ||
+        profile?.profile?.personalDetails?.profileImage ||
+        profile?.profile?.personalDetails?.profilePicture;
+
+    // Add cache-busting parameter to prevent browser caching
+    if (profileImage && !profileImage.startsWith('data:')) {
+        profileImage = `${profileImage}?t=${Date.now()}`;
+    }
 
     if (profileImage) {
         return (
-            <img
-                src={profileImage}
-                alt={userName || 'User avatar'}
-                className={`${sizeClasses[size]} rounded-full object-cover ${className}`}
-                onError={(e) => {
-                    // Fallback to initials if image fails to load
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
-                }}
-            />
+            <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${className}`}>
+                <img
+                    src={profileImage}
+                    alt={userName || 'User avatar'}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                        // Fallback to initials if image fails to load
+                        e.target.style.display = 'none';
+                        e.target.parentElement.nextSibling.style.display = 'flex';
+                    }}
+                />
+                {/* Hidden fallback div that shows when image fails to load */}
+                <div
+                    className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} absolute inset-0`}
+                    style={{ display: 'none' }}
+                >
+                    {initials !== '?' ? initials : (
+                        <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
+                    )}
+                </div>
+            </div>
         );
     }
 
     return (
-        <>
-            {/* Hidden fallback div that shows when image fails to load */}
-            <div
-                className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} ${className}`}
-                style={{ display: profileImage ? 'none' : 'flex' }}
-            >
-                {initials !== '?' ? initials : (
-                    <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
-                )}
-            </div>
-        </>
+        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} ${className}`}>
+            {initials !== '?' ? initials : (
+                <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
+            )}
+        </div>
     );
 };
 

@@ -1,52 +1,28 @@
 import React from 'react';
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const LineChart = ({
-    data,
-    title,
-    color = '#0D965E',
-    height = 300
-}) => {
+const LineChart = ({ data = [], xKey = 'x', yKey = 'y', color = 'blue' }) => {
+    if (!data || data.length === 0) {
+        return (
+            <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg">
+                <p className="text-gray-500">No data available</p>
+            </div>
+        );
+    }
+
+    // Color mapping for future use
+    // const colors = {
+    //     blue: 'stroke-blue-500',
+    //     green: 'stroke-green-500',
+    //     red: 'stroke-red-500',
+    //     yellow: 'stroke-yellow-500',
+    //     purple: 'stroke-purple-500'
+    // };
+
     return (
-        <div className="w-full">
-            {title && (
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
-            )}
-            <ResponsiveContainer width="100%" height={height}>
-                <RechartsLineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis
-                        dataKey="name"
-                        stroke="#6b7280"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                    />
-                    <YAxis
-                        stroke="#6b7280"
-                        fontSize={12}
-                        tickLine={false}
-                        axisLine={false}
-                    />
-                    <Tooltip
-                        contentStyle={{
-                            backgroundColor: 'white',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                        }}
-                        labelStyle={{ color: '#374151', fontWeight: '600' }}
-                    />
-                    <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={color}
-                        strokeWidth={3}
-                        dot={{ fill: color, strokeWidth: 2, r: 4 }}
-                        activeDot={{ r: 6, stroke: color, strokeWidth: 2, fill: 'white' }}
-                    />
-                </RechartsLineChart>
-            </ResponsiveContainer>
+        <div className="w-full h-64 bg-gray-50 rounded-lg p-4">
+            <div className="flex items-center justify-center h-full">
+                <p className="text-gray-500">Chart data: {data.length} points</p>
+            </div>
         </div>
     );
 };

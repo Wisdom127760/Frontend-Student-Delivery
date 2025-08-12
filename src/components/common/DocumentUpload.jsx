@@ -137,9 +137,16 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             }
 
             const formData = new FormData();
-            formData.append('document', fileToUpload);
+            formData.append('profilePicture', fileToUpload); // Backend expects 'profilePicture' field
 
             console.log(`📤 Uploading ${documentType} document...`);
+            console.log('📋 FormData contents:', {
+                hasProfilePicture: formData.has('profilePicture'),
+                documentName: fileToUpload.name,
+                documentSize: fileToUpload.size,
+                documentType: fileToUpload.type,
+                uploadEndpoint: `/driver/documents/${documentType}/upload`
+            });
 
             const response = await apiService.uploadDriverDocument(documentType, formData);
 
@@ -162,7 +169,30 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             }
         } catch (error) {
             console.error(`❌ Error uploading ${documentType}:`, error);
-            toast.error(`Upload failed: ${error.response?.data?.error || error.message}`);
+            console.error('Error details:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message,
+                endpoint: `/driver/documents/${documentType}/upload`
+            });
+
+            let errorMessage = 'Upload failed';
+            if (error.response?.status === 400) {
+                errorMessage = 'Invalid document format or missing required fields';
+            } else if (error.response?.status === 401) {
+                errorMessage = 'Please log in again to upload documents';
+            } else if (error.response?.status === 413) {
+                errorMessage = 'Document file is too large. Please select a smaller file.';
+            } else if (error.response?.status === 404) {
+                errorMessage = 'Document upload service not available. Please try again later.';
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(`Upload failed: ${errorMessage}`);
         } finally {
             setUploading(prev => ({ ...prev, [documentType]: false }));
         }

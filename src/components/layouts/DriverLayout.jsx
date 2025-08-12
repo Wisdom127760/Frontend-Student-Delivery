@@ -8,6 +8,7 @@ import Avatar from '../common/Avatar';
 import SoundPermissionModal from '../common/SoundPermissionModal';
 import GlobalSearch from '../common/GlobalSearch';
 import socketService from '../../services/socketService';
+import apiService from '../../services/api';
 import toast from 'react-hot-toast';
 import {
     TruckIcon,
@@ -43,9 +44,35 @@ const DriverLayout = ({ children }) => {
     const [showSoundPermission, setShowSoundPermission] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
-    const { user, profile, logout } = useAuth();
+    const { user, profile, logout, updateProfile } = useAuth();
 
     const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+
+    // Load driver profile data
+    const loadDriverProfile = useCallback(async () => {
+        if (!user?.id) return;
+
+        try {
+            console.log('🔄 Loading driver profile data...');
+            const data = await apiService.getDriverProfile();
+
+            if (data.success && data.data) {
+                console.log('✅ Driver profile loaded:', data.data);
+                console.log('🔍 Profile structure:', {
+                    profileImage: data.data.profileImage,
+                    profilePicture: data.data.profilePicture,
+                    fullName: data.data.profile?.personalDetails?.fullName,
+                    personalDetails: data.data.profile?.personalDetails,
+                    profile: data.data.profile
+                });
+                updateProfile(data.data);
+            } else {
+                console.warn('⚠️ Failed to load driver profile:', data);
+            }
+        } catch (error) {
+            console.error('❌ Error loading driver profile:', error);
+        }
+    }, [user?.id, updateProfile]);
 
     const loadDriverStatus = useCallback(async () => {
         try {
@@ -108,7 +135,10 @@ const DriverLayout = ({ children }) => {
     }, [API_BASE_URL]);
 
     useEffect(() => {
-        loadDriverStatus(); // Call loadDriverStatus on component mount
+        if (user?.id) {
+            loadDriverProfile(); // Load profile data
+            loadDriverStatus(); // Call loadDriverStatus on component mount
+        }
 
         // Sync status with database every 30 seconds
         const statusSyncInterval = setInterval(() => {
@@ -129,7 +159,7 @@ const DriverLayout = ({ children }) => {
         return () => {
             clearInterval(statusSyncInterval);
         };
-    }, [loadDriverStatus]);
+    }, [user?.id, loadDriverProfile, loadDriverStatus]);
 
 
 
@@ -260,6 +290,16 @@ const DriverLayout = ({ children }) => {
         }
     };
 
+    // Debug: Log current profile state
+    console.log('🔍 DriverLayout render - Profile state:', {
+        hasProfile: !!profile,
+        profileImage: profile?.profileImage,
+        profilePicture: profile?.profilePicture,
+        fullName: profile?.profile?.personalDetails?.fullName,
+        user: user?.name,
+        profileData: profile
+    });
+
     return (
         <div className="flex h-screen bg-gray-50">
             {/* Mobile sidebar overlay */}
@@ -373,8 +413,14 @@ const DriverLayout = ({ children }) => {
                         {/* Global Search Trigger */}
                         <button
                             onClick={() => {
-                                // This will be handled by the GlobalSearch component's keyboard listener
-                                document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+                                // Check authentication before opening search
+                                const token = localStorage.getItem('token');
+                                if (token) {
+                                    // This will be handled by the GlobalSearch component's keyboard listener
+                                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
+                                } else {
+                                    toast.error('Please log in to use search');
+                                }
                             }}
                             className="group flex items-center space-x-2 px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 border border-gray-200/50 hover:border-gray-300 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
                         >
@@ -397,7 +443,14 @@ const DriverLayout = ({ children }) => {
                             >
                                 <Avatar user={user} profile={profile} size="md" />
                                 <div className="hidden sm:block text-left">
-                                    <p className="text-sm font-semibold text-gray-900 capitalize">{profile?.profile?.personalDetails?.fullName || user?.name || 'Driver User'}</p>
+                                    <p className="text-sm font-semibold text-gray-900 capitalize">
+                                        {profile?.profile?.personalDetails?.fullName ||
+                                            profile?.personalDetails?.fullName ||
+                                            profile?.fullName ||
+                                            user?.name ||
+                                            user?.fullName ||
+                                            'Driver User'}
+                                    </p>
                                     <p className="text-xs text-gray-500">{user?.email}</p>
                                 </div>
                                 <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
@@ -407,7 +460,14 @@ const DriverLayout = ({ children }) => {
                             {userMenuOpen && (
                                 <div className="absolute right-0 mt-2 w-48 sm:w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
                                     <div className="px-4 py-3 border-b border-gray-100">
-                                        <p className="text-sm font-semibold text-gray-900 capitalize">{profile?.profile?.personalDetails?.fullName || user?.name || 'Driver User'}</p>
+                                        <p className="text-sm font-semibold text-gray-900 capitalize">
+                                            {profile?.profile?.personalDetails?.fullName ||
+                                                profile?.personalDetails?.fullName ||
+                                                profile?.fullName ||
+                                                user?.name ||
+                                                user?.fullName ||
+                                                'Driver User'}
+                                        </p>
                                         <p className="text-xs text-gray-500">{user?.email}</p>
                                     </div>
                                     <div className="py-1">
