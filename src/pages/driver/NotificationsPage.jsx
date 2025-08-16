@@ -353,8 +353,8 @@ const NotificationsPage = () => {
                             onClick={markAllAsRead}
                             disabled={unreadCount === 0}
                             className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${unreadCount === 0
-                                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                    : 'bg-green-600 text-white hover:bg-green-700'
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-green-600 text-white hover:bg-green-700'
                                 }`}
                         >
                             <CheckIcon className="h-4 w-4 mr-2" />
@@ -372,8 +372,8 @@ const NotificationsPage = () => {
                             key={filterOption}
                             onClick={() => setFilter(filterOption)}
                             className={`px-3 py-1 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${filter === filterOption
-                                    ? 'bg-green-100 text-green-700 border border-green-200'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
                             {filterOption.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -401,10 +401,10 @@ const NotificationsPage = () => {
                             <div
                                 key={notification._id}
                                 className={`p-6 hover:bg-gray-50 transition-colors ${getTypeColor(notification.type)} ${!notification.isRead ? 'border-l-4 border-l-green-500' : ''
-                                    }`}
+                                    } w-full`}
                             >
-                                <div className="flex items-start justify-between">
-                                    <div className="flex items-start space-x-4">
+                                <div className="flex items-start justify-between w-full">
+                                    <div className="flex items-start space-x-4 flex-1">
                                         <div className={`flex-shrink-0 ${getPriorityColor(notification.priority)}`}>
                                             {getNotificationIcon(notification.type)}
                                         </div>
@@ -420,8 +420,8 @@ const NotificationsPage = () => {
                                                     </span>
                                                 )}
                                                 <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${notification.priority === 'high' ? 'bg-red-100 text-red-800' :
-                                                        notification.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                                                            'bg-blue-100 text-blue-800'
+                                                    notification.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-blue-100 text-blue-800'
                                                     }`}>
                                                     {notification.priority}
                                                 </span>
@@ -430,7 +430,7 @@ const NotificationsPage = () => {
                                                 }`}>
                                                 {notification.message}
                                             </p>
-                                            <div className="flex items-center justify-between">
+                                            <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
                                                     <span className="flex items-center">
                                                         <ClockIcon className="h-3 w-3 mr-1" />
@@ -438,7 +438,7 @@ const NotificationsPage = () => {
                                                     </span>
                                                     <span className="capitalize">{notification.type}</span>
                                                 </div>
-                                                <div className="flex items-center space-x-2">
+                                                <div className="flex items-center space-x-2 ml-auto">
                                                     <button
                                                         onClick={() => {
                                                             setSelectedNotification(notification);

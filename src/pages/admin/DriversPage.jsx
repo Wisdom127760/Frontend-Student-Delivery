@@ -223,90 +223,90 @@ const DriversPage = () => {
       {/* Subtle refresh indicator */}
       {isRefreshing && (
         <div className="fixed top-0 left-0 right-0 z-50">
-          <div className="h-1 bg-gradient-to-r from-green-400 to-green-600 animate-pulse"></div>
+          <div className="h-0.5 bg-gradient-to-r from-green-400 to-green-600 animate-pulse"></div>
         </div>
       )}
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Drivers Management</h1>
-              <p className="mt-2 text-gray-600">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Drivers Management</h1>
+              <p className="mt-1 text-sm text-gray-600">
                 Manage and monitor all registered drivers
                 {lastUpdate && (
-                  <span className="ml-2 text-sm text-gray-500">
+                  <span className="ml-2 text-xs text-gray-500">
                     Last updated: {lastUpdate.toLocaleTimeString()}
                   </span>
                 )}
               </p>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2">
               <button
                 onClick={() => setShowAddDriverModal(true)}
-                className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                className="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
               >
-                <PlusIcon className="w-4 h-4 mr-2" />
+                <PlusIcon className="w-3 h-3 mr-1" />
                 Invite Driver
               </button>
 
               <button
                 onClick={() => setShowPendingInvitationsModal(true)}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
               >
-                <EnvelopeIcon className="w-4 h-4 mr-2" />
+                <EnvelopeIcon className="w-3 h-3 mr-1" />
                 Pending Invitations
               </button>
 
               <button
                 onClick={() => handleExportDrivers('csv')}
-                className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                className="flex items-center px-3 py-1.5 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
               >
-                <DocumentArrowDownIcon className="w-4 h-4 mr-2" />
+                <DocumentArrowDownIcon className="w-3 h-3 mr-1" />
                 Export CSV
               </button>
 
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
                 title="Refresh"
               >
-                <ArrowPathIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+                <ArrowPathIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
             </div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
                 Search Drivers
               </label>
               <div className="relative">
-                <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <MagnifyingGlassIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="Search by name or email..."
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-xs font-medium text-gray-700 mb-1">
                 Status Filter
               </label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
               >
                 <option value="all">All Drivers</option>
                 <option value="online">Online</option>
@@ -317,7 +317,7 @@ const DriversPage = () => {
             </div>
 
             <div className="flex items-end">
-              <div className="text-sm text-gray-600">
+              <div className="text-xs text-gray-600">
                 {filteredDrivers.length} driver{filteredDrivers.length !== 1 ? 's' : ''} found
               </div>
             </div>
@@ -326,30 +326,30 @@ const DriversPage = () => {
 
         {/* Bulk Actions */}
         {selectedDrivers.length > 0 && (
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <span className="text-sm font-medium text-blue-900">
+              <div className="flex items-center space-x-3">
+                <span className="text-xs font-medium text-blue-900">
                   {selectedDrivers.length} driver{selectedDrivers.length !== 1 ? 's' : ''} selected
                 </span>
                 <button
                   onClick={handleBulkSuspend}
                   disabled={isBulkActionLoading}
-                  className="flex items-center px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  className="flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
                 >
                   Suspend Selected
                 </button>
                 <button
                   onClick={handleBulkUnsuspend}
                   disabled={isBulkActionLoading}
-                  className="flex items-center px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:opacity-50"
+                  className="flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
                 >
                   Unsuspend Selected
                 </button>
               </div>
               <button
                 onClick={() => setSelectedDrivers([])}
-                className="text-sm text-blue-600 hover:text-blue-800"
+                className="text-xs text-blue-600 hover:text-blue-800"
               >
                 Clear Selection
               </button>
@@ -358,12 +358,12 @@ const DriversPage = () => {
         )}
 
         {/* Drivers Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left">
+                  <th className="px-4 py-2 text-left">
                     <input
                       type="checkbox"
                       checked={selectedDrivers.length === filteredDrivers.length && filteredDrivers.length > 0}
@@ -371,25 +371,25 @@ const DriversPage = () => {
                       className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                     />
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Driver
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Contact
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Deliveries
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Earnings
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last Active
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -400,10 +400,22 @@ const DriversPage = () => {
                   Array.from({ length: 5 }).map((_, index) => (
                     <TableRowSkeleton key={index} columns={8} />
                   ))
+                ) : filteredDrivers.length === 0 ? (
+                  <tr>
+                    <td colSpan="8" className="px-4 py-8 text-center">
+                      <div className="flex flex-col items-center">
+                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                          <span className="text-gray-400 text-xs">👥</span>
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">No drivers found</p>
+                        <p className="text-xs text-gray-500">No drivers are currently registered.</p>
+                      </div>
+                    </td>
+                  </tr>
                 ) : (
-                  filteredDrivers.map((driver, index) => (
-                    <tr key={driver._id || driver.id || `driver-${index}`} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
+                  filteredDrivers.map((driver) => (
+                    <tr key={driver.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2">
                         <input
                           type="checkbox"
                           checked={selectedDrivers.includes(driver.id)}
@@ -411,66 +423,55 @@ const DriversPage = () => {
                           className="rounded border-gray-300 text-green-600 focus:ring-green-500"
                         />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-2">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            {driver.profileImage ? (
-                              <img
-                                src={driver.profileImage}
-                                alt={driver.name}
-                                className="w-10 h-10 rounded-full object-cover"
-                              />
-                            ) : (
-                              <span className="text-sm font-medium text-gray-600">
-                                {driver.name?.charAt(0).toUpperCase()}
-                              </span>
-                            )}
+                          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center mr-3">
+                            <span className="text-xs font-medium text-gray-600">
+                              {driver.name?.charAt(0)?.toUpperCase() || 'D'}
+                            </span>
                           </div>
-                          <div className="ml-4">
+                          <div>
                             <div className="text-sm font-medium text-gray-900">{driver.name}</div>
-                            <div className="text-sm text-gray-500">ID: {driver.id}</div>
+                            <div className="text-xs text-gray-500">ID: {driver.id}</div>
                           </div>
                         </div>
                       </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-2">
                         <div className="text-sm text-gray-900">{driver.email}</div>
-                        <div className="text-sm text-gray-500">{driver.phone}</div>
+                        <div className="text-xs text-gray-500">{driver.phone}</div>
                       </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(driver.status)}`}>
+                      <td className="px-4 py-2">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
                           {getStatusText(driver.status)}
                         </span>
                       </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {driver.deliveries || 0}
+                      <td className="px-4 py-2">
+                        <div className="text-sm text-gray-900">{driver.totalDeliveries || 0}</div>
+                        <div className="text-xs text-gray-500">deliveries</div>
                       </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatCurrency(driver.earnings || 0)}
+                      <td className="px-4 py-2">
+                        <div className="text-sm font-medium text-gray-900">{formatCurrency(driver.totalEarnings || 0)}</div>
+                        <div className="text-xs text-gray-500">total earnings</div>
                       </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {driver.lastActive ? formatDateTime(driver.lastActive) : 'Never'}
+                      <td className="px-4 py-2">
+                        <div className="text-sm text-gray-900">{formatDateTime(driver.lastActive)}</div>
+                        <div className="text-xs text-gray-500">last seen</div>
                       </td>
-
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end space-x-2">
+                      <td className="px-4 py-2 text-right">
+                        <div className="flex items-center justify-end space-x-1">
                           <button
                             onClick={() => handleViewDriver(driver)}
                             className="text-blue-600 hover:text-blue-900 p-1"
                             title="View Details"
                           >
-                            <EyeIcon className="w-4 h-4" />
+                            <EyeIcon className="w-3 h-3" />
                           </button>
                           <button
                             onClick={() => handleDeleteDriver(driver)}
                             className="text-red-600 hover:text-red-900 p-1"
                             title="Delete Driver"
                           >
-                            <TrashIcon className="w-4 h-4" />
+                            <TrashIcon className="w-3 h-3" />
                           </button>
                         </div>
                       </td>
@@ -481,67 +482,43 @@ const DriversPage = () => {
             </table>
           </div>
 
-          {filteredDrivers.length === 0 && !isLoading && (
-            <div className="text-center py-12">
-              <div className="text-gray-500">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No drivers found</h3>
-                <p className="mt-1 text-sm text-gray-500">
-                  {searchTerm || statusFilter !== 'all'
-                    ? 'Try adjusting your search or filter criteria.'
-                    : 'No drivers are currently registered.'
-                  }
-                </p>
-              </div>
+          {/* Pagination */}
+          {!isLoading && filteredDrivers.length > 0 && (
+            <div className="px-4 py-3 border-t border-gray-200">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                itemsPerPage={itemsPerPage}
+                onItemsPerPageChange={setItemsPerPage}
+                totalItems={totalItems}
+                startIndex={(currentPage - 1) * itemsPerPage + 1}
+                endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
+              />
             </div>
           )}
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="mt-6">
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              itemsPerPage={itemsPerPage}
-              onPageChange={handlePageChange}
-            />
-          </div>
-        )}
       </div>
 
-      {/* Driver Details Modal */}
+      {/* Modals */}
       <DriverDetailsModal
-        driver={selectedDriver}
         isOpen={isDetailsModalOpen}
-        onClose={() => {
-          setIsDetailsModalOpen(false);
-          setSelectedDriver(null);
-        }}
+        onClose={() => setIsDetailsModalOpen(false)}
+        driver={selectedDriver}
         onDriverUpdate={handleDriverUpdate}
       />
 
-      {/* Add Driver Modal */}
       <AddDriverModal
         isOpen={showAddDriverModal}
         onClose={() => setShowAddDriverModal(false)}
         onDriverAdded={handleDriverAdded}
       />
 
-      {/* Pending Invitations Modal */}
       <PendingInvitationsModal
         isOpen={showPendingInvitationsModal}
         onClose={() => setShowPendingInvitationsModal(false)}
-        onInvitationUpdate={() => {
-          // Refresh drivers list when invitations are updated
-          fetchDrivers();
-        }}
       />
 
-      {/* Delete Confirmation Modal */}
       <ConfirmationModal
         isOpen={showDeleteModal}
         onClose={() => {
@@ -550,10 +527,10 @@ const DriversPage = () => {
         }}
         onConfirm={confirmDeleteDriver}
         title="Delete Driver"
-        message={`Are you sure you want to delete ${driverToDelete?.name}? This action cannot be undone.`}
-        type="danger"
-        confirmText="Delete"
+        message={`Are you sure you want to delete driver "${driverToDelete?.name}"? This action cannot be undone.`}
+        confirmText="Delete Driver"
         cancelText="Cancel"
+        type="danger"
       />
     </div>
   );

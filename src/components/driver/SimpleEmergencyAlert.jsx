@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
+import apiService from '../../services/api';
+import toast from 'react-hot-toast';
 
 const SimpleEmergencyAlert = () => {
     const { user } = useAuth();
@@ -29,36 +31,59 @@ const SimpleEmergencyAlert = () => {
 
     const sendEmergencyAlert = async () => {
         if (!message.trim()) {
-            // Show error in the modal instead of alert
             return;
         }
 
-        const userId = user._id || user.id;
+        try {
+            // Get current location if available
+            let location = null;
+            if (navigator.geolocation) {
+                try {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            timeout: 5000,
+                            enableHighAccuracy: true
+                        });
+                    });
+                    location = {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    };
+                    console.log('📍 Emergency alert location:', location);
+                } catch (error) {
+                    console.warn('⚠️ Could not get location for emergency alert:', error);
+                }
+            }
 
-        // Ensure socket is connected before sending emergency alert
-        if (!socketService.isInitialized() || !socketService.isConnected()) {
-            socketService.connect(userId, user.userType);
+            // Send emergency alert via API
+            const response = await apiService.sendEmergencyAlert(message.trim(), location);
 
-            // Wait a moment for the socket to connect and authenticate
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            if (response.success) {
+                toast.success('Emergency alert sent successfully!');
+                console.log('✅ Emergency alert sent via API:', response);
+            } else {
+                toast.error('Failed to send emergency alert');
+                console.error('❌ Emergency alert failed:', response);
+            }
+
+            // Also emit via socket for real-time delivery
+            const userId = user._id || user.id;
+            if (socketService.isConnected()) {
+                socketService.emit('emergency-alert', {
+                    driverId: userId,
+                    message: message.trim(),
+                    timestamp: new Date().toISOString(),
+                    location
+                });
+                console.log('🔌 Emergency alert also sent via socket');
+            }
+
+            setMessage('');
+            setShowModal(false);
+        } catch (error) {
+            console.error('❌ Error sending emergency alert:', error);
+            toast.error('Failed to send emergency alert. Please try again.');
         }
-
-        console.log('🔍 Sending emergency alert with driver ID:', userId);
-        console.log('🔍 Emergency alert data:', {
-            driverId: userId,
-            message: message.trim(),
-            timestamp: new Date().toISOString()
-        });
-
-        // Send emergency alert
-        socketService.emit('emergency-alert', {
-            driverId: userId,
-            message: message.trim(),
-            timestamp: new Date().toISOString()
-        });
-
-        setMessage('');
-        setShowModal(false);
     };
 
     // Listen for admin replies

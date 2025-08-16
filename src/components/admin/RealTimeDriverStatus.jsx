@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { getRealTimeDriverStatus } from '../../services/dashboardService';
 import { getStatusColor, getStatusText } from '../../services/systemSettings';
 import socketService from '../../services/socketService';
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowPathIcon, WifiIcon, ClockIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 const RealTimeDriverStatus = () => {
   const [driverStatus, setDriverStatus] = useState({
@@ -45,11 +45,14 @@ const RealTimeDriverStatus = () => {
     // Check if socket is available
     const socket = socketService.getSocket();
     if (!socket || !socketService.isConnected()) {
-      console.log('Socket not available for RealTimeDriverStatus');
+      console.log('⚠️ RealTimeDriverStatus: Socket not available for real-time updates');
       return;
     }
 
+    console.log('🔌 RealTimeDriverStatus: Setting up socket event listeners');
+
     const handleDriverOnline = (driver) => {
+      console.log('🟢 RealTimeDriverStatus: Driver online event received:', driver);
       setDriverStatus(prev => {
         const updatedDrivers = prev.drivers.map(d =>
           d.id === driver.id ? { ...d, status: 'online', lastActive: new Date().toISOString() } : d
@@ -60,16 +63,20 @@ const RealTimeDriverStatus = () => {
           return acc;
         }, { online: 0, busy: 0, offline: 0 });
 
-        return {
+        const newStatus = {
           ...prev,
           drivers: updatedDrivers,
           ...counts,
           total: updatedDrivers.length
         };
+
+        console.log('📊 RealTimeDriverStatus: Updated status after online event:', newStatus);
+        return newStatus;
       });
     };
 
     const handleDriverOffline = (driver) => {
+      console.log('🔴 RealTimeDriverStatus: Driver offline event received:', driver);
       setDriverStatus(prev => {
         const updatedDrivers = prev.drivers.map(d =>
           d.id === driver.id ? { ...d, status: 'offline', lastActive: new Date().toISOString() } : d
@@ -80,16 +87,20 @@ const RealTimeDriverStatus = () => {
           return acc;
         }, { online: 0, busy: 0, offline: 0 });
 
-        return {
+        const newStatus = {
           ...prev,
           drivers: updatedDrivers,
           ...counts,
           total: updatedDrivers.length
         };
+
+        console.log('📊 RealTimeDriverStatus: Updated status after offline event:', newStatus);
+        return newStatus;
       });
     };
 
     const handleDriverBusy = (driver) => {
+      console.log('🟡 RealTimeDriverStatus: Driver busy event received:', driver);
       setDriverStatus(prev => {
         const updatedDrivers = prev.drivers.map(d =>
           d.id === driver.id ? { ...d, status: 'busy', lastActive: new Date().toISOString() } : d
@@ -100,12 +111,15 @@ const RealTimeDriverStatus = () => {
           return acc;
         }, { online: 0, busy: 0, offline: 0 });
 
-        return {
+        const newStatus = {
           ...prev,
           drivers: updatedDrivers,
           ...counts,
           total: updatedDrivers.length
         };
+
+        console.log('📊 RealTimeDriverStatus: Updated status after busy event:', newStatus);
+        return newStatus;
       });
     };
 
@@ -114,11 +128,27 @@ const RealTimeDriverStatus = () => {
     socket.on('driver:offline', handleDriverOffline);
     socket.on('driver:busy', handleDriverBusy);
 
+    // Also listen for the driver-status-change event that the driver emits
+    socket.on('driver-status-change', (data) => {
+      console.log('🔄 RealTimeDriverStatus: Driver status change event received:', data);
+      if (data.status === 'online') {
+        handleDriverOnline(data);
+      } else if (data.status === 'offline') {
+        handleDriverOffline(data);
+      } else if (data.status === 'busy') {
+        handleDriverBusy(data);
+      }
+    });
+
+    console.log('✅ RealTimeDriverStatus: Socket event listeners set up successfully');
+
     return () => {
       if (socket) {
+        console.log('🧹 RealTimeDriverStatus: Cleaning up socket event listeners');
         socket.off('driver:online', handleDriverOnline);
         socket.off('driver:offline', handleDriverOffline);
         socket.off('driver:busy', handleDriverBusy);
+        socket.off('driver-status-change');
       }
     };
   }, []);
@@ -127,86 +157,99 @@ const RealTimeDriverStatus = () => {
     {
       title: 'Online',
       count: driverStatus.online,
-      color: 'bg-green-500',
-      icon: '🟢'
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      icon: WifiIcon
     },
     {
       title: 'Busy',
       count: driverStatus.busy,
-      color: 'bg-red-500',
-      icon: '🔴'
+      color: 'text-red-600',
+      bgColor: 'bg-red-50',
+      icon: ClockIcon
     },
     {
       title: 'Offline',
       count: driverStatus.offline,
-      color: 'bg-gray-500',
-      icon: '⚫'
+      color: 'text-gray-600',
+      bgColor: 'bg-gray-50',
+      icon: XCircleIcon
     }
   ];
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Driver Status</h2>
-          <p className="text-sm text-gray-600">
-            Real-time driver availability
-            {lastUpdate && (
-              <span className="ml-2 text-xs text-gray-500">
-                Last updated: {lastUpdate.toLocaleTimeString()}
-              </span>
-            )}
-          </p>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+      <div className="px-3 py-2 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xs font-semibold text-gray-900">Driver Status</h2>
+            <p className="text-xs text-gray-600">
+              Real-time driver availability
+              {lastUpdate && (
+                <span className="ml-1 text-xs text-gray-500">
+                  • {lastUpdate.toLocaleTimeString()}
+                </span>
+              )}
+            </p>
+          </div>
+
+          <button
+            onClick={() => fetchDriverStatus()}
+            disabled={isLoading}
+            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Refresh"
+          >
+            <ArrowPathIcon className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-3">
+        <div className="grid grid-cols-3 gap-2 mb-3">
+          {statusCards.map((card, index) => {
+            const Icon = card.icon;
+            return (
+              <div key={`status-${card.title}-${index}`} className="bg-gray-50 rounded p-2 text-center">
+                <div className={`p-1 rounded-lg ${card.bgColor} w-fit mx-auto mb-1`}>
+                  <Icon className={`w-3 h-3 ${card.color}`} />
+                </div>
+                <p className="text-sm font-bold text-gray-900">{card.count}</p>
+                <p className="text-xs text-gray-600">{card.title}</p>
+              </div>
+            );
+          })}
         </div>
 
-        <button
-          onClick={() => fetchDriverStatus()}
-          disabled={isLoading}
-          className="p-2 text-gray-400 hover:text-gray-600 transition-colors opacity-60 hover:opacity-100"
-          title="Refresh"
-        >
-          <ArrowPathIcon className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+        <div className="space-y-2">
+          <h3 className="text-xs font-medium text-gray-700">Recent Activity</h3>
+          <div className="space-y-1 max-h-32 overflow-y-auto">
+            {driverStatus.drivers.slice(0, 4).map((driver, index) => {
+              // Handle both 'isActive' and 'isOnline' field names
+              const isOnline = driver.isOnline !== undefined ? driver.isOnline :
+                driver.isActive !== undefined ? driver.isActive : false;
+              const status = isOnline ? 'online' : 'offline';
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {statusCards.map((card, index) => (
-          <div key={`status-${card.title}-${index}`} className="bg-gray-50 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">{card.title}</p>
-                <p className="text-2xl font-bold text-gray-900">{card.count}</p>
-              </div>
-              <div className={`w-8 h-8 rounded-full ${card.color} flex items-center justify-center text-white text-sm`}>
-                {card.icon}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium text-gray-700">Recent Activity</h3>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
-          {driverStatus.drivers.slice(0, 5).map((driver, index) => (
-            <div key={driver._id || driver.id || `driver-status-${index}`} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full ${getStatusColor(driver.status).split(' ')[0]}`}></div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{driver.name}</p>
-                  <p className="text-xs text-gray-500">{driver.currentLocation}</p>
+              return (
+                <div key={driver._id || driver.id || `driver-status-${index}`} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${getStatusColor(status).split(' ')[0]}`}></div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-900">{driver.name}</p>
+                      <p className="text-xs text-gray-500">{driver.currentLocation || driver.area || 'Unknown'}</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xs px-1.5 py-0.5 rounded-full ${getStatusColor(status)}`}>
+                      {getStatusText(status)}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {new Date(driver.lastActive || driver.lastLogin || new Date()).toLocaleTimeString()}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div className="text-right">
-                <p className={`text-xs px-2 py-1 rounded-full ${getStatusColor(driver.status)}`}>
-                  {getStatusText(driver.status)}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {new Date(driver.lastActive).toLocaleTimeString()}
-                </p>
-              </div>
-            </div>
-          ))}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

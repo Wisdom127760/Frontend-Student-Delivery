@@ -8,7 +8,6 @@ import Pagination from '../../components/common/Pagination';
 import CapitalizedInput from '../../components/common/CapitalizedInput';
 import { formMemory, whatsAppUtils } from '../../utils/formMemory';
 import {
-    MagnifyingGlassIcon,
     PlusIcon,
     EyeIcon,
     PencilIcon,
@@ -22,20 +21,26 @@ import {
     MapPinIcon,
     ChatBubbleLeftRightIcon,
     PhoneIcon,
-    ClipboardDocumentIcon
+    ClipboardDocumentIcon,
+    MegaphoneIcon,
+    CheckCircleIcon,
+    XCircleIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import apiService from '../../services/api';
+import socketService from '../../services/socketService';
 
 const DeliveriesPage = () => {
     const location = useLocation();
     const [deliveries, setDeliveries] = useState([]);
     const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+
     const [statusFilter, setStatusFilter] = useState('all');
     const [paymentFilter, setPaymentFilter] = useState('all');
-    const [priorityFilter, setPriorityFilter] = useState('all');
-    const [driverFilter, setDriverFilter] = useState('all');
+    // const [priorityFilter, setPriorityFilter] = useState('all'); // Unused state
+    // const [driverFilter, setDriverFilter] = useState('all'); // Unused state
+    const [broadcastFilter, setBroadcastFilter] = useState('all');
     const [lastRefresh, setLastRefresh] = useState(null);
 
     // Pagination state
@@ -73,7 +78,19 @@ const DeliveriesPage = () => {
         priority: 'normal',
         distance: '',
         assignedTo: '',
-        mapLink: '' // New field for map link
+        mapLink: '', // New field for map link
+        // Broadcast settings
+        useAutoBroadcast: true,
+        broadcastRadius: 5,
+        broadcastDuration: 60,
+        pickupCoordinates: {
+            lat: null,
+            lng: null
+        },
+        deliveryCoordinates: {
+            lat: null,
+            lng: null
+        }
     });
 
     const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -101,42 +118,36 @@ const DeliveriesPage = () => {
         const loadData = async () => {
             try {
                 setLoading(true);
-                const token = localStorage.getItem('token');
+                console.log('🔄 Loading deliveries data...');
 
-                // Fetch deliveries
-                const deliveriesResponse = await fetch(`${API_BASE_URL}/admin/deliveries`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                // Fetch deliveries using API service
+                const deliveriesResult = await apiService.getDeliveries();
+                console.log('📦 Deliveries result:', deliveriesResult);
 
-                if (deliveriesResponse.ok) {
-                    const data = await deliveriesResponse.json();
-                    setDeliveries(data.data || []);
+                if (deliveriesResult.success) {
+                    // Handle nested data structure from backend
+                    const deliveriesData = deliveriesResult.data?.deliveries || deliveriesResult.data || [];
+                    setDeliveries(deliveriesData);
                     setLastRefresh(new Date());
+                    console.log('✅ Deliveries loaded:', deliveriesData.length || 0, 'items');
                 } else {
-                    console.error('Failed to fetch deliveries');
+                    console.error('❌ Failed to fetch deliveries:', deliveriesResult);
                     toast.error('Failed to fetch deliveries');
                 }
 
-                // Fetch drivers
-                const driversResponse = await fetch(`${API_BASE_URL}/admin/drivers`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
+                // Fetch drivers using API service
+                const driversResult = await apiService.getDrivers();
+                console.log('🚗 Drivers result:', driversResult);
 
-                if (driversResponse.ok) {
-                    const data = await driversResponse.json();
-                    setDrivers(data.data || []);
+                if (driversResult.success) {
+                    setDrivers(driversResult.data || []);
+                    console.log('✅ Drivers loaded:', driversResult.data?.length || 0, 'items');
                 } else {
-                    console.error('Failed to fetch drivers');
+                    console.error('❌ Failed to fetch drivers:', driversResult);
                     toast.error('Failed to fetch drivers');
                 }
             } catch (error) {
-                console.error('Error fetching data:', error);
+                console.error('💥 Error fetching data:', error);
                 toast.error('Error fetching data');
             } finally {
                 setLoading(false);
@@ -161,23 +172,63 @@ const DeliveriesPage = () => {
         }
     }, [location.search, API_BASE_URL]);
 
+    // Socket event listeners for real-time updates
+    useEffect(() => {
+        if (!socketService.isConnected()) {
+            console.log('⚠️ DeliveriesPage: Socket not connected for real-time updates');
+            return;
+        }
+
+        console.log('🔌 DeliveriesPage: Setting up socket event listeners');
+
+        // Listen for new delivery broadcasts
+        const handleNewBroadcast = (data) => {
+            console.log('📡 DeliveriesPage: New broadcast received:', data);
+            toast.success(`New delivery broadcast: ${data.pickupLocation} → ${data.deliveryLocation}`);
+            fetchDeliveries(); // Refresh the list
+        };
+
+        // Listen for delivery status changes
+        const handleDeliveryStatusChange = (data) => {
+            console.log('📡 DeliveriesPage: Delivery status changed:', data);
+            toast.info(`Delivery ${data.deliveryCode} status: ${data.status}`);
+            fetchDeliveries(); // Refresh the list
+        };
+
+        // Listen for delivery assignments
+        const handleDeliveryAssigned = (data) => {
+            console.log('📡 DeliveriesPage: Delivery assigned:', data);
+            toast.success(`Delivery ${data.deliveryCode} assigned to driver`);
+            fetchDeliveries(); // Refresh the list
+        };
+
+        // Set up event listeners
+        socketService.on('delivery-broadcast', handleNewBroadcast);
+        socketService.on('delivery-status-changed', handleDeliveryStatusChange);
+        socketService.on('delivery-assigned', handleDeliveryAssigned);
+
+        console.log('✅ DeliveriesPage: Socket event listeners set up successfully');
+
+        return () => {
+            console.log('🧹 DeliveriesPage: Cleaning up socket event listeners');
+            socketService.off('delivery-broadcast', handleNewBroadcast);
+            socketService.off('delivery-status-changed', handleDeliveryStatusChange);
+            socketService.off('delivery-assigned', handleDeliveryAssigned);
+        };
+    }, []);
+
     const fetchDeliveries = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            const response = await fetch(`${API_BASE_URL}/admin/deliveries`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            const result = await apiService.getDeliveries();
 
-            if (response.ok) {
-                const data = await response.json();
-                setDeliveries(data.data || []);
+            if (result.success) {
+                // Handle nested data structure from backend
+                const deliveriesData = result.data?.deliveries || result.data || [];
+                setDeliveries(deliveriesData);
                 setLastRefresh(new Date());
             } else {
-                console.error('Failed to fetch deliveries');
+                console.error('Failed to fetch deliveries:', result);
                 toast.error('Failed to fetch deliveries');
             }
         } catch (error) {
@@ -194,48 +245,121 @@ const DeliveriesPage = () => {
         e.preventDefault();
 
         // Validate required fields
-        if (!formData.assignedTo) {
-            toast.error('Please assign a driver to this delivery');
-            return;
-        }
-
         if (!formData.pickupLocation || !formData.deliveryLocation) {
             toast.error('Please fill in pickup and delivery locations');
             return;
         }
 
+        if (formData.pickupLocation.length < 5) {
+            toast.error('Pickup location must be at least 5 characters long');
+            return;
+        }
+
+        if (formData.deliveryLocation.length < 5) {
+            toast.error('Delivery location must be at least 5 characters long');
+            return;
+        }
+
+        if (!formData.customerName || !formData.customerName.trim()) {
+            toast.error('Please enter customer name');
+            return;
+        }
+
+        if (!formData.customerPhone || !formData.customerPhone.trim()) {
+            toast.error('Please enter customer phone number');
+            return;
+        }
+
+        // If not using auto-broadcast, require driver assignment
+        if (!formData.useAutoBroadcast && !formData.assignedTo) {
+            toast.error('Please assign a driver to this delivery');
+            return;
+        }
+
         try {
-            const token = localStorage.getItem('token');
+            // const token = localStorage.getItem('token'); // Unused variable
+
+            // Debug: Log the form data
+            console.log('🔍 Form Data Debug:', {
+                pickupLocation: formData.pickupLocation,
+                deliveryLocation: formData.deliveryLocation,
+                customerName: formData.customerName,
+                customerPhone: formData.customerPhone,
+                fee: formData.fee,
+                paymentMethod: formData.paymentMethod,
+                notes: formData.notes,
+                priority: formData.priority,
+                useAutoBroadcast: formData.useAutoBroadcast,
+                broadcastRadius: formData.broadcastRadius,
+                broadcastDuration: formData.broadcastDuration,
+                estimatedTime: formData.estimatedTime
+            });
 
             // Prepare the payload according to the backend schema
             const payload = {
                 pickupLocation: formData.pickupLocation,
-                pickupLocationLink: formData.pickupLocationLink,
                 deliveryLocation: formData.deliveryLocation,
-                deliveryLocationLink: formData.deliveryLocationLink,
-                customerName: formData.customerName,
-                customerPhone: formData.customerPhone,
+                customerName: formData.customerName.trim(),
+                customerPhone: formData.customerPhone.trim(),
                 fee: Number(formData.fee),
                 paymentMethod: formData.paymentMethod,
-                notes: formData.notes,
+                notes: formData.notes || '',
                 priority: formData.priority,
-                ...(formData.estimatedTime && { estimatedTime: new Date(formData.estimatedTime).toISOString() }),
-                assignedTo: formData.assignedTo // Now required
+                // Broadcast settings
+                useAutoBroadcast: formData.useAutoBroadcast,
+                broadcastRadius: formData.useAutoBroadcast ? Number(formData.broadcastRadius) : null,
+                broadcastDuration: formData.useAutoBroadcast ? Number(formData.broadcastDuration) : null,
+                // Manual assignment (only if not using auto-broadcast)
+                ...(formData.useAutoBroadcast ? {} : { assignedTo: formData.assignedTo })
             };
 
-            const response = await fetch(`${API_BASE_URL}/admin/deliveries`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(payload)
-            });
+            // Add optional fields only if they have values
+            if (formData.pickupLocationLink) {
+                payload.pickupLocationLink = formData.pickupLocationLink;
+            }
+            if (formData.deliveryLocationLink) {
+                payload.deliveryLocationLink = formData.deliveryLocationLink;
+            }
+            if (formData.estimatedTime) {
+                payload.estimatedTime = new Date(formData.estimatedTime).toISOString();
+            }
+            if (formData.pickupCoordinates && formData.pickupCoordinates.lat && formData.pickupCoordinates.lng) {
+                payload.pickupCoordinates = formData.pickupCoordinates;
+            }
+            if (formData.deliveryCoordinates && formData.deliveryCoordinates.lat && formData.deliveryCoordinates.lng) {
+                payload.deliveryCoordinates = formData.deliveryCoordinates;
+            }
 
-            const result = await response.json();
+            // Debug: Log the final payload
+            console.log('📦 Final Payload Debug:', payload);
 
-            if (response.ok) {
-                toast.success('Delivery created successfully!');
+            // Final validation check
+            if (!payload.pickupLocation || !payload.deliveryLocation || !payload.customerName || !payload.customerPhone) {
+                console.error('❌ Missing required fields in payload:', {
+                    pickupLocation: !!payload.pickupLocation,
+                    deliveryLocation: !!payload.deliveryLocation,
+                    customerName: !!payload.customerName,
+                    customerPhone: !!payload.customerPhone
+                });
+                toast.error('Missing required fields. Please fill in all required information.');
+                return;
+            }
+
+            const result = await apiService.createDeliveryWithBroadcast(payload);
+
+            if (result.success) {
+                const successMessage = formData.useAutoBroadcast
+                    ? `Delivery created successfully! 🚚\n\n📦 Delivery Code: ${result.data.deliveryCode}\n💰 Fee: ₺${result.data.fee}\n📡 Broadcast Status: ${result.data.broadcastStatus}\n👥 Eligible Drivers: ${result.data.eligibleDrivers || 0}`
+                    : `Delivery created successfully! 🚚\n\n📦 Delivery Code: ${result.data.deliveryCode}\n💰 Fee: ₺${result.data.fee}\n👤 Assigned Driver: ${result.data.assignedTo || 'Not assigned'}`;
+
+                toast.success(successMessage, {
+                    duration: 6000,
+                    style: {
+                        whiteSpace: 'pre-line',
+                        fontSize: '14px'
+                    }
+                });
+
                 setShowCreatePanel(false);
                 resetForm();
                 fetchDeliveries();
@@ -244,6 +368,15 @@ const DeliveriesPage = () => {
                 if (result.data && result.data.deliveryCode) {
                     showCustomerMessage(result.data);
                 }
+
+                // Show additional info for auto-broadcast
+                if (formData.useAutoBroadcast && result.data.broadcastStatus === 'not_started') {
+                    setTimeout(() => {
+                        toast.info('📡 Broadcast will start automatically in a few seconds...', {
+                            duration: 4000
+                        });
+                    }, 2000);
+                }
             } else {
                 console.error('Failed to create delivery:', result);
                 if (result.details) {
@@ -251,7 +384,7 @@ const DeliveriesPage = () => {
                         toast.error(`${detail.field}: ${detail.message}`);
                     });
                 } else {
-                    toast.error(result.error || 'Failed to create delivery');
+                    toast.error(result.message || 'Failed to create delivery');
                 }
             }
         } catch (error) {
@@ -376,7 +509,19 @@ const DeliveriesPage = () => {
             priority: 'normal',
             distance: '',
             assignedTo: '',
-            mapLink: ''
+            mapLink: '',
+            // Broadcast settings
+            useAutoBroadcast: true,
+            broadcastRadius: 5,
+            broadcastDuration: 60,
+            pickupCoordinates: {
+                lat: null,
+                lng: null
+            },
+            deliveryCoordinates: {
+                lat: null,
+                lng: null
+            }
         });
         // Clear saved form data
         formMemory.clearFormData('delivery');
@@ -520,19 +665,17 @@ Student Delivery Team`;
         setShowEditPanel(true);
     };
 
-    const filteredDeliveries = deliveries.filter(delivery => {
-        const matchesSearch = delivery.deliveryCode?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            delivery.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            delivery.pickupLocation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            delivery.deliveryLocation?.toLowerCase().includes(searchTerm.toLowerCase());
+    const filteredDeliveries = Array.isArray(deliveries) ? deliveries.filter(delivery => {
+        const matchesSearch = true;
 
         const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
         const matchesPayment = paymentFilter === 'all' || delivery.paymentMethod === paymentFilter;
-        const matchesPriority = priorityFilter === 'all' || delivery.priority === priorityFilter;
-        const matchesDriver = driverFilter === 'all' || delivery.assignedTo === driverFilter;
+        const matchesPriority = 'all' === 'all' || delivery.priority === 'all'; // priorityFilter commented out
+        const matchesDriver = 'all' === 'all' || delivery.assignedTo === 'all'; // driverFilter commented out
+        const matchesBroadcast = broadcastFilter === 'all' || delivery.broadcastStatus === broadcastFilter;
 
-        return matchesSearch && matchesStatus && matchesPayment && matchesPriority && matchesDriver;
-    });
+        return matchesSearch && matchesStatus && matchesPayment && matchesPriority && matchesDriver && matchesBroadcast;
+    }) : [];
 
     // Calculate totals for accounting
     const calculateTotals = () => {
@@ -640,415 +783,811 @@ Student Delivery Team`;
     }
 
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Deliveries</h1>
-                        <p className="text-gray-600">Manage all delivery orders and track their status</p>
+        <div className="min-h-screen bg-gray-50">
+            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div className="space-y-4">
+                    {/* Header */}
+                    <div className="bg-white shadow-sm rounded-lg p-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Deliveries</h1>
+                                <p className="text-sm text-gray-600">Manage all delivery orders and track their status</p>
 
-                        {/* Refresh indicator */}
-                        {lastRefresh && (
-                            <div className="mt-2 flex items-center text-xs text-gray-400">
-                                <ClockIcon className="h-3 w-3 mr-1" />
-                                <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
+                                {/* Refresh indicator */}
+                                {lastRefresh && (
+                                    <div className="mt-1 flex items-center text-xs text-gray-400">
+                                        <ClockIcon className="h-3 w-3 mr-1" />
+                                        <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                    </div>
-                    <div className="mt-4 sm:mt-0 flex space-x-3">
-                        <button
-                            onClick={fetchDeliveries}
-                            disabled={loading}
-                            className="inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-                        >
-                            <ArrowPathIcon className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </button>
-                        <button
-                            onClick={openCreatePanel}
-                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
-                        >
-                            <PlusIcon className="h-4 w-4 mr-2" />
-                            New Delivery
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Accounting Summary */}
-            <div className="bg-white shadow rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Accounting Summary</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                        <div className="text-sm font-medium text-blue-600">Total Deliveries</div>
-                        <div className="text-2xl font-bold text-blue-900">{totals.totalDeliveries}</div>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                        <div className="text-sm font-medium text-green-600">Total Revenue</div>
-                        <div className="text-2xl font-bold text-green-900">₺{totals.totalRevenue.toLocaleString()}</div>
-                    </div>
-                    <div className="bg-purple-50 p-4 rounded-lg">
-                        <div className="text-sm font-medium text-purple-600">Average Fee</div>
-                        <div className="text-2xl font-bold text-purple-900">
-                            ₺{totals.totalDeliveries > 0 ? (totals.totalRevenue / totals.totalDeliveries).toFixed(2) : '0'}
-                        </div>
-                    </div>
-                    <div className="bg-orange-50 p-4 rounded-lg">
-                        <div className="text-sm font-medium text-orange-600">Delivered Revenue</div>
-                        <div className="text-2xl font-bold text-orange-900">
-                            ₺{(totals.byStatus.delivered?.amount || 0).toLocaleString()}
-                        </div>
-                    </div>
-                </div>
-
-                {/* Payment Method Breakdown */}
-                <div className="mt-6">
-                    <h4 className="text-md font-semibold text-gray-900 mb-3">Payment Method Breakdown</h4>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                        {Object.entries(totals.byPaymentMethod).map(([method, data]) => (
-                            <div key={method} className="bg-gray-50 p-3 rounded-lg">
-                                <div className="text-sm font-medium text-gray-700 capitalize">{method.replace('_', ' ')}</div>
-                                <div className="text-lg font-bold text-gray-900">{data.count}</div>
-                                <div className="text-sm text-gray-600">₺{data.amount.toLocaleString()}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </div>
-
-            {/* Filters */}
-            <div className="bg-white shadow rounded-lg p-6">
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
-                    <div className="flex items-center space-x-2">
-                        <FunnelIcon className="h-5 w-5 text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700">Filters:</span>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-3">
-                        <div className="relative">
-                            <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                            <input
-                                type="text"
-                                placeholder="Search deliveries..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                            />
-                        </div>
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="assigned">Assigned</option>
-                            <option value="picked_up">Picked Up</option>
-                            <option value="delivered">Delivered</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                        <select
-                            value={paymentFilter}
-                            onChange={(e) => setPaymentFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
-                        >
-                            <option value="all">All Payments</option>
-                            <option value="cash">Cash</option>
-                            <option value="pos">POS</option>
-                            <option value="naira_transfer">Naira Transfer</option>
-                            <option value="isbank_transfer">Isbank Transfer</option>
-                            <option value="crypto_transfer">Crypto Transfer</option>
-                        </select>
-                        <select
-                            value={priorityFilter}
-                            onChange={(e) => setPriorityFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
-                        >
-                            <option value="all">All Priorities</option>
-                            <option value="low">Low</option>
-                            <option value="normal">Normal</option>
-                            <option value="high">High</option>
-                            <option value="urgent">Urgent</option>
-                        </select>
-                        <select
-                            value={driverFilter}
-                            onChange={(e) => setDriverFilter(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
-                        >
-                            <option value="all">All Drivers</option>
-                            {drivers.map((driver) => (
-                                <option key={driver._id} value={driver._id}>
-                                    {capitalizeName(driver.name)}
-                                </option>
-                            ))}
-                        </select>
-                        <div className="text-sm text-gray-500">
-                            {filteredDeliveries.length} of {deliveries.length} deliveries
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Deliveries List */}
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Delivery
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Customer
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Route
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Driver
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Fee
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Remittance
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Created
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {paginatedDeliveries.map((delivery) => (
-                                <tr key={delivery._id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0">
-                                                <TruckIcon className="h-8 w-8 text-blue-600" />
-                                            </div>
-                                            <div className="ml-4">
-                                                <button
-                                                    onClick={() => {
-                                                        navigator.clipboard.writeText(delivery.deliveryCode);
-                                                        toast.success('Delivery code copied to clipboard!');
-                                                    }}
-                                                    className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer flex items-center"
-                                                    title="Click to copy delivery code"
-                                                >
-                                                    {delivery.deliveryCode}
-                                                    <ClipboardDocumentIcon className="w-3 h-3 ml-1 opacity-50 hover:opacity-100" />
-                                                </button>
-                                                <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(delivery.priority)}`}>
-                                                    {delivery.priority}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm text-gray-900">{delivery.customerName || 'N/A'}</div>
-                                        <div className="text-sm text-gray-500">{delivery.customerPhone || 'N/A'}</div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <div className="text-sm text-gray-900">
-                                            <div className="font-medium flex items-center space-x-2">
-                                                {delivery.pickupLocationLink ? (
-                                                    <a
-                                                        href={delivery.pickupLocationLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="hover:text-blue-600 hover:underline cursor-pointer"
-                                                        title="Open pickup location in maps"
-                                                    >
-                                                        From: {delivery.pickupLocation}
-                                                    </a>
-                                                ) : (
-                                                    <span>From: {delivery.pickupLocation}</span>
-                                                )}
-                                                {delivery.pickupLocationLink && (
-                                                    <a
-                                                        href={delivery.pickupLocationLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                                                        title="Open pickup location in maps"
-                                                    >
-                                                        <MapPinIcon className="w-3 h-3" />
-                                                    </a>
-                                                )}
-                                            </div>
-                                            <div className="text-gray-500 flex items-center space-x-2">
-                                                {delivery.deliveryLocationLink ? (
-                                                    <a
-                                                        href={delivery.deliveryLocationLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="hover:text-blue-600 hover:underline cursor-pointer"
-                                                        title="Open delivery location in maps"
-                                                    >
-                                                        To: {delivery.deliveryLocation}
-                                                    </a>
-                                                ) : (
-                                                    <span>To: {delivery.deliveryLocation}</span>
-                                                )}
-                                                {delivery.deliveryLocationLink && (
-                                                    <a
-                                                        href={delivery.deliveryLocationLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
-                                                        title="Open delivery location in maps"
-                                                    >
-                                                        <MapPinIcon className="w-3 h-3" />
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {delivery.assignedTo ? (
-                                            <div className="flex items-center">
-                                                <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
-                                                <div>
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        {delivery.assignedTo.name}
-                                                    </div>
-                                                    <div className="text-sm text-gray-500">
-                                                        {delivery.assignedTo.area}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <span className="text-sm text-gray-500">Unassigned</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(delivery.status)}`}>
-                                            {delivery.status.replace('_', ' ')}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">
-                                            ₺{delivery.fee}
-                                        </div>
-                                        <div className="text-sm text-gray-500">
-                                            {delivery.paymentMethod}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {delivery.status === 'delivered' ? (
-                                            <div className="text-sm">
-                                                {delivery.remittanceStatus === 'settled' ? (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                        Settled
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                                                        Pending
-                                                    </span>
-                                                )}
-                                            </div>
-                                        ) : (
-                                            <span className="text-sm text-gray-400">-</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {delivery.createdAt ? format(new Date(delivery.createdAt), 'MMM dd, yyyy') : 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex items-center justify-end space-x-2">
-                                            <button
-                                                onClick={() => openViewPanel(delivery)}
-                                                className="text-blue-600 hover:text-blue-900"
-                                            >
-                                                <EyeIcon className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => openEditPanel(delivery)}
-                                                className="text-indigo-600 hover:text-indigo-900"
-                                            >
-                                                <PencilIcon className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteDelivery(delivery._id)}
-                                                className="text-red-600 hover:text-red-900"
-                                            >
-                                                <TrashIcon className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={handlePageChange}
-                    itemsPerPage={itemsPerPage}
-                    onItemsPerPageChange={handleItemsPerPageChange}
-                    totalItems={filteredDeliveries.length}
-                    startIndex={startIndex}
-                    endIndex={endIndex}
-                />
-            </div>
-
-            {/* Create Delivery Side Panel */}
-            {showCreatePanel && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50">
-                    <div className="fixed right-0 top-0 h-screen w-full sm:w-[500px] bg-white shadow-xl transform transition-transform duration-300 ease-in-out">
-                        <div className="flex flex-col h-full">
-                            {/* Header */}
-                            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                                <h3 className="text-xl font-semibold text-gray-900">Create New Delivery</h3>
+                            <div className="mt-3 sm:mt-0 flex space-x-2">
                                 <button
-                                    onClick={() => setShowCreatePanel(false)}
-                                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    onClick={fetchDeliveries}
+                                    disabled={loading}
+                                    className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors"
                                 >
-                                    <XMarkIcon className="h-6 w-6" />
+                                    <ArrowPathIcon className={`h-3 w-3 mr-1 ${loading ? 'animate-spin' : ''}`} />
+                                    Refresh
+                                </button>
+                                <button
+                                    onClick={openCreatePanel}
+                                    className="inline-flex items-center px-3 py-1.5 border border-transparent rounded text-xs font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
+                                >
+                                    <PlusIcon className="h-3 w-3 mr-1" />
+                                    New Delivery
                                 </button>
                             </div>
-                            {/* Form Content */}
-                            <div className="flex-1 overflow-y-auto p-8">
-                                <form id="create-delivery-form" onSubmit={handleCreateDelivery} className="space-y-6">
-                                    {/* Route Information */}
-                                    <div>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-4">Route Information</h4>
-                                        <div className="space-y-4">
+                        </div>
+                    </div>
+
+                    {/* Accounting Summary */}
+                    <div className="bg-white shadow-sm rounded-lg p-4">
+                        <h3 className="text-base font-semibold text-gray-900 mb-3">Accounting Summary</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div className="bg-blue-50 p-3 rounded-lg">
+                                <div className="text-xs font-medium text-blue-600">Total Deliveries</div>
+                                <div className="text-xl font-bold text-blue-900">{totals.totalDeliveries}</div>
+                            </div>
+                            <div className="bg-green-50 p-3 rounded-lg">
+                                <div className="text-xs font-medium text-green-600">Total Revenue</div>
+                                <div className="text-xl font-bold text-green-900">₺{totals.totalRevenue.toLocaleString()}</div>
+                            </div>
+                            <div className="bg-purple-50 p-3 rounded-lg">
+                                <div className="text-xs font-medium text-purple-600">Average Fee</div>
+                                <div className="text-xl font-bold text-purple-900">
+                                    ₺{totals.totalDeliveries > 0 ? (totals.totalRevenue / totals.totalDeliveries).toFixed(2) : '0'}
+                                </div>
+                            </div>
+                            <div className="bg-orange-50 p-3 rounded-lg">
+                                <div className="text-xs font-medium text-orange-600">Delivered Revenue</div>
+                                <div className="text-xl font-bold text-orange-900">
+                                    ₺{(totals.byStatus.delivered?.amount || 0).toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Payment Method Breakdown */}
+                        <div className="mt-4">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-2">Payment Method Breakdown</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                                {Object.entries(totals.byPaymentMethod).map(([method, data]) => (
+                                    <div key={method} className="bg-gray-50 p-2 rounded-lg">
+                                        <div className="text-xs font-medium text-gray-700 capitalize">{method.replace('_', ' ')}</div>
+                                        <div className="text-sm font-bold text-gray-900">{data.count}</div>
+                                        <div className="text-xs text-gray-600">₺{data.amount.toLocaleString()}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Filters */}
+                    <div className="bg-white shadow-sm rounded-lg p-4">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-3 lg:space-y-0">
+                            <div className="flex items-center space-x-2">
+                                <FunnelIcon className="h-4 w-4 text-gray-500" />
+                                <span className="text-xs font-medium text-gray-700">Filters:</span>
+                            </div>
+                            <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
+                                <select
+                                    value={statusFilter}
+                                    onChange={(e) => setStatusFilter(e.target.value)}
+                                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
+                                >
+                                    <option value="all">All Status</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="assigned">Assigned</option>
+                                    <option value="picked_up">Picked Up</option>
+                                    <option value="delivered">Delivered</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                                <select
+                                    value={paymentFilter}
+                                    onChange={(e) => setPaymentFilter(e.target.value)}
+                                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
+                                >
+                                    <option value="all">All Payments</option>
+                                    <option value="cash">Cash</option>
+                                    <option value="pos">POS</option>
+                                    <option value="naira_transfer">Naira Transfer</option>
+                                    <option value="isbank_transfer">Isbank Transfer</option>
+                                    <option value="crypto_transfer">Crypto Transfer</option>
+                                </select>
+                                <select
+                                    value={broadcastFilter}
+                                    onChange={(e) => setBroadcastFilter(e.target.value)}
+                                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
+                                >
+                                    <option value="all">All Broadcasts</option>
+                                    <option value="not_started">Not Started</option>
+                                    <option value="broadcasting">Broadcasting</option>
+                                    <option value="accepted">Accepted</option>
+                                    <option value="expired">Expired</option>
+                                    <option value="manual_assignment">Manual Assignment</option>
+                                </select>
+                                {/* <select
+                                    value={priorityFilter}
+                                    onChange={(e) => setPriorityFilter(e.target.value)}
+                                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
+                                >
+                                    <option value="all">All Priorities</option>
+                                    <option value="low">Low</option>
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select> */}
+                                {/* <select
+                                    value={driverFilter}
+                                    onChange={(e) => setDriverFilter(e.target.value)}
+                                    className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 min-w-[140px]"
+                                >
+                                    <option value="all">All Drivers</option>
+                                    {drivers.map((driver) => (
+                                        <option key={driver._id} value={driver._id}>
+                                            {capitalizeName(driver.name)}
+                                        </option>
+                                    ))}
+                                </select> */}
+                                <div className="text-sm text-gray-500">
+                                    {filteredDeliveries.length} of {deliveries.length} deliveries
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Deliveries List */}
+                    <div className="bg-white shadow-sm rounded-lg overflow-hidden">
+                        <div className="overflow-x-auto max-w-full">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Delivery
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Route
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Driver
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Status
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Broadcast
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Fee
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Remittance
+                                        </th>
+                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Created
+                                        </th>
+                                        <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Actions
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {paginatedDeliveries.map((delivery) => (
+                                        <tr key={delivery._id} className="hover:bg-gray-50">
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="flex-shrink-0">
+                                                        <TruckIcon className="h-8 w-8 text-blue-600" />
+                                                    </div>
+                                                    <div className="ml-4">
+                                                        <button
+                                                            onClick={() => {
+                                                                navigator.clipboard.writeText(delivery.deliveryCode);
+                                                                toast.success('Delivery code copied to clipboard!');
+                                                            }}
+                                                            className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer flex items-center"
+                                                            title="Click to copy delivery code"
+                                                        >
+                                                            {delivery.deliveryCode}
+                                                            <ClipboardDocumentIcon className="w-3 h-3 ml-1 opacity-50 hover:opacity-100" />
+                                                        </button>
+                                                        <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(delivery.priority)}`}>
+                                                            {delivery.priority}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                <div className="text-sm text-gray-900">{delivery.customerName || 'N/A'}</div>
+                                                <div className="text-sm text-gray-500">{delivery.customerPhone || 'N/A'}</div>
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <div className="text-sm text-gray-900">
+                                                    <div className="font-medium flex items-center space-x-2">
+                                                        {delivery.pickupLocationLink ? (
+                                                            <a
+                                                                href={delivery.pickupLocationLink}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="hover:text-blue-600 hover:underline cursor-pointer"
+                                                                title="Open pickup location in maps"
+                                                            >
+                                                                From: {delivery.pickupLocation}
+                                                            </a>
+                                                        ) : (
+                                                            <span>From: {delivery.pickupLocation}</span>
+                                                        )}
+                                                        {delivery.pickupLocationLink && (
+                                                            <a
+                                                                href={delivery.pickupLocationLink}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                                                title="Open pickup location in maps"
+                                                            >
+                                                                <MapPinIcon className="w-3 h-3" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-gray-500 flex items-center space-x-2">
+                                                        {delivery.deliveryLocationLink ? (
+                                                            <a
+                                                                href={delivery.deliveryLocationLink}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="hover:text-blue-600 hover:underline cursor-pointer"
+                                                                title="Open delivery location in maps"
+                                                            >
+                                                                To: {delivery.deliveryLocation}
+                                                            </a>
+                                                        ) : (
+                                                            <span>To: {delivery.deliveryLocation}</span>
+                                                        )}
+                                                        {delivery.deliveryLocationLink && (
+                                                            <a
+                                                                href={delivery.deliveryLocationLink}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex items-center p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded"
+                                                                title="Open delivery location in maps"
+                                                            >
+                                                                <MapPinIcon className="w-3 h-3" />
+                                                            </a>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                {delivery.assignedTo ? (
+                                                    <div className="flex items-center">
+                                                        <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
+                                                        <div>
+                                                            <div className="text-sm font-medium text-gray-900">
+                                                                {delivery.assignedTo.name}
+                                                            </div>
+                                                            <div className="text-sm text-gray-500">
+                                                                {delivery.assignedTo.area}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-500">Unassigned</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(delivery.status)}`}>
+                                                    {delivery.status.replace('_', ' ')}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                {delivery.broadcastStatus ? (
+                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${delivery.broadcastStatus === 'broadcasting' ? 'bg-blue-100 text-blue-800' :
+                                                        delivery.broadcastStatus === 'accepted' ? 'bg-green-100 text-green-800' :
+                                                            delivery.broadcastStatus === 'expired' ? 'bg-red-100 text-red-800' :
+                                                                delivery.broadcastStatus === 'manual_assignment' ? 'bg-purple-100 text-purple-800' :
+                                                                    'bg-gray-100 text-gray-800'
+                                                        }`}>
+                                                        {delivery.broadcastStatus === 'broadcasting' && <MegaphoneIcon className="w-3 h-3 mr-1" />}
+                                                        {delivery.broadcastStatus === 'accepted' && <CheckCircleIcon className="w-3 h-3 mr-1" />}
+                                                        {delivery.broadcastStatus === 'expired' && <XCircleIcon className="w-3 h-3 mr-1" />}
+                                                        {delivery.broadcastStatus.replace('_', ' ')}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                <div className="text-sm font-medium text-gray-900">
+                                                    ₺{delivery.fee}
+                                                </div>
+                                                <div className="text-sm text-gray-500">
+                                                    {delivery.paymentMethod}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap">
+                                                {delivery.status === 'delivered' ? (
+                                                    <div className="text-sm">
+                                                        {delivery.remittanceStatus === 'settled' ? (
+                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                Settled
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                                Pending
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">-</span>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                                                {delivery.createdAt ? format(new Date(delivery.createdAt), 'MMM dd, yyyy') : 'N/A'}
+                                            </td>
+                                            <td className="px-4 py-2 whitespace-nowrap text-right text-sm font-medium">
+                                                <div className="flex items-center justify-end space-x-1">
+                                                    <button
+                                                        onClick={() => openViewPanel(delivery)}
+                                                        className="text-blue-600 hover:text-blue-900 p-1"
+                                                    >
+                                                        <EyeIcon className="h-3 w-3" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => openEditPanel(delivery)}
+                                                        className="text-indigo-600 hover:text-indigo-900 p-1"
+                                                    >
+                                                        <PencilIcon className="h-3 w-3" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteDelivery(delivery._id)}
+                                                        className="text-red-600 hover:text-red-900 p-1"
+                                                    >
+                                                        <TrashIcon className="h-3 w-3" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            itemsPerPage={itemsPerPage}
+                            onItemsPerPageChange={handleItemsPerPageChange}
+                            totalItems={filteredDeliveries.length}
+                            startIndex={startIndex}
+                            endIndex={endIndex}
+                        />
+                    </div>
+
+                    {/* Create Delivery Side Panel */}
+                    {showCreatePanel && (
+                        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50">
+                            <div className="fixed right-0 top-0 h-screen w-full sm:w-[500px] bg-white shadow-xl transform transition-transform duration-300 ease-in-out">
+                                <div className="flex flex-col h-full">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                                        <h3 className="text-xl font-semibold text-gray-900">Create New Delivery</h3>
+                                        <button
+                                            onClick={() => setShowCreatePanel(false)}
+                                            className="text-gray-400 hover:text-gray-600 transition-colors"
+                                        >
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                    {/* Form Content */}
+                                    <div className="flex-1 overflow-y-auto p-8">
+                                        <form id="create-delivery-form" onSubmit={handleCreateDelivery} className="space-y-6">
+                                            {/* Route Information */}
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Location</label>
+                                                <h4 className="text-lg font-medium text-gray-900 mb-4">Route Information</h4>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Pickup Location</label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Enter pickup address"
+                                                            value={formData.pickupLocation}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, pickupLocation: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, pickupLocation: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                        />
+                                                        <div className="mt-2">
+                                                            <label className="block text-sm font-medium text-gray-600 mb-1">Pickup Location Link (Optional)</label>
+                                                            <div className="flex space-x-2">
+                                                                <input
+                                                                    type="url"
+                                                                    placeholder="Enter Google Maps link for pickup location"
+                                                                    value={formData.pickupLocationLink}
+                                                                    onChange={(e) => {
+                                                                        const newValue = e.target.value;
+                                                                        setFormData({ ...formData, pickupLocationLink: newValue });
+                                                                        formMemory.autoSave('delivery', { ...formData, pickupLocationLink: newValue });
+                                                                    }}
+                                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-sm"
+                                                                />
+                                                                {formData.pickupLocationLink && (
+                                                                    <a
+                                                                        href={formData.pickupLocationLink}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center px-3 py-2 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+                                                                        title="Open pickup location in maps"
+                                                                    >
+                                                                        <MapPinIcon className="h-4 w-4 mr-1" />
+                                                                        Open
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Location</label>
+                                                        <input
+                                                            type="text"
+                                                            required
+                                                            placeholder="Enter delivery address"
+                                                            value={formData.deliveryLocation}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, deliveryLocation: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, deliveryLocation: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                        />
+                                                        <div className="mt-2">
+                                                            <label className="block text-sm font-medium text-gray-600 mb-1">Delivery Location Link (Optional)</label>
+                                                            <div className="flex space-x-2">
+                                                                <input
+                                                                    type="url"
+                                                                    placeholder="Enter Google Maps link for delivery location"
+                                                                    value={formData.deliveryLocationLink}
+                                                                    onChange={(e) => {
+                                                                        const newValue = e.target.value;
+                                                                        setFormData({ ...formData, deliveryLocationLink: newValue });
+                                                                        formMemory.autoSave('delivery', { ...formData, deliveryLocationLink: newValue });
+                                                                    }}
+                                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-sm"
+                                                                />
+                                                                {formData.deliveryLocationLink && (
+                                                                    <a
+                                                                        href={formData.deliveryLocationLink}
+                                                                        target="_blank"
+                                                                        rel="noopener noreferrer"
+                                                                        className="inline-flex items-center px-3 py-2 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+                                                                        title="Open delivery location in maps"
+                                                                    >
+                                                                        <MapPinIcon className="h-4 w-4 mr-1" />
+                                                                        Open
+                                                                    </a>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                </div>
+                                            </div>
+
+                                            {/* Customer Information */}
+                                            <div>
+                                                <h4 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h4>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
+                                                        <CapitalizedInput
+                                                            type="text"
+                                                            placeholder="Enter customer name"
+                                                            value={formData.customerName}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, customerName: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, customerName: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                            capitalizeMode="words"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Customer Phone</label>
+                                                        <div className="space-y-2">
+                                                            <input
+                                                                type="tel"
+                                                                placeholder="Enter phone number (any format)"
+                                                                value={formData.customerPhone}
+                                                                onChange={(e) => {
+                                                                    const newValue = e.target.value;
+                                                                    setFormData({ ...formData, customerPhone: newValue });
+                                                                    formMemory.autoSave('delivery', { ...formData, customerPhone: newValue });
+                                                                }}
+                                                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                            />
+                                                            {formData.customerPhone && (
+                                                                <div className="flex items-center space-x-2 text-sm">
+                                                                    <span className="text-gray-600">Formatted:</span>
+                                                                    <span className="font-medium">{whatsAppUtils.formatPhoneNumber(formData.customerPhone)}</span>
+                                                                    {whatsAppUtils.isWhatsAppNumber(formData.customerPhone) && (
+                                                                        <a
+                                                                            href={whatsAppUtils.generateWhatsAppLink(formData.customerPhone)}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="inline-flex items-center text-green-600 hover:text-green-800"
+                                                                            title="Open WhatsApp chat"
+                                                                        >
+                                                                            <ChatBubbleLeftRightIcon className="h-4 w-4 mr-1" />
+                                                                            WhatsApp
+                                                                        </a>
+                                                                    )}
+                                                                    <a
+                                                                        href={`tel:${formData.customerPhone}`}
+                                                                        className="inline-flex items-center text-blue-600 hover:text-blue-800"
+                                                                        title="Call customer"
+                                                                    >
+                                                                        <PhoneIcon className="h-4 w-4 mr-1" />
+                                                                        Call
+                                                                    </a>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Payment Details */}
+                                            <div>
+                                                <h4 className="text-lg font-medium text-gray-900 mb-4">Payment Details</h4>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Fee (₺)</label>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            placeholder="0"
+                                                            value={formData.fee}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, fee: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, fee: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
+                                                        <select
+                                                            value={formData.paymentMethod}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, paymentMethod: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, paymentMethod: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                        >
+                                                            <option value="cash">Cash</option>
+                                                            <option value="pos">POS</option>
+                                                            <option value="naira_transfer">Naira Transfer</option>
+                                                            <option value="isbank_transfer">Isbank Transfer</option>
+                                                            <option value="crypto_transfer">Crypto Transfer</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Priority */}
+                                            <div>
+                                                <h4 className="text-lg font-medium text-gray-900 mb-4">Priority</h4>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Priority Level</label>
+                                                    <select
+                                                        value={formData.priority}
+                                                        onChange={(e) => {
+                                                            const newValue = e.target.value;
+                                                            setFormData({ ...formData, priority: newValue });
+                                                            formMemory.autoSave('delivery', { ...formData, priority: newValue });
+                                                        }}
+                                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                    >
+                                                        <option value="low">Low Priority</option>
+                                                        <option value="normal">Normal Priority</option>
+                                                        <option value="high">High Priority</option>
+                                                        <option value="urgent">Urgent</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+
+                                            {/* Additional Details */}
+                                            <div>
+                                                <h4 className="text-lg font-medium text-gray-900 mb-4">Additional Details</h4>
+                                                <div className="space-y-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Time</label>
+                                                        <input
+                                                            type="datetime-local"
+                                                            value={formData.estimatedTime}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, estimatedTime: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, estimatedTime: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                                                        <textarea
+                                                            rows="3"
+                                                            placeholder="Add any additional notes or special instructions..."
+                                                            value={formData.notes}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, notes: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, notes: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 resize-none"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Broadcast Settings */}
+                                            <div>
+                                                <h4 className="text-lg font-medium text-gray-900 mb-4">Broadcast Settings</h4>
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="useAutoBroadcast"
+                                                            checked={formData.useAutoBroadcast}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.checked;
+                                                                setFormData({ ...formData, useAutoBroadcast: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, useAutoBroadcast: newValue });
+                                                            }}
+                                                            className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                                                        />
+                                                        <label htmlFor="useAutoBroadcast" className="ml-2 block text-sm text-gray-900">
+                                                            Use Automatic Broadcast
+                                                        </label>
+                                                    </div>
+                                                    <p className="text-sm text-gray-600">
+                                                        When enabled, the system will automatically broadcast this delivery to nearby drivers.
+                                                        The first driver to accept will be assigned.
+                                                    </p>
+
+                                                    {formData.useAutoBroadcast && (
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700">Broadcast Radius (km)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    max="50"
+                                                                    value={formData.broadcastRadius}
+                                                                    onChange={(e) => {
+                                                                        const newValue = Number(e.target.value);
+                                                                        setFormData({ ...formData, broadcastRadius: newValue });
+                                                                        formMemory.autoSave('delivery', { ...formData, broadcastRadius: newValue });
+                                                                    }}
+                                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-sm font-medium text-gray-700">Broadcast Duration (seconds)</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="10"
+                                                                    max="300"
+                                                                    value={formData.broadcastDuration}
+                                                                    onChange={(e) => {
+                                                                        const newValue = Number(e.target.value);
+                                                                        setFormData({ ...formData, broadcastDuration: newValue });
+                                                                        formMemory.autoSave('delivery', { ...formData, broadcastDuration: newValue });
+                                                                    }}
+                                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Manual Assignment (only show if not using auto-broadcast) */}
+                                            {!formData.useAutoBroadcast && (
+                                                <div>
+                                                    <h4 className="text-lg font-medium text-gray-900 mb-4">Manual Assignment</h4>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Assign to Driver</label>
+                                                        <select
+                                                            required
+                                                            value={formData.assignedTo}
+                                                            onChange={(e) => {
+                                                                const newValue = e.target.value;
+                                                                setFormData({ ...formData, assignedTo: newValue });
+                                                                formMemory.autoSave('delivery', { ...formData, assignedTo: newValue });
+                                                            }}
+                                                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                        >
+                                                            <option value="">Select a driver</option>
+                                                            {drivers.map((driver) => (
+                                                                <option key={driver._id} value={driver._id}>
+                                                                    {driver.name} - {driver.phone}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </form>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCreatePanel(false)}
+                                            className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            form="create-delivery-form"
+                                            className="px-8 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 rounded-lg"
+                                        >
+                                            Create Delivery
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Edit Delivery Side Panel */}
+                    {showEditPanel && (
+                        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50">
+                            <div className="fixed right-0 top-0 h-screen w-full sm:w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out">
+                                <div className="flex flex-col h-full">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                                        <h3 className="text-xl font-semibold text-gray-900">Edit Delivery</h3>
+                                        <button
+                                            onClick={() => setShowEditPanel(false)}
+                                            className="text-gray-400 hover:text-gray-600 transition-colors"
+                                        >
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                    {/* Form Content */}
+                                    <div className="flex-1 overflow-y-auto p-6">
+                                        <form id="edit-delivery-form" onSubmit={handleUpdateDelivery} className="space-y-6">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700">Pickup Location</label>
                                                 <input
                                                     type="text"
                                                     required
-                                                    placeholder="Enter pickup address"
                                                     value={formData.pickupLocation}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, pickupLocation: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, pickupLocation: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                    onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value })}
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                                 <div className="mt-2">
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Pickup Location Link (Optional)</label>
+                                                    <label className="block text-sm font-medium text-gray-600">Pickup Location Link (Optional)</label>
                                                     <div className="flex space-x-2">
                                                         <input
                                                             type="url"
                                                             placeholder="Enter Google Maps link for pickup location"
                                                             value={formData.pickupLocationLink}
-                                                            onChange={(e) => {
-                                                                const newValue = e.target.value;
-                                                                setFormData({ ...formData, pickupLocationLink: newValue });
-                                                                formMemory.autoSave('delivery', { ...formData, pickupLocationLink: newValue });
-                                                            }}
-                                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-sm"
+                                                            onChange={(e) => setFormData({ ...formData, pickupLocationLink: e.target.value })}
+                                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                                                         />
                                                         {formData.pickupLocationLink && (
                                                             <a
@@ -1066,39 +1605,30 @@ Student Delivery Team`;
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Delivery Location</label>
+                                                <label className="block text-sm font-medium text-gray-700">Delivery Location</label>
                                                 <input
                                                     type="text"
                                                     required
-                                                    placeholder="Enter delivery address"
                                                     value={formData.deliveryLocation}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, deliveryLocation: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, deliveryLocation: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
+                                                    onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                                 <div className="mt-2">
-                                                    <label className="block text-sm font-medium text-gray-600 mb-1">Delivery Location Link (Optional)</label>
+                                                    <label className="block text-sm font-medium text-gray-600">Delivery Location Link (Optional)</label>
                                                     <div className="flex space-x-2">
                                                         <input
                                                             type="url"
                                                             placeholder="Enter Google Maps link for delivery location"
                                                             value={formData.deliveryLocationLink}
-                                                            onChange={(e) => {
-                                                                const newValue = e.target.value;
-                                                                setFormData({ ...formData, deliveryLocationLink: newValue });
-                                                                formMemory.autoSave('delivery', { ...formData, deliveryLocationLink: newValue });
-                                                            }}
-                                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-sm"
+                                                            onChange={(e) => setFormData({ ...formData, deliveryLocationLink: e.target.value })}
+                                                            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
                                                         />
                                                         {formData.deliveryLocationLink && (
                                                             <a
                                                                 href={formData.deliveryLocationLink}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="inline-flex items-center px-3 py-2 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
+                                                                className="inline-flex items-center px-3 py-3 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
                                                                 title="Open delivery location in maps"
                                                             >
                                                                 <MapPinIcon className="h-4 w-4 mr-1" />
@@ -1108,67 +1638,366 @@ Student Delivery Team`;
                                                     </div>
                                                 </div>
                                             </div>
-
-                                        </div>
-                                    </div>
-
-                                    {/* Customer Information */}
-                                    <div>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h4>
-                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">Customer Name</label>
+                                                    <CapitalizedInput
+                                                        type="text"
+                                                        value={formData.customerName}
+                                                        onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                        capitalizeMode="words"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">Customer Phone</label>
+                                                    <input
+                                                        type="tel"
+                                                        value={formData.customerPhone}
+                                                        onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">Fee (₺)</label>
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={formData.fee}
+                                                        onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">Payment Method</label>
+                                                    <select
+                                                        value={formData.paymentMethod}
+                                                        onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    >
+                                                        <option value="cash">Cash</option>
+                                                        <option value="pos">POS</option>
+                                                        <option value="naira_transfer">Naira Transfer</option>
+                                                        <option value="isbank_transfer">Isbank Transfer</option>
+                                                        <option value="crypto_transfer">Crypto Transfer</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">Priority</label>
+                                                    <select
+                                                        value={formData.priority}
+                                                        onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    >
+                                                        <option value="low">Low</option>
+                                                        <option value="normal">Normal</option>
+                                                        <option value="high">High</option>
+                                                        <option value="urgent">Urgent</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700">Assign to Driver</label>
+                                                    <select
+                                                        value={formData.assignedTo}
+                                                        onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
+                                                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                    >
+                                                        <option value="">Select Driver</option>
+                                                        {drivers.map((driver) => (
+                                                            <option key={driver._id} value={driver._id}>
+                                                                {capitalizeName(driver.name)} - {driver.area}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                            </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-                                                <CapitalizedInput
-                                                    type="text"
-                                                    placeholder="Enter customer name"
-                                                    value={formData.customerName}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, customerName: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, customerName: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                                                    capitalizeMode="words"
+                                                <label className="block text-sm font-medium text-gray-700">Estimated Time</label>
+                                                <input
+                                                    type="datetime-local"
+                                                    value={formData.estimatedTime}
+                                                    onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })}
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                                 />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Phone</label>
+                                                <label className="block text-sm font-medium text-gray-700">Notes</label>
+                                                <textarea
+                                                    rows="3"
+                                                    value={formData.notes}
+                                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                                />
+                                            </div>
+                                        </form>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowEditPanel(false)}
+                                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            form="edit-delivery-form"
+                                            className="px-6 py-2 text-sm font-medium text-white bg-gradient-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 rounded-lg"
+                                        >
+                                            Update Delivery
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* View Delivery Side Panel */}
+                    {showViewPanel && selectedDelivery && (
+                        <div
+                            className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 transition-opacity duration-300 ease-in-out"
+                            onClick={closeViewPanel}
+                        >
+                            <div
+                                className={`fixed right-0 top-0 h-screen w-full sm:w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="flex flex-col h-full">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-primary-500 to-primary-600">
+                                        <div className="flex items-center space-x-3">
+                                            <TruckIcon className="h-6 w-6 text-white" />
+                                            <h3 className="text-xl font-semibold text-white">Delivery Details</h3>
+                                        </div>
+                                        <button
+                                            onClick={closeViewPanel}
+                                            className="text-white hover:text-gray-200 transition-colors"
+                                        >
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 overflow-y-auto p-6">
+                                        <div className="space-y-6">
+                                            {/* Delivery Code & Status */}
+                                            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200">
+                                                <div className="flex items-center justify-between mb-3">
+                                                    <div className="flex items-center space-x-2">
+                                                        <h4 className="text-xl font-bold text-gray-900">{selectedDelivery.deliveryCode}</h4>
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedDelivery.status)}`}>
+                                                                {selectedDelivery.status.replace('_', ' ').toUpperCase()}
+                                                            </span>
+                                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(selectedDelivery.priority)}`}>
+                                                                {selectedDelivery.priority.toUpperCase()} PRIORITY
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                                    <ClockIcon className="h-4 w-4" />
+                                                    <span>Created {selectedDelivery.createdAt ? format(new Date(selectedDelivery.createdAt), 'MMM dd, yyyy') : 'N/A'}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Customer Information */}
+                                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-center space-x-3 mb-3">
+                                                    <UserIcon className="h-5 w-5 text-primary-600" />
+                                                    <h5 className="text-lg font-semibold text-gray-900">Customer Information</h5>
+                                                </div>
                                                 <div className="space-y-2">
-                                                    <input
-                                                        type="tel"
-                                                        placeholder="Enter phone number (any format)"
-                                                        value={formData.customerPhone}
-                                                        onChange={(e) => {
-                                                            const newValue = e.target.value;
-                                                            setFormData({ ...formData, customerPhone: newValue });
-                                                            formMemory.autoSave('delivery', { ...formData, customerPhone: newValue });
-                                                        }}
-                                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                                                    />
-                                                    {formData.customerPhone && (
-                                                        <div className="flex items-center space-x-2 text-sm">
-                                                            <span className="text-gray-600">Formatted:</span>
-                                                            <span className="font-medium">{whatsAppUtils.formatPhoneNumber(formData.customerPhone)}</span>
-                                                            {whatsAppUtils.isWhatsAppNumber(formData.customerPhone) && (
-                                                                <a
-                                                                    href={whatsAppUtils.generateWhatsAppLink(formData.customerPhone)}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center text-green-600 hover:text-green-800"
-                                                                    title="Open WhatsApp chat"
-                                                                >
-                                                                    <ChatBubbleLeftRightIcon className="h-4 w-4 mr-1" />
-                                                                    WhatsApp
-                                                                </a>
-                                                            )}
-                                                            <a
-                                                                href={`tel:${formData.customerPhone}`}
-                                                                className="inline-flex items-center text-blue-600 hover:text-blue-800"
-                                                                title="Call customer"
-                                                            >
-                                                                <PhoneIcon className="h-4 w-4 mr-1" />
-                                                                Call
-                                                            </a>
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-600">Name:</span>
+                                                        <span className="ml-2 text-sm text-gray-900">{selectedDelivery.customerName || 'N/A'}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-600">Phone:</span>
+                                                        <span className="ml-2 text-sm text-gray-900">{selectedDelivery.customerPhone || 'N/A'}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Route Information */}
+                                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-center space-x-3 mb-3">
+                                                    <TruckIcon className="h-5 w-5 text-primary-600" />
+                                                    <h5 className="text-lg font-semibold text-gray-900">Route Details</h5>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <div className="flex items-start space-x-3">
+                                                        <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-600">Pickup:</span>
+                                                            <div className="text-sm text-gray-900">{selectedDelivery.pickupLocation}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-start space-x-3">
+                                                        <div className="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
+                                                        <div>
+                                                            <span className="text-sm font-medium text-gray-600">Delivery:</span>
+                                                            <div className="text-sm text-gray-900">{selectedDelivery.deliveryLocation}</div>
+                                                        </div>
+                                                    </div>
+                                                    {selectedDelivery.distance && (
+                                                        <div className="flex items-center space-x-2 text-sm text-gray-600 mt-2">
+                                                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                                            <span>Distance: {selectedDelivery.distance} km</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Driver Information */}
+                                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-center space-x-3 mb-3">
+                                                    <UserIcon className="h-5 w-5 text-primary-600" />
+                                                    <h5 className="text-lg font-semibold text-gray-900">Driver Assignment</h5>
+                                                </div>
+                                                <div>
+                                                    {selectedDelivery.assignedTo ? (
+                                                        <div className="space-y-2">
+                                                            <div>
+                                                                <span className="text-sm font-medium text-gray-600">Driver:</span>
+                                                                <span className="ml-2 text-sm text-gray-900">{selectedDelivery.assignedTo.name}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-sm font-medium text-gray-600">Area:</span>
+                                                                <span className="ml-2 text-sm text-gray-900">{selectedDelivery.assignedTo.area}</span>
+                                                            </div>
+                                                            <div>
+                                                                <span className="text-sm font-medium text-gray-600">Status:</span>
+                                                                <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedDelivery.assignedTo.isOnline ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                                                                    {selectedDelivery.assignedTo.isOnline ? 'Online' : 'Offline'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="text-sm text-gray-500 italic">No driver assigned</div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Payment Information */}
+                                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-center space-x-3 mb-3">
+                                                    <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
+                                                        <span className="text-xs font-bold text-green-600">₺</span>
+                                                    </div>
+                                                    <h5 className="text-lg font-semibold text-gray-900">Payment Details</h5>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-600">Fee:</span>
+                                                        <span className="ml-2 text-lg font-bold text-green-600">₺{selectedDelivery.fee}</span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-sm font-medium text-gray-600">Method:</span>
+                                                        <span className="ml-2 text-sm text-gray-900 capitalize">{selectedDelivery.paymentMethod}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Estimated Time */}
+                                            {selectedDelivery.estimatedTime && (
+                                                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                    <div className="flex items-center space-x-3 mb-3">
+                                                        <ClockIcon className="h-5 w-5 text-primary-600" />
+                                                        <h5 className="text-lg font-semibold text-gray-900">Estimated Time</h5>
+                                                    </div>
+                                                    <div className="text-sm text-gray-900">
+                                                        {format(new Date(selectedDelivery.estimatedTime), 'MMM dd, yyyy HH:mm')}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Notes */}
+                                            {selectedDelivery.notes && (
+                                                <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                    <div className="flex items-center space-x-3 mb-3">
+                                                        <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
+                                                            <span className="text-xs font-bold text-blue-600">📝</span>
+                                                        </div>
+                                                        <h5 className="text-lg font-semibold text-gray-900">Notes</h5>
+                                                    </div>
+                                                    <div className="text-sm text-gray-900 bg-blue-50 p-3 rounded-lg">
+                                                        {selectedDelivery.notes}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Timeline */}
+                                            <div className="bg-white border border-gray-200 rounded-lg p-4">
+                                                <div className="flex items-center space-x-3 mb-3">
+                                                    <ClockIcon className="h-5 w-5 text-primary-600" />
+                                                    <h5 className="text-lg font-semibold text-gray-900">Timeline</h5>
+                                                </div>
+
+                                                {/* Progress Bar */}
+                                                <div className="mb-4">
+                                                    <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                                                        <span>Progress</span>
+                                                        <span>{getDeliveryProgress(selectedDelivery)}%</span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-2">
+                                                        <div
+                                                            className="bg-primary-500 h-2 rounded-full transition-all duration-300"
+                                                            style={{ width: `${getDeliveryProgress(selectedDelivery)}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                                        <div className="flex-1">
+                                                            <div className="text-sm font-medium text-gray-900">Created</div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {selectedDelivery.createdAt ? format(new Date(selectedDelivery.createdAt), 'MMM dd, yyyy HH:mm') : 'N/A'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {selectedDelivery.assignedAt && (
+                                                        <div className="flex items-center space-x-3">
+                                                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                                            <div className="flex-1">
+                                                                <div className="text-sm font-medium text-gray-900">Assigned</div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    {format(new Date(selectedDelivery.assignedAt), 'MMM dd, yyyy HH:mm')}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {selectedDelivery.pickedUpAt && (
+                                                        <div className="flex items-center space-x-3">
+                                                            <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                                                            <div className="flex-1">
+                                                                <div className="text-sm font-medium text-gray-900">Picked Up</div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    {format(new Date(selectedDelivery.pickedUpAt), 'MMM dd, yyyy HH:mm')}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {selectedDelivery.deliveredAt && (
+                                                        <div className="flex items-center space-x-3">
+                                                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                                            <div className="flex-1">
+                                                                <div className="text-sm font-medium text-gray-900">Delivered</div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    {format(new Date(selectedDelivery.deliveredAt), 'MMM dd, yyyy HH:mm')}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1176,788 +2005,189 @@ Student Delivery Team`;
                                         </div>
                                     </div>
 
-                                    {/* Payment Details */}
-                                    <div>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-4">Payment Details</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Fee (₺)</label>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    placeholder="0"
-                                                    value={formData.fee}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, fee: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, fee: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Payment Method</label>
-                                                <select
-                                                    value={formData.paymentMethod}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, paymentMethod: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, paymentMethod: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                                                >
-                                                    <option value="cash">Cash</option>
-                                                    <option value="pos">POS</option>
-                                                    <option value="naira_transfer">Naira Transfer</option>
-                                                    <option value="isbank_transfer">Isbank Transfer</option>
-                                                    <option value="crypto_transfer">Crypto Transfer</option>
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Assignment & Priority */}
-                                    <div>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-4">Assignment & Priority</h4>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Priority Level</label>
-                                                <select
-                                                    value={formData.priority}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, priority: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, priority: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                                                >
-                                                    <option value="low">Low Priority</option>
-                                                    <option value="normal">Normal Priority</option>
-                                                    <option value="high">High Priority</option>
-                                                    <option value="urgent">Urgent</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    Assign to Driver <span className="text-red-500">*</span>
-                                                </label>
-                                                <select
-                                                    required
-                                                    value={formData.assignedTo}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, assignedTo: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, assignedTo: newValue });
-                                                    }}
-                                                    className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 ${!formData.assignedTo ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                                                        }`}
-                                                >
-                                                    <option value="">Select Driver (Required)</option>
-                                                    {drivers.map((driver) => (
-                                                        <option key={driver._id} value={driver._id}>
-                                                            {capitalizeName(driver.name)} - {driver.area}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                                {!formData.assignedTo && (
-                                                    <p className="text-red-500 text-xs mt-1">Please select a driver for this delivery</p>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Additional Details */}
-                                    <div>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-4">Additional Details</h4>
-                                        <div className="space-y-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Estimated Time</label>
-                                                <input
-                                                    type="datetime-local"
-                                                    value={formData.estimatedTime}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, estimatedTime: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, estimatedTime: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                                                <textarea
-                                                    rows="3"
-                                                    placeholder="Add any additional notes or special instructions..."
-                                                    value={formData.notes}
-                                                    onChange={(e) => {
-                                                        const newValue = e.target.value;
-                                                        setFormData({ ...formData, notes: newValue });
-                                                        formMemory.autoSave('delivery', { ...formData, notes: newValue });
-                                                    }}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 resize-none"
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                </form>
-                            </div>
-
-                            {/* Footer */}
-                            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowCreatePanel(false)}
-                                    className="px-6 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    form="create-delivery-form"
-                                    className="px-8 py-3 text-sm font-medium text-white bg-gradient-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 rounded-lg"
-                                >
-                                    Create Delivery
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Edit Delivery Side Panel */}
-            {showEditPanel && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50">
-                    <div className="fixed right-0 top-0 h-screen w-full sm:w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out">
-                        <div className="flex flex-col h-full">
-                            {/* Header */}
-                            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                                <h3 className="text-xl font-semibold text-gray-900">Edit Delivery</h3>
-                                <button
-                                    onClick={() => setShowEditPanel(false)}
-                                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                                >
-                                    <XMarkIcon className="h-6 w-6" />
-                                </button>
-                            </div>
-                            {/* Form Content */}
-                            <div className="flex-1 overflow-y-auto p-6">
-                                <form id="edit-delivery-form" onSubmit={handleUpdateDelivery} className="space-y-6">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Pickup Location</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={formData.pickupLocation}
-                                            onChange={(e) => setFormData({ ...formData, pickupLocation: e.target.value })}
-                                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                        <div className="mt-2">
-                                            <label className="block text-sm font-medium text-gray-600">Pickup Location Link (Optional)</label>
-                                            <div className="flex space-x-2">
-                                                <input
-                                                    type="url"
-                                                    placeholder="Enter Google Maps link for pickup location"
-                                                    value={formData.pickupLocationLink}
-                                                    onChange={(e) => setFormData({ ...formData, pickupLocationLink: e.target.value })}
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                                />
-                                                {formData.pickupLocationLink && (
-                                                    <a
-                                                        href={formData.pickupLocationLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center px-3 py-2 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
-                                                        title="Open pickup location in maps"
-                                                    >
-                                                        <MapPinIcon className="h-4 w-4 mr-1" />
-                                                        Open
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Delivery Location</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={formData.deliveryLocation}
-                                            onChange={(e) => setFormData({ ...formData, deliveryLocation: e.target.value })}
-                                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                        <div className="mt-2">
-                                            <label className="block text-sm font-medium text-gray-600">Delivery Location Link (Optional)</label>
-                                            <div className="flex space-x-2">
-                                                <input
-                                                    type="url"
-                                                    placeholder="Enter Google Maps link for delivery location"
-                                                    value={formData.deliveryLocationLink}
-                                                    onChange={(e) => setFormData({ ...formData, deliveryLocationLink: e.target.value })}
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                                />
-                                                {formData.deliveryLocationLink && (
-                                                    <a
-                                                        href={formData.deliveryLocationLink}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex items-center px-3 py-3 text-sm text-blue-600 hover:text-blue-800 border border-blue-300 rounded-md hover:bg-blue-50"
-                                                        title="Open delivery location in maps"
-                                                    >
-                                                        <MapPinIcon className="h-4 w-4 mr-1" />
-                                                        Open
-                                                    </a>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Customer Name</label>
-                                            <CapitalizedInput
-                                                type="text"
-                                                value={formData.customerName}
-                                                onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                                capitalizeMode="words"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Customer Phone</label>
-                                            <input
-                                                type="tel"
-                                                value={formData.customerPhone}
-                                                onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Fee (₺)</label>
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={formData.fee}
-                                                onChange={(e) => setFormData({ ...formData, fee: e.target.value })}
-                                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Payment Method</label>
-                                            <select
-                                                value={formData.paymentMethod}
-                                                onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            >
-                                                <option value="cash">Cash</option>
-                                                <option value="pos">POS</option>
-                                                <option value="naira_transfer">Naira Transfer</option>
-                                                <option value="isbank_transfer">Isbank Transfer</option>
-                                                <option value="crypto_transfer">Crypto Transfer</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Priority</label>
-                                            <select
-                                                value={formData.priority}
-                                                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            >
-                                                <option value="low">Low</option>
-                                                <option value="normal">Normal</option>
-                                                <option value="high">High</option>
-                                                <option value="urgent">Urgent</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">Assign to Driver</label>
-                                            <select
-                                                value={formData.assignedTo}
-                                                onChange={(e) => setFormData({ ...formData, assignedTo: e.target.value })}
-                                                className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                            >
-                                                <option value="">Select Driver</option>
-                                                {drivers.map((driver) => (
-                                                    <option key={driver._id} value={driver._id}>
-                                                        {capitalizeName(driver.name)} - {driver.area}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Estimated Time</label>
-                                        <input
-                                            type="datetime-local"
-                                            value={formData.estimatedTime}
-                                            onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })}
-                                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700">Notes</label>
-                                        <textarea
-                                            rows="3"
-                                            value={formData.notes}
-                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                            className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                    </div>
-                                </form>
-                            </div>
-
-                            {/* Footer */}
-                            <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-gray-50">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowEditPanel(false)}
-                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    form="edit-delivery-form"
-                                    className="px-6 py-2 text-sm font-medium text-white bg-gradient-primary hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200 rounded-lg"
-                                >
-                                    Update Delivery
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* View Delivery Side Panel */}
-            {showViewPanel && selectedDelivery && (
-                <div
-                    className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 transition-opacity duration-300 ease-in-out"
-                    onClick={closeViewPanel}
-                >
-                    <div
-                        className={`fixed right-0 top-0 h-screen w-full sm:w-96 bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="flex flex-col h-full">
-                            {/* Header */}
-                            <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-primary-500 to-primary-600">
-                                <div className="flex items-center space-x-3">
-                                    <TruckIcon className="h-6 w-6 text-white" />
-                                    <h3 className="text-xl font-semibold text-white">Delivery Details</h3>
-                                </div>
-                                <button
-                                    onClick={closeViewPanel}
-                                    className="text-white hover:text-gray-200 transition-colors"
-                                >
-                                    <XMarkIcon className="h-6 w-6" />
-                                </button>
-                            </div>
-
-                            {/* Content */}
-                            <div className="flex-1 overflow-y-auto p-6">
-                                <div className="space-y-6">
-                                    {/* Delivery Code & Status */}
-                                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 rounded-lg border border-gray-200">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div className="flex items-center space-x-2">
-                                                <h4 className="text-xl font-bold text-gray-900">{selectedDelivery.deliveryCode}</h4>
-                                                <div className="flex items-center space-x-2">
-                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(selectedDelivery.status)}`}>
-                                                        {selectedDelivery.status.replace('_', ' ').toUpperCase()}
-                                                    </span>
-                                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getPriorityColor(selectedDelivery.priority)}`}>
-                                                        {selectedDelivery.priority.toUpperCase()} PRIORITY
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                            <ClockIcon className="h-4 w-4" />
-                                            <span>Created {selectedDelivery.createdAt ? format(new Date(selectedDelivery.createdAt), 'MMM dd, yyyy') : 'N/A'}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Customer Information */}
-                                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                        <div className="flex items-center space-x-3 mb-3">
-                                            <UserIcon className="h-5 w-5 text-primary-600" />
-                                            <h5 className="text-lg font-semibold text-gray-900">Customer Information</h5>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <div>
-                                                <span className="text-sm font-medium text-gray-600">Name:</span>
-                                                <span className="ml-2 text-sm text-gray-900">{selectedDelivery.customerName || 'N/A'}</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-sm font-medium text-gray-600">Phone:</span>
-                                                <span className="ml-2 text-sm text-gray-900">{selectedDelivery.customerPhone || 'N/A'}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Route Information */}
-                                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                        <div className="flex items-center space-x-3 mb-3">
-                                            <TruckIcon className="h-5 w-5 text-primary-600" />
-                                            <h5 className="text-lg font-semibold text-gray-900">Route Details</h5>
-                                        </div>
-                                        <div className="space-y-3">
-                                            <div className="flex items-start space-x-3">
-                                                <div className="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                                                <div>
-                                                    <span className="text-sm font-medium text-gray-600">Pickup:</span>
-                                                    <div className="text-sm text-gray-900">{selectedDelivery.pickupLocation}</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-start space-x-3">
-                                                <div className="w-2 h-2 bg-red-500 rounded-full mt-2"></div>
-                                                <div>
-                                                    <span className="text-sm font-medium text-gray-600">Delivery:</span>
-                                                    <div className="text-sm text-gray-900">{selectedDelivery.deliveryLocation}</div>
-                                                </div>
-                                            </div>
-                                            {selectedDelivery.distance && (
-                                                <div className="flex items-center space-x-2 text-sm text-gray-600 mt-2">
-                                                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                                    <span>Distance: {selectedDelivery.distance} km</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Driver Information */}
-                                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                        <div className="flex items-center space-x-3 mb-3">
-                                            <UserIcon className="h-5 w-5 text-primary-600" />
-                                            <h5 className="text-lg font-semibold text-gray-900">Driver Assignment</h5>
-                                        </div>
-                                        <div>
-                                            {selectedDelivery.assignedTo ? (
-                                                <div className="space-y-2">
-                                                    <div>
-                                                        <span className="text-sm font-medium text-gray-600">Driver:</span>
-                                                        <span className="ml-2 text-sm text-gray-900">{selectedDelivery.assignedTo.name}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-sm font-medium text-gray-600">Area:</span>
-                                                        <span className="ml-2 text-sm text-gray-900">{selectedDelivery.assignedTo.area}</span>
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-sm font-medium text-gray-600">Status:</span>
-                                                        <span className={`ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedDelivery.assignedTo.isOnline ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                                                            {selectedDelivery.assignedTo.isOnline ? 'Online' : 'Offline'}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="text-sm text-gray-500 italic">No driver assigned</div>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Payment Information */}
-                                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                        <div className="flex items-center space-x-3 mb-3">
-                                            <div className="w-5 h-5 bg-green-100 rounded-full flex items-center justify-center">
-                                                <span className="text-xs font-bold text-green-600">₺</span>
-                                            </div>
-                                            <h5 className="text-lg font-semibold text-gray-900">Payment Details</h5>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <div>
-                                                <span className="text-sm font-medium text-gray-600">Fee:</span>
-                                                <span className="ml-2 text-lg font-bold text-green-600">₺{selectedDelivery.fee}</span>
-                                            </div>
-                                            <div>
-                                                <span className="text-sm font-medium text-gray-600">Method:</span>
-                                                <span className="ml-2 text-sm text-gray-900 capitalize">{selectedDelivery.paymentMethod}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Estimated Time */}
-                                    {selectedDelivery.estimatedTime && (
-                                        <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                            <div className="flex items-center space-x-3 mb-3">
-                                                <ClockIcon className="h-5 w-5 text-primary-600" />
-                                                <h5 className="text-lg font-semibold text-gray-900">Estimated Time</h5>
-                                            </div>
-                                            <div className="text-sm text-gray-900">
-                                                {format(new Date(selectedDelivery.estimatedTime), 'MMM dd, yyyy HH:mm')}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Notes */}
-                                    {selectedDelivery.notes && (
-                                        <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                            <div className="flex items-center space-x-3 mb-3">
-                                                <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center">
-                                                    <span className="text-xs font-bold text-blue-600">📝</span>
-                                                </div>
-                                                <h5 className="text-lg font-semibold text-gray-900">Notes</h5>
-                                            </div>
-                                            <div className="text-sm text-gray-900 bg-blue-50 p-3 rounded-lg">
-                                                {selectedDelivery.notes}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Timeline */}
-                                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                                        <div className="flex items-center space-x-3 mb-3">
-                                            <ClockIcon className="h-5 w-5 text-primary-600" />
-                                            <h5 className="text-lg font-semibold text-gray-900">Timeline</h5>
-                                        </div>
-
-                                        {/* Progress Bar */}
-                                        <div className="mb-4">
-                                            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
-                                                <span>Progress</span>
-                                                <span>{getDeliveryProgress(selectedDelivery)}%</span>
-                                            </div>
-                                            <div className="w-full bg-gray-200 rounded-full h-2">
-                                                <div
-                                                    className="bg-primary-500 h-2 rounded-full transition-all duration-300"
-                                                    style={{ width: `${getDeliveryProgress(selectedDelivery)}%` }}
-                                                ></div>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <div className="flex items-center space-x-3">
-                                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                                <div className="flex-1">
-                                                    <div className="text-sm font-medium text-gray-900">Created</div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {selectedDelivery.createdAt ? format(new Date(selectedDelivery.createdAt), 'MMM dd, yyyy HH:mm') : 'N/A'}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {selectedDelivery.assignedAt && (
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                                    <div className="flex-1">
-                                                        <div className="text-sm font-medium text-gray-900">Assigned</div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {format(new Date(selectedDelivery.assignedAt), 'MMM dd, yyyy HH:mm')}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {selectedDelivery.pickedUpAt && (
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
-                                                    <div className="flex-1">
-                                                        <div className="text-sm font-medium text-gray-900">Picked Up</div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {format(new Date(selectedDelivery.pickedUpAt), 'MMM dd, yyyy HH:mm')}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {selectedDelivery.deliveredAt && (
-                                                <div className="flex items-center space-x-3">
-                                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                                    <div className="flex-1">
-                                                        <div className="text-sm font-medium text-gray-900">Delivered</div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {format(new Date(selectedDelivery.deliveredAt), 'MMM dd, yyyy HH:mm')}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
+                                    {/* Footer */}
+                                    <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+                                        <button
+                                            onClick={() => fetchDeliveryDetails(selectedDelivery._id)}
+                                            className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+                                        >
+                                            <ArrowPathIcon className="h-4 w-4 mr-1" />
+                                            Refresh
+                                        </button>
+                                        <button
+                                            onClick={closeViewPanel}
+                                            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+                                        >
+                                            Close
+                                        </button>
                                     </div>
                                 </div>
                             </div>
-
-                            {/* Footer */}
-                            <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
-                                <button
-                                    onClick={() => fetchDeliveryDetails(selectedDelivery._id)}
-                                    className="px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 border border-primary-200 rounded-lg hover:bg-primary-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-                                >
-                                    <ArrowPathIcon className="h-4 w-4 mr-1" />
-                                    Refresh
-                                </button>
-                                <button
-                                    onClick={closeViewPanel}
-                                    className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-                                >
-                                    Close
-                                </button>
-                            </div>
                         </div>
-                    </div>
-                </div>
-            )}
+                    )}
 
-            {/* Customer Message Modal */}
-            {showCustomerMessageModal && customerMessageData && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 rounded-t-2xl">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                                        <span className="text-green-600 font-bold text-lg">📱</span>
-                                    </div>
-                                    <h3 className="text-xl font-semibold text-white">Customer Message</h3>
-                                </div>
-                                <button
-                                    onClick={() => setShowCustomerMessageModal(false)}
-                                    className="text-white hover:text-gray-200 transition-colors"
-                                >
-                                    <XMarkIcon className="h-6 w-6" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-6 space-y-6">
-                            <div className="text-center mb-6">
-                                <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                                    Delivery Created Successfully! 🎉
-                                </h4>
-                                <p className="text-gray-600">
-                                    Copy the message below and send it to your customer
-                                </p>
-                                <button
-                                    onClick={() => copyToClipboard(generateWhatsAppMessage(customerMessageData))}
-                                    className="mt-3 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
-                                >
-                                    📋 Copy WhatsApp Message (Recommended)
-                                </button>
-                            </div>
-
-                            {/* Message Templates */}
-                            <div className="space-y-4">
-                                {/* WhatsApp Template */}
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-2xl">💬</span>
-                                            <h5 className="font-semibold text-gray-900">WhatsApp Message</h5>
+                    {/* Customer Message Modal */}
+                    {showCustomerMessageModal && customerMessageData && (
+                        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center p-4">
+                            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                                {/* Header */}
+                                <div className="bg-gradient-to-r from-green-500 to-green-600 px-6 py-4 rounded-t-2xl">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                                                <span className="text-green-600 font-bold text-lg">📱</span>
+                                            </div>
+                                            <h3 className="text-xl font-semibold text-white">Customer Message</h3>
                                         </div>
+                                        <button
+                                            onClick={() => setShowCustomerMessageModal(false)}
+                                            className="text-white hover:text-gray-200 transition-colors"
+                                        >
+                                            <XMarkIcon className="h-6 w-6" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Content */}
+                                <div className="p-6 space-y-6">
+                                    <div className="text-center mb-6">
+                                        <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                                            Delivery Created Successfully! 🎉
+                                        </h4>
+                                        <p className="text-gray-600">
+                                            Copy the message below and send it to your customer
+                                        </p>
                                         <button
                                             onClick={() => copyToClipboard(generateWhatsAppMessage(customerMessageData))}
-                                            className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                                            className="mt-3 px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
                                         >
-                                            Copy
+                                            📋 Copy WhatsApp Message (Recommended)
                                         </button>
                                     </div>
-                                    <div className="bg-white p-3 rounded border text-sm text-gray-700 whitespace-pre-wrap">
-                                        {generateWhatsAppMessage(customerMessageData)}
-                                    </div>
-                                    <div className="mt-2">
-                                        <a
-                                            href={`https://wa.me/+905338329785?text=${encodeURIComponent(generateWhatsAppMessage(customerMessageData))}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center space-x-2 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
-                                        >
-                                            <span>💬</span>
-                                            <span>Send via WhatsApp</span>
-                                        </a>
-                                    </div>
-                                </div>
 
-                                {/* SMS Template */}
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-2xl">📱</span>
-                                            <h5 className="font-semibold text-gray-900">SMS Message</h5>
+                                    {/* Message Templates */}
+                                    <div className="space-y-4">
+                                        {/* WhatsApp Template */}
+                                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-2xl">💬</span>
+                                                    <h5 className="font-semibold text-gray-900">WhatsApp Message</h5>
+                                                </div>
+                                                <button
+                                                    onClick={() => copyToClipboard(generateWhatsAppMessage(customerMessageData))}
+                                                    className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            <div className="bg-white p-3 rounded border text-sm text-gray-700 whitespace-pre-wrap">
+                                                {generateWhatsAppMessage(customerMessageData)}
+                                            </div>
+                                            <div className="mt-2">
+                                                <a
+                                                    href={`https://wa.me/+905338329785?text=${encodeURIComponent(generateWhatsAppMessage(customerMessageData))}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="inline-flex items-center space-x-2 bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700 transition-colors"
+                                                >
+                                                    <span>💬</span>
+                                                    <span>Send via WhatsApp</span>
+                                                </a>
+                                            </div>
                                         </div>
-                                        <button
-                                            onClick={() => copyToClipboard(generateSMSMessage(customerMessageData))}
-                                            className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                                        >
-                                            Copy
-                                        </button>
-                                    </div>
-                                    <div className="bg-white p-3 rounded border text-sm text-gray-700 whitespace-pre-wrap">
-                                        {generateSMSMessage(customerMessageData)}
-                                    </div>
-                                </div>
 
-                                {/* Email Template */}
-                                <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center space-x-2">
-                                            <span className="text-2xl">📧</span>
-                                            <h5 className="font-semibold text-gray-900">Email Message</h5>
+                                        {/* SMS Template */}
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-2xl">📱</span>
+                                                    <h5 className="font-semibold text-gray-900">SMS Message</h5>
+                                                </div>
+                                                <button
+                                                    onClick={() => copyToClipboard(generateSMSMessage(customerMessageData))}
+                                                    className="px-3 py-1 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            <div className="bg-white p-3 rounded border text-sm text-gray-700 whitespace-pre-wrap">
+                                                {generateSMSMessage(customerMessageData)}
+                                            </div>
                                         </div>
+
+                                        {/* Email Template */}
+                                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-2xl">📧</span>
+                                                    <h5 className="font-semibold text-gray-900">Email Message</h5>
+                                                </div>
+                                                <button
+                                                    onClick={() => copyToClipboard(generateEmailMessage(customerMessageData))}
+                                                    className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                                                >
+                                                    Copy
+                                                </button>
+                                            </div>
+                                            <div className="bg-white p-3 rounded border text-sm text-gray-700 whitespace-pre-wrap">
+                                                {generateEmailMessage(customerMessageData)}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Tracking Link */}
+                                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center space-x-2">
+                                                <span className="text-2xl">🔗</span>
+                                                <h5 className="font-semibold text-gray-900">Direct Tracking Link</h5>
+                                            </div>
+                                            <button
+                                                onClick={() => copyToClipboard(`${window.location.origin}/track/${customerMessageData.deliveryCode}`)}
+                                                className="px-3 py-1 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
+                                            >
+                                                Copy Link
+                                            </button>
+                                        </div>
+                                        <div className="bg-white p-3 rounded border text-sm text-gray-700 break-all">
+                                            {window.location.origin}/track/{customerMessageData.deliveryCode}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                                    <div className="flex justify-end space-x-3">
                                         <button
-                                            onClick={() => copyToClipboard(generateEmailMessage(customerMessageData))}
-                                            className="px-3 py-1 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors"
+                                            onClick={() => setShowCustomerMessageModal(false)}
+                                            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
                                         >
-                                            Copy
+                                            Close
                                         </button>
                                     </div>
-                                    <div className="bg-white p-3 rounded border text-sm text-gray-700 whitespace-pre-wrap">
-                                        {generateEmailMessage(customerMessageData)}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Tracking Link */}
-                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center space-x-2">
-                                        <span className="text-2xl">🔗</span>
-                                        <h5 className="font-semibold text-gray-900">Direct Tracking Link</h5>
-                                    </div>
-                                    <button
-                                        onClick={() => copyToClipboard(`${window.location.origin}/track/${customerMessageData.deliveryCode}`)}
-                                        className="px-3 py-1 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
-                                    >
-                                        Copy Link
-                                    </button>
-                                </div>
-                                <div className="bg-white p-3 rounded border text-sm text-gray-700 break-all">
-                                    {window.location.origin}/track/{customerMessageData.deliveryCode}
                                 </div>
                             </div>
                         </div>
+                    )}
 
-                        {/* Footer */}
-                        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
-                            <div className="flex justify-end space-x-3">
-                                <button
-                                    onClick={() => setShowCustomerMessageModal(false)}
-                                    className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-                                >
-                                    Close
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Delete Delivery Confirmation Modal */}
+                    <ConfirmationModal
+                        isOpen={showDeleteModal}
+                        onClose={() => {
+                            setShowDeleteModal(false);
+                            setDeliveryToDelete(null);
+                        }}
+                        onConfirm={confirmDeleteDelivery}
+                        title="Delete Delivery"
+                        message={`Are you sure you want to delete delivery ${deliveryToDelete?.deliveryCode || 'this delivery'}? This action cannot be undone and will permanently remove the delivery from the system.`}
+                        confirmText="Delete Delivery"
+                        cancelText="Cancel"
+                        type="danger"
+                        isLoading={deleting}
+                    />
                 </div>
-            )}
-
-            {/* Delete Delivery Confirmation Modal */}
-            <ConfirmationModal
-                isOpen={showDeleteModal}
-                onClose={() => {
-                    setShowDeleteModal(false);
-                    setDeliveryToDelete(null);
-                }}
-                onConfirm={confirmDeleteDelivery}
-                title="Delete Delivery"
-                message={`Are you sure you want to delete delivery ${deliveryToDelete?.deliveryCode || 'this delivery'}? This action cannot be undone and will permanently remove the delivery from the system.`}
-                confirmText="Delete Delivery"
-                cancelText="Cancel"
-                type="danger"
-                isLoading={deleting}
-            />
+            </div>
         </div>
     );
 };

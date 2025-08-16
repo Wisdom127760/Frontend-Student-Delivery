@@ -1,4 +1,4 @@
-import apiService from './api.js';
+import apiService, { api } from './api.js';
 
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -8,26 +8,69 @@ class DriverService {
     // Get all drivers with filters
     async getDrivers(filters = {}) {
         try {
+            console.log('🚗 DriverService: Fetching drivers with filters:', filters);
             const response = await apiService.getDrivers(filters);
+            console.log('🚗 DriverService: Raw API response:', response);
+            console.log('🚗 DriverService: Response type:', typeof response);
+            console.log('🚗 DriverService: Response keys:', Object.keys(response || {}));
 
-            // Ensure we always return a proper structure
+            // Handle different response structures more robustly
             if (response && typeof response === 'object') {
-                // If response has a drivers property, return it
+                // Check if response has a drivers property
                 if (response.drivers && Array.isArray(response.drivers)) {
+                    console.log('🚗 DriverService: Found drivers in response.drivers:', response.drivers.length);
                     return response;
                 }
-                // If response is an array, wrap it in drivers property
+
+                // Check if response has a data property with drivers
+                if (response.data && response.data.drivers && Array.isArray(response.data.drivers)) {
+                    console.log('🚗 DriverService: Found drivers in response.data.drivers:', response.data.drivers.length);
+                    return response.data;
+                }
+
+                // Check if response has a data property that is an array
+                if (response.data && Array.isArray(response.data)) {
+                    console.log('🚗 DriverService: Found drivers in response.data array:', response.data.length);
+                    return { drivers: response.data };
+                }
+
+                // Check if response is directly an array
                 if (Array.isArray(response)) {
+                    console.log('🚗 DriverService: Response is directly an array:', response.length);
                     return { drivers: response };
                 }
-                // If response has other properties but no drivers, return empty array
+
+                // Check if response has any array-like properties
+                const arrayKeys = Object.keys(response).filter(key => Array.isArray(response[key]));
+                if (arrayKeys.length > 0) {
+                    console.log('🚗 DriverService: Found array properties:', arrayKeys);
+                    // Use the first array property as drivers
+                    const firstArray = response[arrayKeys[0]];
+                    console.log('🚗 DriverService: Using first array as drivers:', firstArray.length);
+                    return { drivers: firstArray };
+                }
+
+                // If response has other properties but no clear drivers array
+                console.log('🚗 DriverService: No clear drivers array found, checking response structure:', response);
+                console.log('🚗 DriverService: Response properties:', Object.keys(response));
+
+                // Try to find any property that might contain driver data
+                for (const [key, value] of Object.entries(response)) {
+                    if (Array.isArray(value) && value.length > 0) {
+                        console.log('🚗 DriverService: Found potential drivers in property:', key, value.length);
+                        return { drivers: value };
+                    }
+                }
+
+                console.log('🚗 DriverService: No drivers found in response, returning empty array');
                 return { drivers: [] };
             }
 
             // Fallback for unexpected response types
+            console.log('🚗 DriverService: Unexpected response type:', typeof response);
             return { drivers: [] };
         } catch (error) {
-            console.error('Error fetching drivers:', error);
+            console.error('❌ DriverService: Error fetching drivers:', error);
             // Return empty array structure on error
             return { drivers: [] };
         }
@@ -124,22 +167,12 @@ class DriverService {
     // Suspend driver
     async suspendDriver(driverId, reason = '') {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/suspend`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ reason })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to suspend driver');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Suspending driver:', driverId, 'with reason:', reason);
+            const response = await api.post(`/admin/drivers/${driverId}/suspend`, { reason });
+            console.log('✅ DriverService: Driver suspended successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error suspending driver:', error);
+            console.error('❌ DriverService: Error suspending driver:', error);
             throw error;
         }
     }
@@ -147,21 +180,12 @@ class DriverService {
     // Unsuspend driver
     async unsuspendDriver(driverId) {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/unsuspend`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to unsuspend driver');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Unsuspending driver:', driverId);
+            const response = await api.post(`/admin/drivers/${driverId}/unsuspend`);
+            console.log('✅ DriverService: Driver unsuspended successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error unsuspending driver:', error);
+            console.error('❌ DriverService: Error unsuspending driver:', error);
             throw error;
         }
     }
@@ -169,22 +193,12 @@ class DriverService {
     // Update driver verification status
     async updateDriverVerification(driverId, verificationData) {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/verification`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(verificationData)
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to update driver verification');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Updating driver verification:', driverId, verificationData);
+            const response = await api.put(`/admin/drivers/${driverId}/verification`, verificationData);
+            console.log('✅ DriverService: Driver verification updated successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error updating driver verification:', error);
+            console.error('❌ DriverService: Error updating driver verification:', error);
             throw error;
         }
     }
@@ -192,20 +206,12 @@ class DriverService {
     // Get driver status overview
     async getDriverStatus() {
         try {
-            const response = await fetch('/api/admin/drivers/status', {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch driver status');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Fetching driver status overview');
+            const response = await api.get('/admin/drivers/status');
+            console.log('✅ DriverService: Driver status fetched successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error fetching driver status:', error);
+            console.error('❌ DriverService: Error fetching driver status:', error);
             throw error;
         }
     }
@@ -213,40 +219,28 @@ class DriverService {
     // Update driver documents
     async updateDriverDocuments(driverId, documentType, documentData) {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/documents/${documentType}`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(documentData)
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to update driver documents');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Updating driver documents:', driverId, documentType);
+            const response = await api.put(`/admin/drivers/${driverId}/documents/${documentType}`, documentData);
+            console.log('✅ DriverService: Driver documents updated successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error updating driver documents:', error);
+            console.error('❌ DriverService: Error updating driver documents:', error);
             throw error;
         }
     }
 
-    // Get driver statistics with consistent calculation methods
+    // Get driver statistics
     async getDriverStatistics(driverId, period = 'allTime', customDateRange = null) {
         try {
-            let params = new URLSearchParams();
+            console.log('🚗 DriverService: Fetching driver statistics:', driverId, period);
 
-            // Add period parameter
-            if (period && period !== 'allTime') {
-                params.append('period', period);
-            }
+            const params = new URLSearchParams();
+            params.append('period', period);
 
             // Add custom date range if provided
-            if (customDateRange && customDateRange.startDate && customDateRange.endDate) {
-                params.append('startDate', customDateRange.startDate);
-                params.append('endDate', customDateRange.endDate);
+            if (customDateRange && customDateRange.start && customDateRange.end) {
+                params.append('startDate', customDateRange.start);
+                params.append('endDate', customDateRange.end);
             }
 
             // Add driver ID if provided
@@ -257,7 +251,8 @@ class DriverService {
             const queryString = params.toString();
             const url = `/admin/drivers/statistics${queryString ? `?${queryString}` : ''}`;
 
-            const response = await apiService.get(url);
+            const response = await api.get(url);
+            console.log('✅ DriverService: Driver statistics fetched successfully');
 
             // Ensure consistent data structure
             const data = response.data || response;
@@ -284,7 +279,7 @@ class DriverService {
                 }
             };
         } catch (error) {
-            console.error('Error fetching driver statistics:', error);
+            console.error('❌ DriverService: Error fetching driver statistics:', error);
             return {
                 success: false,
                 error: error.message,
@@ -302,7 +297,9 @@ class DriverService {
     // Get driver analytics with date range support
     async getDriverAnalytics(driverId, period = 'month') {
         try {
-            const response = await apiService.get(`/admin/drivers/${driverId}/analytics?period=${period}`);
+            console.log('🚗 DriverService: Fetching driver analytics:', driverId, period);
+            const response = await api.get(`/admin/drivers/${driverId}/analytics?period=${period}`);
+            console.log('✅ DriverService: Driver analytics fetched successfully');
 
             // Ensure consistent data structure
             const data = response.data || response;
@@ -324,7 +321,7 @@ class DriverService {
                 }
             };
         } catch (error) {
-            console.error('Error fetching driver analytics:', error);
+            console.error('❌ DriverService: Error fetching driver analytics:', error);
             return {
                 success: false,
                 error: error.message,
@@ -348,27 +345,21 @@ class DriverService {
     // Get driver deliveries
     async getDriverDeliveries(driverId, filters = {}) {
         try {
-            const queryParams = new URLSearchParams();
+            console.log('🚗 DriverService: Fetching driver deliveries:', driverId, filters);
+
+            const params = new URLSearchParams();
             Object.entries(filters).forEach(([key, value]) => {
                 if (value !== undefined && value !== null) {
-                    queryParams.append(key, String(value));
+                    params.append(key, String(value));
                 }
             });
 
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/deliveries?${queryParams}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch driver deliveries');
-            }
-
-            return await response.json();
+            const queryParams = params.toString();
+            const response = await api.get(`/admin/drivers/${driverId}/deliveries?${queryParams}`);
+            console.log('✅ DriverService: Driver deliveries fetched successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error fetching driver deliveries:', error);
+            console.error('❌ DriverService: Error fetching driver deliveries:', error);
             throw error;
         }
     }
@@ -376,20 +367,12 @@ class DriverService {
     // Get driver earnings
     async getDriverEarnings(driverId, period = 'month') {
         try {
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/${driverId}/earnings?period=${period}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to fetch driver earnings');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Fetching driver earnings:', driverId, period);
+            const response = await api.get(`/admin/drivers/${driverId}/earnings?period=${period}`);
+            console.log('✅ DriverService: Driver earnings fetched successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error fetching driver earnings:', error);
+            console.error('❌ DriverService: Error fetching driver earnings:', error);
             throw error;
         }
     }
@@ -397,44 +380,24 @@ class DriverService {
     // Bulk operations
     async bulkSuspendDrivers(driverIds, reason = '') {
         try {
-            const response = await fetch('/api/admin/drivers/bulk-suspend', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ driverIds, reason })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to bulk suspend drivers');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Bulk suspending drivers:', driverIds, 'with reason:', reason);
+            const response = await api.post('/admin/drivers/bulk-suspend', { driverIds, reason });
+            console.log('✅ DriverService: Drivers bulk suspended successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error bulk suspending drivers:', error);
+            console.error('❌ DriverService: Error bulk suspending drivers:', error);
             throw error;
         }
     }
 
     async bulkUnsuspendDrivers(driverIds) {
         try {
-            const response = await fetch('/api/admin/drivers/bulk-unsuspend', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ driverIds })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to bulk unsuspend drivers');
-            }
-
-            return await response.json();
+            console.log('🚗 DriverService: Bulk unsuspending drivers:', driverIds);
+            const response = await api.post('/admin/drivers/bulk-unsuspend', { driverIds });
+            console.log('✅ DriverService: Drivers bulk unsuspended successfully');
+            return response.data;
         } catch (error) {
-            console.error('Error bulk unsuspending drivers:', error);
+            console.error('❌ DriverService: Error bulk unsuspending drivers:', error);
             throw error;
         }
     }
@@ -442,39 +405,88 @@ class DriverService {
     // Export drivers data
     async exportDrivers(format = 'csv', filters = {}) {
         try {
-            const queryParams = new URLSearchParams();
-            queryParams.append('format', format);
-            Object.entries(filters).forEach(([key, value]) => {
-                if (value !== undefined && value !== null) {
-                    queryParams.append(key, String(value));
-                }
-            });
+            console.log('🚗 DriverService: Exporting drivers data:', format, filters);
 
-            const response = await fetch(`${API_BASE_URL}/admin/drivers/export?${queryParams}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            // Prepare the request data
+            const requestData = {
+                format: format,
+                ...filters
+            };
 
-            if (!response.ok) {
-                throw new Error('Failed to export drivers data');
+            console.log('🚗 DriverService: Export request data:', requestData);
+
+            // Try POST method first (most common for export operations)
+            try {
+                const response = await api.post('/admin/drivers/export', requestData, {
+                    responseType: 'blob'
+                });
+
+                console.log('✅ DriverService: Drivers data exported successfully via POST');
+
+                const blob = response.data;
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `drivers-export-${new Date().toISOString().split('T')[0]}.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                return { success: true };
+            } catch (postError) {
+                console.log('🚗 DriverService: POST export failed, trying GET method:', postError.response?.status);
+
+                // If POST fails, try GET method with query parameters
+                const queryParams = new URLSearchParams();
+                queryParams.append('format', format);
+                Object.entries(filters).forEach(([key, value]) => {
+                    if (value !== undefined && value !== null) {
+                        queryParams.append(key, String(value));
+                    }
+                });
+
+                const response = await api.get(`/admin/drivers/export?${queryParams}`, {
+                    responseType: 'blob'
+                });
+
+                console.log('✅ DriverService: Drivers data exported successfully via GET');
+
+                const blob = response.data;
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `drivers-export-${new Date().toISOString().split('T')[0]}.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                return { success: true };
             }
-
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `drivers-export-${new Date().toISOString().split('T')[0]}.${format}`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
-
-            return { success: true };
         } catch (error) {
-            console.error('Error exporting drivers data:', error);
-            throw error;
+            console.error('❌ DriverService: Error exporting drivers data:', error);
+            console.error('❌ DriverService: Error details:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            // Show user-friendly error message
+            if (error.response?.status === 400) {
+                throw new Error('Export failed: Invalid request parameters. Please check your filters.');
+            } else if (error.response?.status === 401) {
+                throw new Error('Export failed: Authentication required.');
+            } else if (error.response?.status === 403) {
+                throw new Error('Export failed: Permission denied.');
+            } else if (error.response?.status === 404) {
+                throw new Error('Export failed: Export endpoint not found.');
+            } else if (error.response?.status === 500) {
+                throw new Error('Export failed: Server error. Please try again later.');
+            } else {
+                throw new Error(`Export failed: ${error.message}`);
+            }
         }
     }
 }

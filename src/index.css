@@ -34,3 +34,54 @@ code {
 ::-webkit-scrollbar-thumb:hover {
     background: #00683F;
 }
+
+/* Add notification pulse animation */
+@keyframes notification-pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    }
+
+    70% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+    }
+
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    }
+}
+
+.notification-pulse {
+    animation: notification-pulse 1s ease-in-out;
+}
+
+/* Notification bell hover effects */
+.notification-bell:hover {
+    transform: scale(1.05);
+    transition: transform 0.2s ease-in-out;
+}
+
+/* Notification dropdown animations */
+.notification-dropdown-enter {
+    opacity: 0;
+    transform: translateY(-10px);
+}
+
+.notification-dropdown-enter-active {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+}
+
+.notification-dropdown-exit {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.notification-dropdown-exit-active {
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+}

@@ -26,9 +26,9 @@ export const AuthProvider = ({ children }) => {
     const [timeLeft, setTimeLeft] = useState(0);
     const navigate = useNavigate();
 
-    // Session timeout settings (2 hours)
-    const SESSION_TIMEOUT = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
-    const WARNING_TIME = 5 * 60 * 1000; // 5 minutes warning
+    // Session timeout settings (7 days)
+    const SESSION_TIMEOUT = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    const WARNING_TIME = 60 * 60 * 1000; // 1 hour warning
 
     // Define protected routes that should not trigger logout redirects
     const isProtectedRoute = useCallback((path) => {
@@ -178,7 +178,6 @@ export const AuthProvider = ({ children }) => {
     // Initialize session once on mount - using global flag to prevent duplicates
     useEffect(() => {
         if (globalInitialized) {
-            console.log('⚡ Auth already initialized globally, skipping...');
             setIsLoading(false);
             return;
         }

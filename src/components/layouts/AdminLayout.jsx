@@ -15,7 +15,6 @@ import {
     ChevronDownIcon,
     Cog6ToothIcon,
     ArrowRightOnRectangleIcon,
-    CurrencyDollarIcon,
     ShieldCheckIcon,
     XMarkIcon,
     DocumentTextIcon,
@@ -39,10 +38,8 @@ const AdminLayout = ({ children }) => {
         { name: 'Deliveries', href: '/admin/deliveries', icon: TruckIcon },
         { name: 'Drivers', href: '/admin/drivers', icon: UserGroupIcon },
         { name: 'Document Verification', href: '/admin/documents', icon: DocumentMagnifyingGlassIcon },
-        { name: 'Analytics', href: '/admin/analytics', icon: ChartBarIcon },
+        { name: 'Analytics', href: '/admin/enhanced-analytics', icon: ChartBarIcon },
         { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
-        // Only show earnings management for super admins
-        ...(isSuperAdmin(user) ? [{ name: 'Earnings', href: '/admin/earnings', icon: CurrencyDollarIcon }] : []),
         // Only show remittances for super admins
         ...(isSuperAdmin(user) ? [{ name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon }] : []),
         // Only show admin management for super admins

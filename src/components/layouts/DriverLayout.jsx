@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import SimpleDriverNotifications from '../driver/SimpleDriverNotifications';
+// import SimpleDriverNotifications from '../driver/SimpleDriverNotifications'; // Unused import
 import SimpleEmergencyAlert from '../driver/SimpleEmergencyAlert';
 import NotificationsDropdown from '../driver/NotificationsDropdown';
 import Avatar from '../common/Avatar';
@@ -290,15 +290,7 @@ const DriverLayout = ({ children }) => {
         }
     };
 
-    // Debug: Log current profile state
-    console.log('🔍 DriverLayout render - Profile state:', {
-        hasProfile: !!profile,
-        profileImage: profile?.profileImage,
-        profilePicture: profile?.profilePicture,
-        fullName: profile?.profile?.personalDetails?.fullName,
-        user: user?.name,
-        profileData: profile
-    });
+
 
     return (
         <div className="flex h-screen bg-gray-50">

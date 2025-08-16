@@ -78,7 +78,7 @@ const ProfilePage = () => {
     if (isLoading) {
         return (
             <div className="min-h-screen bg-gray-50">
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <ProfilePageSkeleton />
                 </div>
             </div>
@@ -87,18 +87,18 @@ const ProfilePage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                <div className="bg-white rounded-xl shadow-sm">
-                    <div className="px-6 py-8 border-b border-gray-200">
-                        <h1 className="text-2xl font-bold text-gray-900">Admin Profile</h1>
-                        <p className="mt-2 text-gray-600">Manage your administrator account information</p>
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                <div className="bg-white rounded-lg shadow-sm">
+                    <div className="px-4 py-4 border-b border-gray-200">
+                        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Profile</h1>
+                        <p className="mt-1 text-sm text-gray-600">Manage your administrator account information</p>
                     </div>
 
-                    <div className="p-6">
-                        <form onSubmit={handleSubmit} className="space-y-8">
+                    <div className="p-4">
+                        <form onSubmit={handleSubmit} className="space-y-6">
                             {/* Profile Image */}
                             <div>
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">Profile Image</h3>
+                                <h3 className="text-sm font-medium text-gray-900 mb-3">Profile Image</h3>
                                 <ProfileImageUpload
                                     userId={user?.id}
                                     currentImage={profile?.profileImage}
@@ -108,21 +108,21 @@ const ProfilePage = () => {
 
                             {/* Personal Information */}
                             <div>
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">Personal Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <h3 className="text-sm font-medium text-gray-900 mb-3">Personal Information</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                                        <label htmlFor="name" className="block text-xs font-medium text-gray-700 mb-1">
                                             Full Name
                                         </label>
                                         <div className="relative">
-                                            <UserIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                            <UserIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                             <CapitalizedInput
                                                 type="text"
                                                 id="name"
                                                 name="name"
                                                 value={formData.name}
                                                 onChange={handleInputChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                                 placeholder="Enter your full name"
                                                 capitalizeMode="words"
                                             />
@@ -130,54 +130,54 @@ const ProfilePage = () => {
                                     </div>
 
                                     <div>
-                                        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                                        <label htmlFor="email" className="block text-xs font-medium text-gray-700 mb-1">
                                             Email Address
                                         </label>
                                         <div className="relative">
-                                            <EnvelopeIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                            <EnvelopeIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                             <input
                                                 type="email"
                                                 id="email"
                                                 name="email"
                                                 value={formData.email}
                                                 onChange={handleInputChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                                 placeholder="Enter your email"
                                             />
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
+                                        <label htmlFor="phone" className="block text-xs font-medium text-gray-700 mb-1">
                                             Phone Number
                                         </label>
                                         <div className="relative">
-                                            <PhoneIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                            <PhoneIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                             <input
                                                 type="tel"
                                                 id="phone"
                                                 name="phone"
                                                 value={formData.phone}
                                                 onChange={handleInputChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                                 placeholder="Enter your phone number"
                                             />
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-2">
+                                        <label htmlFor="address" className="block text-xs font-medium text-gray-700 mb-1">
                                             Address
                                         </label>
                                         <div className="relative">
-                                            <MapPinIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                            <MapPinIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                                             <input
                                                 type="text"
                                                 id="address"
                                                 name="address"
                                                 value={formData.address}
                                                 onChange={handleInputChange}
-                                                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                                 placeholder="Enter your address"
                                             />
                                         </div>
@@ -186,31 +186,31 @@ const ProfilePage = () => {
                             </div>
 
                             {/* Role Information */}
-                            <div className="bg-gray-50 rounded-xl p-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">Role Information</h3>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <h3 className="text-sm font-medium text-gray-900 mb-3">Role Information</h3>
                                 <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                                        <ShieldCheckIcon className="w-4 h-4 text-blue-600" />
+                                    <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center">
+                                        <ShieldCheckIcon className="w-3 h-3 text-blue-600" />
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">Administrator</p>
-                                        <p className="text-sm text-gray-600">You have full system access and management privileges</p>
+                                        <p className="text-xs font-medium text-gray-900">Administrator</p>
+                                        <p className="text-xs text-gray-600">You have full system access and management privileges</p>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Authentication Info */}
-                            <div className="bg-gray-50 rounded-xl p-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-4">Authentication</h3>
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <h3 className="text-sm font-medium text-gray-900 mb-3">Authentication</h3>
                                 <div className="flex items-center space-x-3">
-                                    <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center">
+                                        <svg className="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                         </svg>
                                     </div>
                                     <div>
-                                        <p className="text-sm font-medium text-gray-900">OTP Authentication Active</p>
-                                        <p className="text-sm text-gray-600">Your account is secured with OTP-based authentication</p>
+                                        <p className="text-xs font-medium text-gray-900">OTP Authentication Active</p>
+                                        <p className="text-xs text-gray-600">Your account is secured with OTP-based authentication</p>
                                     </div>
                                 </div>
                             </div>
@@ -220,7 +220,7 @@ const ProfilePage = () => {
                                 <button
                                     type="submit"
                                     disabled={isSaving}
-                                    className="bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-8 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 disabled:opacity-50"
+                                    className="bg-green-600 text-white py-2 px-4 rounded text-xs font-medium hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500 transition-all duration-200 disabled:opacity-50"
                                 >
                                     {isSaving ? 'Saving...' : 'Save Changes'}
                                 </button>

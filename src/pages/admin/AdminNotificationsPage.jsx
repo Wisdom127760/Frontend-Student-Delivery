@@ -3,9 +3,7 @@ import {
     BellIcon,
     CheckIcon,
     XMarkIcon,
-    ExclamationTriangleIcon,
     InformationCircleIcon,
-    CheckCircleIcon,
     ClockIcon,
     UserGroupIcon,
     TruckIcon,
@@ -14,6 +12,7 @@ import {
     DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import apiService from '../../services/api';
 
 const AdminNotificationsPage = () => {
     const [notifications, setNotifications] = useState([]);
@@ -22,181 +21,161 @@ const AdminNotificationsPage = () => {
     const [selectedNotification, setSelectedNotification] = useState(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
 
-    // Mock data for now - replace with API call
+    // Load notifications from API
     useEffect(() => {
         const loadNotifications = async () => {
             setLoading(true);
             try {
-                // TODO: Replace with actual API call
-                // const response = await fetch('/api/admin/notifications');
-                // const data = await response.json();
+                console.log('🔔 AdminNotificationsPage: Loading notifications with filter:', filter);
 
-                // Mock data
-                const mockNotifications = [
-                    {
-                        _id: '1',
-                        title: 'New Driver Registration',
-                        message: 'Driver John Doe has completed registration and is pending verification.',
-                        type: 'driver_registration',
-                        priority: 'medium',
-                        isRead: false,
-                        createdAt: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-                        metadata: {
-                            driverId: 'driver123',
-                            driverName: 'John Doe',
-                            driverEmail: 'john@example.com'
-                        }
-                    },
-                    {
-                        _id: '2',
-                        title: 'System Maintenance',
-                        message: 'Scheduled maintenance will occur tonight at 2 AM. Expected downtime: 30 minutes.',
-                        type: 'system',
-                        priority: 'high',
-                        isRead: true,
-                        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-                        metadata: {
-                            maintenanceType: 'database',
-                            duration: '30 minutes',
-                            startTime: '2024-01-15T02:00:00Z'
-                        }
-                    },
-                    {
-                        _id: '3',
-                        title: 'High Delivery Volume',
-                        message: 'Unusually high delivery volume detected. Consider adding more drivers.',
-                        type: 'analytics',
-                        priority: 'medium',
-                        isRead: false,
-                        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4), // 4 hours ago
-                        metadata: {
-                            currentVolume: 150,
-                            averageVolume: 80,
-                            increase: '87.5%'
-                        }
-                    },
-                    {
-                        _id: '4',
-                        title: 'Payment Processing Issue',
-                        message: 'Some driver payments failed to process. Please review the payment logs.',
-                        type: 'payment',
-                        priority: 'high',
-                        isRead: false,
-                        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6), // 6 hours ago
-                        metadata: {
-                            failedPayments: 5,
-                            totalPayments: 50,
-                            errorCode: 'PAYMENT_GATEWAY_ERROR'
-                        }
-                    },
-                    {
-                        _id: '5',
-                        title: 'Document Verification Complete',
-                        message: 'All pending driver documents have been verified.',
-                        type: 'document_verification',
-                        priority: 'low',
-                        isRead: true,
-                        createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8), // 8 hours ago
-                        metadata: {
-                            verifiedDocuments: 12,
-                            totalDocuments: 12
-                        }
-                    }
-                ];
+                // Use the correct admin notifications API
+                const response = await apiService.getAdminNotifications({ filter });
+                console.log('🔔 AdminNotificationsPage: Notifications API response:', response);
 
-                setNotifications(mockNotifications);
+                if (response && response.success) {
+                    // The backend returns { data: { notifications: [...] } }
+                    const notificationsData = response.data?.notifications || response.data || response.notifications || [];
+                    const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
+                    console.log('🔔 AdminNotificationsPage: Setting notifications array:', notificationsArray);
+                    setNotifications(notificationsArray);
+                } else {
+                    console.warn('🔔 AdminNotificationsPage: Backend returned unsuccessful response:', response);
+                    setNotifications([]);
+                }
             } catch (error) {
-                console.error('Error loading notifications:', error);
-                toast.error('Failed to load notifications');
+                console.error('❌ AdminNotificationsPage: Error loading notifications:', error);
+                console.error('❌ AdminNotificationsPage: Error details:', {
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    data: error.response?.data,
+                    message: error.message
+                });
+
+                // Show user-friendly error message
+                if (error.response?.status === 400) {
+                    toast.error('Notifications failed: Invalid filter parameter.');
+                } else if (error.response?.status === 401) {
+                    toast.error('Notifications failed: Authentication required.');
+                } else if (error.response?.status === 403) {
+                    toast.error('Notifications failed: Permission denied.');
+                } else if (error.response?.status === 404) {
+                    toast.error('Notifications failed: Notifications endpoint not found.');
+                } else if (error.response?.status === 500) {
+                    toast.error('Notifications failed: Server error. Please try again later.');
+                } else {
+                    toast.error('Failed to load notifications');
+                }
+
+                // Always ensure we set an empty array on error
+                console.log('🔔 AdminNotificationsPage: Setting empty array due to error');
+                setNotifications([]);
             } finally {
                 setLoading(false);
             }
         };
 
         loadNotifications();
-    }, []);
+    }, [filter]);
 
     const markAsRead = async (notificationId) => {
         try {
-            // TODO: Replace with actual API call
-            // await fetch(`/api/admin/notifications/${notificationId}/read`, { method: 'PUT' });
+            console.log('🔔 AdminNotificationsPage: Marking notification as read:', notificationId);
 
-            setNotifications(prev =>
-                prev.map(notification =>
-                    notification._id === notificationId
-                        ? { ...notification, isRead: true }
-                        : notification
-                )
-            );
+            const response = await apiService.markAdminNotificationAsRead(notificationId);
+            console.log('✅ AdminNotificationsPage: Notification marked as read:', response);
 
-            toast.success('Notification marked as read');
+            if (response && response.success) {
+                setNotifications(prev => {
+                    const prevArray = Array.isArray(prev) ? prev : [];
+                    return prevArray.map(notification =>
+                        notification._id === notificationId
+                            ? { ...notification, isRead: true }
+                            : notification
+                    );
+                });
+                toast.success('Notification marked as read');
+            } else {
+                toast.error('Failed to mark notification as read');
+            }
         } catch (error) {
-            console.error('Error marking notification as read:', error);
+            console.error('❌ AdminNotificationsPage: Error marking notification as read:', error);
             toast.error('Failed to mark notification as read');
         }
     };
 
     const markAllAsRead = async () => {
         try {
-            // TODO: Replace with actual API call
-            // await fetch('/api/admin/notifications/mark-all-read', { method: 'PUT' });
+            console.log('🔔 AdminNotificationsPage: Marking all notifications as read');
 
-            setNotifications(prev =>
-                prev.map(notification => ({ ...notification, isRead: true }))
-            );
+            const response = await apiService.markAllAdminNotificationsAsRead();
+            console.log('✅ AdminNotificationsPage: All notifications marked as read:', response);
 
-            toast.success('All notifications marked as read');
+            if (response && response.success) {
+                setNotifications(prev => {
+                    const prevArray = Array.isArray(prev) ? prev : [];
+                    return prevArray.map(notification => ({ ...notification, isRead: true }));
+                });
+                toast.success('All notifications marked as read');
+            } else {
+                toast.error('Failed to mark all notifications as read');
+            }
         } catch (error) {
-            console.error('Error marking all notifications as read:', error);
+            console.error('❌ AdminNotificationsPage: Error marking all notifications as read:', error);
             toast.error('Failed to mark all notifications as read');
         }
     };
 
     const deleteNotification = async (notificationId) => {
         try {
-            // TODO: Replace with actual API call
-            // await fetch(`/api/admin/notifications/${notificationId}`, { method: 'DELETE' });
+            console.log('🔔 AdminNotificationsPage: Deleting notification:', notificationId);
 
-            setNotifications(prev =>
-                prev.filter(notification => notification._id !== notificationId)
-            );
+            const response = await apiService.deleteAdminNotification(notificationId);
+            console.log('✅ AdminNotificationsPage: Notification deleted:', response);
 
-            toast.success('Notification deleted');
+            if (response && response.success) {
+                setNotifications(prev => {
+                    const prevArray = Array.isArray(prev) ? prev : [];
+                    return prevArray.filter(notification => notification._id !== notificationId);
+                });
+                toast.success('Notification deleted');
+            } else {
+                toast.error('Failed to delete notification');
+            }
         } catch (error) {
-            console.error('Error deleting notification:', error);
+            console.error('❌ AdminNotificationsPage: Error deleting notification:', error);
             toast.error('Failed to delete notification');
-        }
-    };
-
-    const getNotificationIcon = (type) => {
-        switch (type) {
-            case 'driver_registration':
-                return <UserGroupIcon className="h-5 w-5 text-blue-600" />;
-            case 'system':
-                return <InformationCircleIcon className="h-5 w-5 text-gray-600" />;
-            case 'analytics':
-                return <ChartBarIcon className="h-5 w-5 text-purple-600" />;
-            case 'payment':
-                return <CurrencyDollarIcon className="h-5 w-5 text-green-600" />;
-            case 'document_verification':
-                return <DocumentTextIcon className="h-5 w-5 text-orange-600" />;
-            case 'delivery':
-                return <TruckIcon className="h-5 w-5 text-indigo-600" />;
-            default:
-                return <BellIcon className="h-5 w-5 text-gray-600" />;
         }
     };
 
     const getPriorityColor = (priority) => {
         switch (priority) {
             case 'high':
-                return 'bg-red-100 text-red-800 border-red-200';
+                return 'text-red-600 bg-red-50';
             case 'medium':
-                return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+                return 'text-yellow-600 bg-yellow-50';
             case 'low':
-                return 'bg-green-100 text-green-800 border-green-200';
+                return 'text-green-600 bg-green-50';
             default:
-                return 'bg-gray-100 text-gray-800 border-gray-200';
+                return 'text-gray-600 bg-gray-50';
+        }
+    };
+
+    const getTypeIcon = (type) => {
+        switch (type) {
+            case 'driver_registration':
+                return <UserGroupIcon className="w-4 h-4" />;
+            case 'system':
+                return <InformationCircleIcon className="w-4 h-4" />;
+            case 'analytics':
+                return <ChartBarIcon className="w-4 h-4" />;
+            case 'payment':
+                return <CurrencyDollarIcon className="w-4 h-4" />;
+            case 'document_verification':
+                return <DocumentTextIcon className="w-4 h-4" />;
+            case 'delivery':
+                return <TruckIcon className="w-4 h-4" />;
+            default:
+                return <BellIcon className="w-4 h-4" />;
         }
     };
 
@@ -235,26 +214,29 @@ const AdminNotificationsPage = () => {
         }
     };
 
-    const filteredNotifications = notifications.filter(notification => {
+    // Ensure notifications is always an array
+    const notificationsArray = Array.isArray(notifications) ? notifications : [];
+
+    const filteredNotifications = notificationsArray.filter(notification => {
         if (filter === 'all') return true;
         if (filter === 'unread') return !notification.isRead;
         if (filter === 'read') return notification.isRead;
         return notification.type === filter;
     });
 
-    const unreadCount = notifications.filter(n => !n.isRead).length;
+    const unreadCount = notificationsArray.filter(n => !n.isRead).length;
 
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="animate-pulse">
-                        <div className="h-8 bg-gray-200 rounded w-1/4 mb-8"></div>
-                        <div className="space-y-4">
+                        <div className="h-6 bg-gray-200 rounded w-1/4 mb-6"></div>
+                        <div className="space-y-3">
                             {[...Array(5)].map((_, index) => (
-                                <div key={index} className="bg-white rounded-lg p-6 border border-gray-200">
-                                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                                <div key={index} className="bg-white rounded-lg p-4 border border-gray-200">
+                                    <div className="h-3 bg-gray-200 rounded w-3/4 mb-2"></div>
+                                    <div className="h-2 bg-gray-200 rounded w-1/2"></div>
                                 </div>
                             ))}
                         </div>
@@ -266,26 +248,26 @@ const AdminNotificationsPage = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center space-x-3">
                         <div className="p-2 bg-green-100 rounded-lg">
-                            <BellIcon className="w-6 h-6 text-green-600" />
+                            <BellIcon className="w-4 h-4 text-green-600" />
                         </div>
                         <div>
-                            <h1 className="text-2xl font-bold text-gray-900">Admin Notifications</h1>
-                            <p className="text-gray-600 mt-1">Manage system notifications and alerts</p>
+                            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Notifications</h1>
+                            <p className="text-sm text-gray-600 mt-1">Manage system notifications and alerts</p>
                         </div>
                     </div>
 
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
                         {unreadCount > 0 && (
                             <button
                                 onClick={markAllAsRead}
-                                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2"
+                                className="px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 flex items-center space-x-1"
                             >
-                                <CheckIcon className="w-4 h-4" />
+                                <CheckIcon className="w-3 h-3" />
                                 <span>Mark all as read</span>
                             </button>
                         )}
@@ -293,14 +275,14 @@ const AdminNotificationsPage = () => {
                 </div>
 
                 {/* Filters */}
-                <div className="mb-6">
-                    <div className="flex items-center space-x-4">
-                        <span className="text-sm font-medium text-gray-700">Filter:</span>
+                <div className="mb-4">
+                    <div className="flex items-center space-x-3">
+                        <span className="text-xs font-medium text-gray-700">Filter:</span>
                         {['all', 'unread', 'read', 'driver_registration', 'system', 'analytics', 'payment'].map((filterOption) => (
                             <button
                                 key={filterOption}
                                 onClick={() => setFilter(filterOption)}
-                                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${filter === filterOption
+                                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${filter === filterOption
                                     ? 'bg-green-100 text-green-700 border border-green-200'
                                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                     }`}
@@ -312,96 +294,84 @@ const AdminNotificationsPage = () => {
                 </div>
 
                 {/* Notifications List */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200">
+                <div className="space-y-3">
                     {filteredNotifications.length === 0 ? (
-                        <div className="p-8 text-center">
-                            <BellIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">No notifications</h3>
-                            <p className="text-gray-600">
-                                {filter === 'all'
-                                    ? 'No notifications available.'
-                                    : `No ${filter.replace('_', ' ')} notifications found.`
-                                }
-                            </p>
+                        <div className="text-center py-8">
+                            <BellIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                            <p className="text-sm font-medium text-gray-900">No notifications</p>
+                            <p className="text-xs text-gray-500">No notifications match the current filter.</p>
                         </div>
                     ) : (
-                        <div className="divide-y divide-gray-200">
-                            {filteredNotifications.map((notification) => (
-                                <div
-                                    key={notification._id}
-                                    className={`p-6 hover:bg-gray-50 transition-colors ${getTypeColor(notification.type)} ${!notification.isRead ? 'border-l-4 border-l-green-500' : ''
-                                        }`}
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex items-start space-x-4 flex-1">
-                                            <div className="flex-shrink-0 mt-1">
-                                                {getNotificationIcon(notification.type)}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center space-x-3 mb-2">
-                                                    <h3 className={`text-lg font-semibold ${notification.isRead ? 'text-gray-700' : 'text-gray-900'
-                                                        }`}>
-                                                        {notification.title}
-                                                    </h3>
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getPriorityColor(notification.priority)}`}>
-                                                        {notification.priority}
-                                                    </span>
-                                                    {!notification.isRead && (
-                                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                            New
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <p className={`text-sm mb-3 ${notification.isRead ? 'text-gray-600' : 'text-gray-800'
-                                                    }`}>
-                                                    {notification.message}
-                                                </p>
-                                                <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                                    <span className="flex items-center">
-                                                        <ClockIcon className="w-3 h-3 mr-1" />
-                                                        {formatTime(notification.createdAt)}
-                                                    </span>
-                                                    <span className="capitalize">
-                                                        {notification.type.replace('_', ' ')}
-                                                    </span>
-                                                </div>
-                                            </div>
+                        filteredNotifications.map((notification) => (
+                            <div
+                                key={notification._id}
+                                className={`bg-white rounded-lg border p-4 transition-colors ${notification.isRead ? 'border-gray-200' : 'border-green-200 bg-green-50'
+                                    }`}
+                            >
+                                <div className="flex items-start justify-between">
+                                    <div className="flex items-start space-x-3 flex-1">
+                                        {/* Icon */}
+                                        <div className={`p-2 rounded-lg ${getTypeColor(notification.type)}`}>
+                                            {getTypeIcon(notification.type)}
                                         </div>
 
-                                        <div className="flex items-center space-x-2">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedNotification(notification);
-                                                    setShowDetailsModal(true);
-                                                }}
-                                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                                                title="View Details"
-                                            >
-                                                <InformationCircleIcon className="h-5 w-5" />
-                                            </button>
-
-                                            {!notification.isRead && (
-                                                <button
-                                                    onClick={() => markAsRead(notification._id)}
-                                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                    title="Mark as Read"
-                                                >
-                                                    <CheckIcon className="h-5 w-5" />
-                                                </button>
-                                            )}
-
-                                            <button
-                                                onClick={() => deleteNotification(notification._id)}
-                                                className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                title="Delete"
-                                            >
-                                                <XMarkIcon className="h-5 w-5" />
-                                            </button>
+                                        {/* Content */}
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center space-x-2 mb-1">
+                                                <h3 className="text-sm font-medium text-gray-900 truncate">
+                                                    {notification.title}
+                                                </h3>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(notification.priority)}`}>
+                                                    {notification.priority}
+                                                </span>
+                                                {!notification.isRead && (
+                                                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-gray-600 mb-2 line-clamp-2">
+                                                {notification.message}
+                                            </p>
+                                            <div className="flex items-center space-x-4 text-xs text-gray-500">
+                                                <span className="flex items-center space-x-1">
+                                                    <ClockIcon className="w-3 h-3" />
+                                                    <span>{formatTime(notification.createdAt)}</span>
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
+
+                                    {/* Actions */}
+                                    <div className="flex items-center space-x-1 ml-4">
+                                        {!notification.isRead && (
+                                            <button
+                                                onClick={() => markAsRead(notification._id)}
+                                                className="text-green-600 hover:text-green-900 p-1"
+                                                title="Mark as read"
+                                            >
+                                                <CheckIcon className="w-3 h-3" />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                setSelectedNotification(notification);
+                                                setShowDetailsModal(true);
+                                            }}
+                                            className="text-blue-600 hover:text-blue-900 p-1"
+                                            title="View details"
+                                        >
+                                            <InformationCircleIcon className="w-3 h-3" />
+                                        </button>
+                                        <button
+                                            onClick={() => deleteNotification(notification._id)}
+                                            className="text-red-600 hover:text-red-900 p-1"
+                                            title="Delete notification"
+                                        >
+                                            <XMarkIcon className="w-3 h-3" />
+                                        </button>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))
                     )}
                 </div>
             </div>
@@ -409,63 +379,38 @@ const AdminNotificationsPage = () => {
             {/* Details Modal */}
             {showDetailsModal && selectedNotification && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">Notification Details</h3>
-                            <button
-                                onClick={() => setShowDetailsModal(false)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <XMarkIcon className="h-6 w-6" />
-                            </button>
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+                        <div className="p-4 border-b border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-sm font-semibold text-gray-900">Notification Details</h3>
+                                <button
+                                    onClick={() => setShowDetailsModal(false)}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <XMarkIcon className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
-                                <p className="text-gray-900">{selectedNotification.title}</p>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                                <p className="text-gray-900">{selectedNotification.message}</p>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4">
+                            <div className="space-y-3">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                                    <p className="text-gray-900 capitalize">{selectedNotification.type.replace('_', ' ')}</p>
+                                    <h4 className="text-sm font-medium text-gray-900">{selectedNotification.title}</h4>
+                                    <p className="text-xs text-gray-600 mt-1">{selectedNotification.message}</p>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                                    <p className="text-gray-900 capitalize">{selectedNotification.priority}</p>
+                                <div className="text-xs text-gray-500">
+                                    <p>Type: {selectedNotification.type}</p>
+                                    <p>Priority: {selectedNotification.priority}</p>
+                                    <p>Created: {selectedNotification.createdAt.toLocaleString()}</p>
                                 </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Created</label>
-                                <p className="text-gray-900">{selectedNotification.createdAt.toLocaleString()}</p>
-                            </div>
-
-                            {selectedNotification.metadata && Object.keys(selectedNotification.metadata).length > 0 && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Metadata</label>
-                                    <div className="bg-gray-50 rounded-lg p-3">
-                                        <pre className="text-xs text-gray-700 whitespace-pre-wrap">
+                                {selectedNotification.metadata && (
+                                    <div>
+                                        <h5 className="text-xs font-medium text-gray-900 mb-1">Metadata:</h5>
+                                        <pre className="text-xs text-gray-600 bg-gray-50 p-2 rounded overflow-auto">
                                             {JSON.stringify(selectedNotification.metadata, null, 2)}
                                         </pre>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-
-                        <div className="flex items-center justify-end space-x-3 mt-6">
-                            <button
-                                onClick={() => setShowDetailsModal(false)}
-                                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
-                            >
-                                Close
-                            </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

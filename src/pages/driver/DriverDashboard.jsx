@@ -2,12 +2,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiService from '../../services/api';
 import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
+// import BroadcastDeliveries from '../../components/driver/BroadcastDeliveries'; // Unused import
+import DriverMessageToAdmin from '../../components/driver/DriverMessageToAdmin';
 import {
     TruckIcon,
     CurrencyDollarIcon,
     CheckCircleIcon,
     StarIcon,
-    FunnelIcon
+    FunnelIcon,
+    MegaphoneIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -40,14 +43,9 @@ const DashboardContent = () => {
             const response = await apiService.getDashboardData(selectedPeriod);
 
             if (response.success && response.data) {
-                console.log('✅ Dashboard data loaded successfully!');
-                console.log('📊 Data structure:', {
-                    hasQuickStats: !!response.data.quickStats,
-                    hasDeliveries: !!response.data.deliveries,
-                    hasPerformance: !!response.data.performance,
-                    period: selectedPeriod
-                });
-                console.log('💰 Quick stats for', selectedPeriod, ':', response.data.quickStats?.[selectedPeriod]);
+
+
+
                 setDashboardData(response.data);
 
                 // Removed success toast to prevent unwanted notifications
@@ -189,6 +187,13 @@ const DashboardContent = () => {
                         >
                             <CurrencyDollarIcon className="h-5 w-5" />
                             <span>View Earnings</span>
+                        </button>
+                        <button
+                            onClick={() => navigate('/driver/broadcasts')}
+                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                        >
+                            <MegaphoneIcon className="h-5 w-5" />
+                            <span>Available Deliveries</span>
                         </button>
                     </div>
                 </div>
@@ -336,6 +341,8 @@ const DashboardContent = () => {
                 <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Message to Admin */}
+                        <DriverMessageToAdmin />
                         {/* WhatsApp Support */}
                         <a
                             href="https://wa.me/905338329785"
