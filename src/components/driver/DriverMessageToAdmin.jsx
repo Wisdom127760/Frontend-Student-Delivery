@@ -2,16 +2,17 @@ import React, { useState } from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 // import { useAuth } from '../../context/AuthContext'; // Unused import
 import apiService from '../../services/api';
-import toast from 'react-hot-toast';
+import { useToast } from '../common/ToastProvider';
 
 const DriverMessageToAdmin = () => {
     // const { user } = useAuth(); // Unused variable
+    const { showSuccess, showError } = useToast();
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
 
     const sendMessage = async () => {
         if (!message.trim()) {
-            toast.error('Please enter a message');
+            showError('Please enter a message');
             return;
         }
 
@@ -20,14 +21,14 @@ const DriverMessageToAdmin = () => {
             const response = await apiService.sendMessageToAdmin(message.trim());
 
             if (response.success) {
-                toast.success('Message sent to admin successfully!');
+                showSuccess('Message sent to admin successfully!');
                 setMessage('');
             } else {
-                toast.error('Failed to send message');
+                showError('Failed to send message');
             }
         } catch (error) {
             console.error('Error sending message:', error);
-            toast.error('Failed to send message. Please try again.');
+            showError('Failed to send message. Please try again.');
         } finally {
             setIsSending(false);
         }

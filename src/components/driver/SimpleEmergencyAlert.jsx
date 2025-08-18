@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
+import soundService from '../../services/soundService';
 import apiService from '../../services/api';
-import toast from 'react-hot-toast';
+import { useToast } from '../common/ToastProvider';
 
 const SimpleEmergencyAlert = () => {
     const { user } = useAuth();
+    const { showSuccess, showError } = useToast();
     const [showModal, setShowModal] = useState(false);
     const [message, setMessage] = useState('');
     // const [adminReplies, setAdminReplies] = useState([]); // For future use
@@ -59,10 +61,10 @@ const SimpleEmergencyAlert = () => {
             const response = await apiService.sendEmergencyAlert(message.trim(), location);
 
             if (response.success) {
-                toast.success('Emergency alert sent successfully!');
+                showSuccess('Emergency alert sent successfully!');
                 console.log('✅ Emergency alert sent via API:', response);
             } else {
-                toast.error('Failed to send emergency alert');
+                showError('Failed to send emergency alert');
                 console.error('❌ Emergency alert failed:', response);
             }
 
@@ -82,7 +84,7 @@ const SimpleEmergencyAlert = () => {
             setShowModal(false);
         } catch (error) {
             console.error('❌ Error sending emergency alert:', error);
-            toast.error('Failed to send emergency alert. Please try again.');
+            showError('Failed to send emergency alert. Please try again.');
         }
     };
 
@@ -98,6 +100,8 @@ const SimpleEmergencyAlert = () => {
         }
 
         socketService.on('emergency-reply', (data) => {
+            // Play alert sound for emergency reply
+            soundService.playSound('alert').catch(err => console.log('🔊 Emergency reply sound failed:', err));
             // Admin reply received - could be handled by notification system instead
         });
 

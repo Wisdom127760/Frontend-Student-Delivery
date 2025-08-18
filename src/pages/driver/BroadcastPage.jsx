@@ -7,24 +7,157 @@ import {
     PhoneIcon,
     CheckCircleIcon,
     ArrowPathIcon,
-    ExclamationTriangleIcon,
     TruckIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import apiService from '../../services/api';
 import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
-import toast from 'react-hot-toast';
+import { useToast } from '../../components/common/ToastProvider';
+
 import { formatCurrency } from '../../services/systemSettings';
+import BroadcastSkeleton from '../../components/common/BroadcastSkeleton';
+import { useDeliveryBroadcast } from '../../components/driver/DeliveryBroadcastProvider';
 
 const BroadcastPage = () => {
     const { user } = useAuth();
+    const { showSuccess, showError } = useToast();
+    const { testModal } = useDeliveryBroadcast();
     const [broadcasts, setBroadcasts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [accepting, setAccepting] = useState(null);
     const [driverLocation, setDriverLocation] = useState(null);
     const [isOnline, setIsOnline] = useState(true);
+    const [locationError, setLocationError] = useState(null);
+    const [locationPermission, setLocationPermission] = useState('prompt');
+    const [locationResolved, setLocationResolved] = useState(false);
+
+    // Location handling with retry limits - COMPLETELY REWRITTEN
+    const getLocation = useCallback(() => {
+        // If we've already resolved location, don't try again
+        if (locationResolved) {
+            return Promise.resolve({ lat: 35.1255, lng: 33.3095 });
+        }
+
+        return new Promise((resolve) => {
+            // Check if geolocation is supported
+            if (!navigator.geolocation) {
+                console.log('📍 Geolocation not supported, using default coordinates');
+                setLocationResolved(true);
+                setLocationError('Location services not supported by your browser');
+                resolve({ lat: 35.1255, lng: 33.3095 });
+                return;
+            }
+
+            // Check if we're in a browser environment that supports geolocation
+            if (typeof navigator === 'undefined' || !navigator.geolocation) {
+                console.log('📍 Geolocation not available in this environment');
+                setLocationResolved(true);
+                setLocationError('Location services not available in this environment');
+                resolve({ lat: 35.1255, lng: 33.3095 });
+                return;
+            }
+
+            // Single location attempt with immediate fallback
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    console.log('📍 Location obtained successfully:', {
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    });
+                    setLocationResolved(true);
+                    setLocationError(null);
+                    resolve({
+                        lat: position.coords.latitude,
+                        lng: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    console.log('📍 Location failed, using default coordinates:', error.message);
+                    setLocationResolved(true);
+
+                    // Handle CoreLocationProvider error specifically
+                    let errorMessage = 'Using default location. Enable location services for better results.';
+
+                    if (error.message.includes('CoreLocationProvider') || error.message.includes('kCLErrorLocationUnknown')) {
+                        errorMessage = 'Location services unavailable. Using default coordinates.';
+                        console.log('📍 CoreLocationProvider error detected - using default coordinates');
+                    } else {
+                        switch (error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMessage = 'Location permission denied. Please enable location services.';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMessage = 'Location unavailable. Using default coordinates.';
+                                break;
+                            case error.TIMEOUT:
+                                errorMessage = 'Location request timed out. Using default coordinates.';
+                                break;
+                            default:
+                                errorMessage = 'Location error occurred. Using default coordinates.';
+                        }
+                    }
+
+                    setLocationError(errorMessage);
+                    resolve({ lat: 35.1255, lng: 33.3095 }); // Use default immediately
+                },
+                {
+                    enableHighAccuracy: false,
+                    timeout: 3000, // Reduced timeout to 3 seconds
+                    maximumAge: 600000 // 10 minutes cache
+                }
+            );
+        });
+    }, [locationResolved]);
+
+    // Broadcast fetching
+    const fetchBroadcasts = useCallback(async (location, silent = false) => {
+        try {
+            console.log('📡 Fetching broadcasts for location:', location);
+            const response = await apiService.getActiveBroadcasts(location.lat, location.lng);
+
+            if (response.success) {
+                const broadcasts = response.data.broadcasts || [];
+                console.log('📡 Received broadcasts:', broadcasts.length);
+
+                // Transform backend data to match our frontend format
+                const transformedBroadcasts = broadcasts.map(broadcast => ({
+                    id: broadcast.deliveryId || broadcast._id,
+                    deliveryId: broadcast.deliveryId || broadcast._id,
+                    deliveryCode: broadcast.deliveryCode,
+                    pickupLocation: broadcast.pickupLocation,
+                    deliveryLocation: broadcast.deliveryLocation,
+                    customerName: broadcast.customerName,
+                    customerPhone: broadcast.customerPhone,
+                    fee: broadcast.fee,
+                    driverEarning: broadcast.driverEarning,
+                    companyEarning: broadcast.companyEarning,
+                    paymentMethod: broadcast.paymentMethod,
+                    priority: broadcast.priority,
+                    notes: broadcast.notes,
+                    estimatedTime: broadcast.estimatedTime,
+                    pickupCoordinates: broadcast.pickupCoordinates,
+                    deliveryCoordinates: broadcast.deliveryCoordinates,
+                    broadcastEndTime: broadcast.broadcastEndTime,
+                    broadcastDuration: broadcast.broadcastDuration,
+                    distance: broadcast.distance,
+                    createdAt: broadcast.createdAt
+                }));
+
+                setBroadcasts(transformedBroadcasts);
+            } else {
+                console.log('📡 No broadcasts received or error:', response);
+                setBroadcasts([]);
+            }
+        } catch (error) {
+            console.error('📡 Error fetching broadcasts:', error);
+            setBroadcasts([]);
+            if (!silent) {
+                showError('Failed to load available deliveries. Please try again.');
+            }
+        }
+    }, [showError]);
 
     // Load available broadcasts
     const loadBroadcasts = useCallback(async (silent = false) => {
@@ -35,43 +168,22 @@ const BroadcastPage = () => {
                 setRefreshing(true);
             }
 
-            // Get driver's current location
-            let lat = 35.1255; // Default Famagusta coordinates
-            let lng = 33.3095;
+            // Get location (this will handle all retries internally)
+            const location = await getLocation();
+            setDriverLocation(location);
 
-            if (navigator.geolocation) {
-                try {
-                    const position = await new Promise((resolve, reject) => {
-                        navigator.geolocation.getCurrentPosition(resolve, reject, {
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 300000 // 5 minutes
-                        });
-                    });
+            // Location error is now handled in getLocation function
+            // No need to set it here as it's already set appropriately
 
-                    lat = position.coords.latitude;
-                    lng = position.coords.longitude;
-                    setDriverLocation({ lat, lng });
-                } catch (error) {
-                    console.log('Geolocation error:', error);
-                    toast.error('Unable to get your location. Using default coordinates.');
-                }
-            }
+            console.log('📍 Using location:', location);
 
-            const response = await apiService.getActiveBroadcasts(lat, lng);
+            // Fetch broadcasts with debouncing
+            fetchBroadcasts(location, silent);
 
-            if (response.success) {
-                setBroadcasts(response.data.broadcasts || []);
-            } else {
-                console.error('Failed to load broadcasts:', response);
-                if (!silent) {
-                    toast.error('Failed to load available deliveries');
-                }
-            }
         } catch (error) {
-            console.error('Error loading broadcasts:', error);
+            console.error('Error in loadBroadcasts:', error);
             if (!silent) {
-                toast.error('Failed to load available deliveries');
+                showError('Failed to load available deliveries');
             }
         } finally {
             if (!silent) {
@@ -80,7 +192,7 @@ const BroadcastPage = () => {
                 setRefreshing(false);
             }
         }
-    }, []);
+    }, [getLocation, fetchBroadcasts, showError]);
 
     // Accept a delivery broadcast
     const acceptBroadcast = async (deliveryId) => {
@@ -90,7 +202,7 @@ const BroadcastPage = () => {
             const response = await apiService.acceptBroadcastDelivery(deliveryId);
 
             if (response.success) {
-                toast.success('Delivery accepted successfully!');
+                showSuccess('Delivery accepted successfully!');
 
                 // Remove the accepted delivery from the list
                 setBroadcasts(prev => prev.filter(b => b.id !== deliveryId));
@@ -103,29 +215,17 @@ const BroadcastPage = () => {
                     window.location.href = '/driver/deliveries';
                 }, 1500);
             } else {
-                toast.error(response.message || 'Failed to accept delivery');
+                showError(response.message || 'Failed to accept delivery');
             }
         } catch (error) {
             console.error('Error accepting broadcast:', error);
-            toast.error('Failed to accept delivery');
+            showError('Failed to accept delivery');
         } finally {
             setAccepting(null);
         }
     };
 
-    // Calculate time remaining for broadcast
-    const getTimeRemaining = (endTime) => {
-        const now = new Date();
-        const end = new Date(endTime);
-        const diff = end - now;
 
-        if (diff <= 0) return 'Expired';
-
-        const minutes = Math.floor(diff / 60000);
-        const seconds = Math.floor((diff % 60000) / 1000);
-
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    };
 
     // Get status color
     const getStatusColor = (status) => {
@@ -143,22 +243,7 @@ const BroadcastPage = () => {
         }
     };
 
-    // Calculate distance from driver to pickup
-    const calculateDistance = (pickupLat, pickupLng) => {
-        if (!driverLocation) return 'Unknown';
 
-        const R = 6371; // Earth's radius in kilometers
-        const dLat = (pickupLat - driverLocation.lat) * Math.PI / 180;
-        const dLon = (pickupLng - driverLocation.lng) * Math.PI / 180;
-        const a =
-            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(driverLocation.lat * Math.PI / 180) * Math.cos(pickupLat * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = R * c;
-
-        return `${distance.toFixed(1)} km`;
-    };
 
     // Socket.IO event listeners for real-time updates
     useEffect(() => {
@@ -182,8 +267,8 @@ const BroadcastPage = () => {
             // Play notification sound
             soundService.playSound('notification');
 
-            // Show toast notification
-            toast.success(`New delivery available: ${data.pickupLocation} → ${data.deliveryLocation}`);
+            // Show snackbar notification
+            showSuccess(`New delivery available: ${data.pickupLocation} → ${data.deliveryLocation}`);
         };
 
         // Listen for broadcast removal (when accepted by another driver)
@@ -193,8 +278,8 @@ const BroadcastPage = () => {
             // Remove the broadcast from the list
             setBroadcasts(prev => prev.filter(b => b.id !== data.deliveryId));
 
-            // Show toast notification
-            toast.info('A delivery was accepted by another driver');
+            // Show snackbar notification
+            showSuccess('A delivery was accepted by another driver');
         };
 
         // Listen for broadcast expiration
@@ -204,8 +289,8 @@ const BroadcastPage = () => {
             // Remove the expired broadcast from the list
             setBroadcasts(prev => prev.filter(b => b.id !== data.deliveryId));
 
-            // Show toast notification
-            toast.info('A delivery broadcast has expired');
+            // Show snackbar notification
+            showSuccess('A delivery broadcast has expired');
         };
 
         // Set up event listeners
@@ -223,26 +308,57 @@ const BroadcastPage = () => {
                 socket.off('broadcast-expired', handleBroadcastExpired);
             }
         };
-    }, [user]);
+    }, [user, showSuccess]);
 
     // Load initial data and set up auto-refresh
     useEffect(() => {
         loadBroadcasts();
 
-        // Auto-refresh every 30 seconds
+        // Auto-refresh every 60 seconds (reduced frequency to avoid rate limiting)
         const interval = setInterval(() => {
             if (!loading) {
                 loadBroadcasts(true);
             }
-        }, 30000);
+        }, 60000);
 
-        return () => clearInterval(interval);
+        return () => {
+            clearInterval(interval);
+        };
     }, [loadBroadcasts, loading]);
 
-    // Check if driver is online
+    // Request location permission
+    const requestLocationPermission = async () => {
+        try {
+            setLocationError(null);
+            setLocationPermission('requesting');
+            setLocationResolved(false); // Reset location resolution
+
+            const location = await getLocation();
+            setDriverLocation(location);
+            setLocationPermission('granted');
+            setLocationError(null);
+            console.log('📍 Location permission granted:', location);
+
+            // Reload broadcasts with new location
+            loadBroadcasts(true);
+        } catch (error) {
+            console.log('📍 Location permission denied:', error.message);
+            setLocationPermission('denied');
+            setLocationError('Location permission denied. Please enable location services.');
+        }
+    };
+
+    // Check if driver is online and ensure socket connection
     useEffect(() => {
         const checkOnlineStatus = async () => {
             try {
+                // First, ensure socket is connected
+                if (user && !socketService.isConnected()) {
+                    console.log('🔌 Attempting to connect socket for user:', user._id || user.id);
+                    socketService.ensureInitialized(user._id || user.id, user.userType || user.role);
+                }
+
+                // Check API status
                 const token = localStorage.getItem('token');
                 const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/driver/status`, {
                     headers: {
@@ -252,60 +368,86 @@ const BroadcastPage = () => {
 
                 if (response.ok) {
                     const data = await response.json();
-                    setIsOnline(data.data?.isOnline || false);
+                    const apiOnline = data.data?.isOnline || false;
+                    const socketOnline = socketService.isConnected();
+
+                    // Consider online if either API or socket is working
+                    setIsOnline(apiOnline || socketOnline);
+
+                    console.log('🔍 Online status check:', {
+                        apiOnline,
+                        socketOnline,
+                        finalStatus: apiOnline || socketOnline
+                    });
+                } else {
+                    // If API fails, check socket connection
+                    const socketOnline = socketService.isConnected();
+                    setIsOnline(socketOnline);
+                    console.log('🔍 API failed, using socket status:', socketOnline);
                 }
             } catch (error) {
                 console.error('Error checking online status:', error);
+                // Fallback to socket connection status
+                const socketOnline = socketService.isConnected();
+                setIsOnline(socketOnline);
+                console.log('🔍 Error occurred, using socket status:', socketOnline);
             }
         };
 
+        // Initial check
         checkOnlineStatus();
-    }, []);
+
+        // Check every 10 seconds
+        const interval = setInterval(checkOnlineStatus, 10000);
+
+        return () => clearInterval(interval);
+    }, [user]);
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="mt-4 text-lg text-gray-600">Loading available deliveries...</p>
-                </div>
-            </div>
-        );
+        return <BroadcastSkeleton />;
     }
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6">
                 {/* Header */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
-                    <div className="px-6 py-4">
-                        <div className="flex items-center justify-between">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 sm:mb-6">
+                    <div className="p-3 sm:p-4 lg:p-6">
+                        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
                             <div className="flex items-center space-x-3">
                                 <div className="p-2 bg-blue-100 rounded-lg">
-                                    <MegaphoneIcon className="w-6 h-6 text-blue-600" />
+                                    <MegaphoneIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                                 </div>
                                 <div>
-                                    <h1 className="text-2xl font-bold text-gray-900">Available Deliveries</h1>
-                                    <p className="text-gray-600">Accept deliveries near your location</p>
+                                    <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Available Deliveries</h1>
+                                    <p className="text-sm sm:text-base text-gray-600">Accept deliveries near your location</p>
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-4">
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
                                 {/* Online Status Indicator */}
-                                <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                    }`}>
+                                <div className={`flex items-center space-x-2 px-3 py-2 rounded-lg ${isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                     <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                    <span className="text-sm font-medium">
+                                    <span className="text-xs sm:text-sm font-medium">
                                         {isOnline ? 'Online' : 'Offline'}
                                     </span>
+
                                 </div>
 
                                 <button
                                     onClick={() => loadBroadcasts(true)}
                                     disabled={refreshing}
-                                    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                    className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                                 >
-                                    <ArrowPathIcon className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                                    <ArrowPathIcon className={`w-4 h-4 mr-1 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                                     {refreshing ? 'Refreshing...' : 'Refresh'}
+                                </button>
+
+                                {/* Test Modal Button */}
+                                <button
+                                    onClick={testModal}
+                                    className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-green-300 rounded-md shadow-sm text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                    🧪 Test Modal
                                 </button>
                             </div>
                         </div>
@@ -313,167 +455,178 @@ const BroadcastPage = () => {
                 </div>
 
                 {/* Location Info */}
-                {driverLocation && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
                         <div className="flex items-center space-x-2">
-                            <MapPinIcon className="w-5 h-5 text-blue-600" />
-                            <span className="text-sm text-blue-800">
-                                Your location: {driverLocation.lat.toFixed(4)}, {driverLocation.lng.toFixed(4)}
+                            <MapPinIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                            <span className="text-xs sm:text-sm text-blue-800">
+                                {driverLocation ? (
+                                    `Your location: ${driverLocation.lat.toFixed(4)}, ${driverLocation.lng.toFixed(4)}`
+                                ) : (
+                                    'Location not available'
+                                )}
                             </span>
                         </div>
-                    </div>
-                )}
 
-                {/* Broadcasts List */}
-                {broadcasts.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                        <MegaphoneIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">No Available Deliveries</h3>
-                        <p className="text-gray-600 mb-6">
-                            There are currently no delivery requests in your area.
-                            Stay online to receive notifications when new deliveries become available.
-                        </p>
+                        {locationError && (
+                            <button
+                                onClick={requestLocationPermission}
+                                disabled={locationPermission === 'requesting'}
+                                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                            >
+                                {locationPermission === 'requesting' ? 'Requesting...' : 'Enable Location'}
+                            </button>
+                        )}
+                    </div>
+
+                    {locationError && (
+                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                            ⚠️ {locationError}
+                            {locationError.includes('CoreLocationProvider') && (
+                                <div className="mt-1 text-xs">
+                                    <strong>macOS/iOS Users:</strong> This is a known issue. Try:
+                                    <ul className="mt-1 ml-4 list-disc">
+                                        <li>Enable Location Services in System Preferences</li>
+                                        <li>Grant location permission to your browser</li>
+                                        <li>Try refreshing the page</li>
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+
+                {/* Broadcasts Grid */}
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <BroadcastSkeleton key={i} />
+                        ))}
+                    </div>
+                ) : broadcasts.length === 0 ? (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+                        <MegaphoneIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No deliveries available</h3>
+                        <p className="text-gray-600 mb-4">There are currently no deliveries in your area.</p>
                         <button
                             onClick={() => loadBroadcasts(true)}
-                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                             <ArrowPathIcon className="w-4 h-4 mr-2" />
-                            Check Again
+                            Refresh
                         </button>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {broadcasts.map((broadcast) => (
-                            <div key={broadcast.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                                {/* Header with Priority */}
-                                <div className="px-6 py-4 border-b border-gray-100">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getStatusColor(broadcast.priority)}`}>
-                                            {broadcast.priority.charAt(0).toUpperCase() + broadcast.priority.slice(1)} Priority
-                                        </span>
-                                        <div className="flex items-center space-x-1 text-orange-600">
-                                            <ClockIcon className="w-4 h-4" />
-                                            <span className="text-sm font-medium">
-                                                {getTimeRemaining(broadcast.broadcastEndTime)}
-                                            </span>
-                                        </div>
-                                    </div>
+                            <div key={broadcast._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                                {/* Header */}
+                                <div className="bg-gradient-to-r from-green-500 to-green-600 p-3 sm:p-4 text-white">
                                     <div className="flex items-center justify-between">
-                                        <h3 className="text-lg font-semibold text-gray-900">
-                                            {formatCurrency(broadcast.fee)}
-                                        </h3>
-                                        <div className="flex items-center space-x-1 text-gray-600">
-                                            <MapPinIcon className="w-4 h-4" />
-                                            <span className="text-sm">
-                                                {calculateDistance(broadcast.pickupCoordinates?.lat, broadcast.pickupCoordinates?.lng)}
+                                        <div className="flex items-center space-x-2">
+                                            <TruckIcon className="w-5 h-5" />
+                                            <span className="text-sm sm:text-base font-semibold">New Delivery</span>
+                                        </div>
+                                        <div className="flex items-center space-x-1 bg-white bg-opacity-20 px-2 py-1 rounded">
+                                            <ClockIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                            <span className="text-xs sm:text-sm font-medium">
+                                                {broadcast.timeRemaining ? `${Math.floor(broadcast.timeRemaining / 60)}:${(broadcast.timeRemaining % 60).toString().padStart(2, '0')}` : '--:--'}
                                             </span>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Delivery Details */}
-                                <div className="px-6 py-4 space-y-4">
-                                    {/* Route */}
-                                    <div>
-                                        <div className="flex items-start space-x-2 mb-2">
-                                            <div className="flex-shrink-0 w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-                                            <div className="flex-1">
-                                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pickup</p>
-                                                <p className="text-sm text-gray-900">{broadcast.pickupLocation}</p>
-                                            </div>
+                                {/* Content */}
+                                <div className="p-3 sm:p-4 space-y-3">
+                                    {/* Delivery Code and Priority */}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-2">
+                                            <span className="font-mono text-xs sm:text-sm bg-gray-100 px-2 py-1 rounded">
+                                                {broadcast.deliveryCode}
+                                            </span>
+                                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(broadcast.priority)}`}>
+                                                {broadcast.priority}
+                                            </span>
                                         </div>
-                                        <div className="flex items-start space-x-2">
-                                            <div className="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-2"></div>
-                                            <div className="flex-1">
-                                                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Delivery</p>
-                                                <p className="text-sm text-gray-900">{broadcast.deliveryLocation}</p>
+                                        <div className="text-right">
+                                            <div className="text-lg sm:text-xl font-bold text-green-600">
+                                                {formatCurrency(broadcast.fee)}
                                             </div>
+                                            {broadcast.driverEarning && (
+                                                <div className="text-xs sm:text-sm text-blue-600 font-medium">
+                                                    Your Earning: {formatCurrency(broadcast.driverEarning)}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
 
                                     {/* Customer Info */}
-                                    <div className="bg-gray-50 rounded-lg p-3">
+                                    <div className="bg-gray-50 rounded-lg p-2 sm:p-3">
                                         <div className="flex items-center space-x-2 mb-1">
-                                            <UserIcon className="w-4 h-4 text-gray-500" />
-                                            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Customer</span>
+                                            <UserIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
+                                            <span className="text-sm sm:text-base font-semibold text-gray-900">{broadcast.customerName}</span>
                                         </div>
-                                        <p className="text-sm font-medium text-gray-900">{broadcast.customerName}</p>
-                                        <div className="flex items-center space-x-1 mt-1">
-                                            <PhoneIcon className="w-3 h-3 text-gray-400" />
-                                            <span className="text-xs text-gray-600">{broadcast.customerPhone}</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Additional Info */}
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div className="bg-blue-50 rounded-lg p-3">
-                                            <div className="flex items-center space-x-1 mb-1">
-                                                <TruckIcon className="w-3 h-3 text-blue-600" />
-                                                <span className="text-xs font-medium text-blue-700 uppercase tracking-wide">Distance</span>
-                                            </div>
-                                            <p className="text-sm font-bold text-blue-600">{broadcast.distance || 'N/A'}</p>
-                                        </div>
-                                        <div className="bg-purple-50 rounded-lg p-3">
-                                            <div className="flex items-center space-x-1 mb-1">
-                                                <ClockIcon className="w-3 h-3 text-purple-600" />
-                                                <span className="text-xs font-medium text-purple-700 uppercase tracking-wide">Est. Time</span>
-                                            </div>
-                                            <p className="text-sm font-bold text-purple-600">
-                                                {broadcast.estimatedTime ? new Date(broadcast.estimatedTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
-                                            </p>
+                                        <div className="flex items-center space-x-2">
+                                            <PhoneIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500" />
+                                            <span className="text-xs sm:text-sm text-gray-600">{broadcast.customerPhone}</span>
                                         </div>
                                     </div>
 
-                                    {/* Notes */}
-                                    {broadcast.notes && (
-                                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                                            <div className="flex items-start space-x-2">
-                                                <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
-                                                <div>
-                                                    <p className="text-xs font-medium text-yellow-800 mb-1">Special Instructions</p>
-                                                    <p className="text-xs text-yellow-700 leading-relaxed">{broadcast.notes}</p>
-                                                </div>
+                                    {/* Locations */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-start space-x-2">
+                                            <div className="bg-green-100 p-1 sm:p-2 rounded-lg">
+                                                <MapPinIcon className="w-3 h-3 sm:w-4 sm:h-4 text-green-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="text-xs sm:text-sm font-semibold text-gray-900 mb-1">Pickup</div>
+                                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">{broadcast.pickupLocation}</div>
                                             </div>
                                         </div>
-                                    )}
+                                        <div className="flex items-start space-x-2">
+                                            <div className="bg-red-100 p-1 sm:p-2 rounded-lg">
+                                                <MapPinIcon className="w-3 h-3 sm:w-4 sm:h-4 text-red-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="text-xs sm:text-sm font-semibold text-gray-900 mb-1">Delivery</div>
+                                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">{broadcast.deliveryLocation}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Action Button */}
+                                    <button
+                                        onClick={() => acceptBroadcast(broadcast._id)}
+                                        disabled={accepting === broadcast._id}
+                                        className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
+                                    >
+                                        {accepting === broadcast._id ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                                Accepting...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                                Accept Delivery
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
 
-                                {/* Action Buttons */}
-                                <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
-                                    <div className="flex space-x-3">
-                                        <button
-                                            onClick={() => acceptBroadcast(broadcast.id)}
-                                            disabled={accepting === broadcast.id}
-                                            className="flex-1 bg-green-600 text-white py-2.5 px-4 rounded-lg text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                                        >
-                                            {accepting === broadcast.id ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                    Accepting...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CheckCircleIcon className="w-4 h-4 mr-2" />
-                                                    Accept Delivery
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
+                                {/* Timer Progress Bar */}
+                                <div className="h-1 bg-gray-200">
+                                    <div
+                                        className="h-full bg-green-500 transition-all duration-1000 ease-linear"
+                                        style={{
+                                            width: `${broadcast.timeRemaining ? ((broadcast.broadcastDuration || 60) - broadcast.timeRemaining) / (broadcast.broadcastDuration || 60) * 100 : 0}%`
+                                        }}
+                                    />
                                 </div>
                             </div>
                         ))}
                     </div>
                 )}
-
-                {/* Auto-refresh notice */}
-                <div className="mt-8 bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <div className="flex items-center">
-                        <ArrowPathIcon className="w-4 h-4 text-blue-600 mr-2" />
-                        <span className="text-sm text-blue-800">
-                            Available deliveries automatically refresh every 30 seconds. Stay online to receive real-time notifications.
-                        </span>
-                    </div>
-                </div>
             </div>
         </div>
     );

@@ -19,7 +19,7 @@ code {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-    width: 6px;
+    width: 2px;
 }
 
 ::-webkit-scrollbar-track {
@@ -27,12 +27,12 @@ code {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #0D965E;
-    border-radius: 3px;
+    background: #cbcbcb;
+    border-radius: 12px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #00683F;
+    background: #737373;
 }
 
 /* Add notification pulse animation */

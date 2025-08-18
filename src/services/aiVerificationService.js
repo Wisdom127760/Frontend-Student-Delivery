@@ -196,7 +196,7 @@ class AIVerificationService {
                 formData.append(`type_${index}`, doc.type);
             });
 
-            const response = await fetch('/api/ai/documents/verify-batch', {
+            const response = await fetch(`${API_BASE_URL}/ai/documents/verify-batch`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${localStorage.getItem('token')}`

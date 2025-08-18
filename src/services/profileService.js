@@ -141,13 +141,20 @@ export const updateDriverLocation = async (driverId, location) => {
 export const updateDriverStatus = async (driverId, status) => {
   try {
     const token = localStorage.getItem('token');
+
+    // Convert status string to boolean fields
+    const statusData = {
+      isOnline: status === 'active',
+      isActive: status === 'active'
+    };
+
     const response = await fetch(`${API_BASE_URL}/drivers/${driverId}/status`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ status })
+      body: JSON.stringify(statusData)
     });
 
     if (!response.ok) throw new Error('Failed to update status');

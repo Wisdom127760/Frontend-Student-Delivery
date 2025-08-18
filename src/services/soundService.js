@@ -82,21 +82,23 @@ class SoundService {
         }
     }
 
-    // Play notification sound
+    // Play notification sound - IMPROVED FOR IMMEDIATE PLAYBACK
     async playSound(type = 'notification') {
         try {
-            // Request permission if not already granted
-            if (!this.hasPermission) {
-                const granted = await this.requestPermission();
-                if (!granted) {
-                    console.log('Audio permission not granted');
-                    return false;
-                }
+            // Try immediate fallback first for faster response
+            const fallbackResult = this.playFallbackSound(type);
+            if (fallbackResult) {
+                console.log(`🔊 Played immediate ${type} sound`);
+                return true;
             }
 
-            // Initialize if not already done
+            // If fallback fails, try full initialization
             if (!this.isInitialized) {
-                await this.initialize();
+                const initialized = await this.initialize();
+                if (!initialized) {
+                    console.log('🔊 Sound service not initialized, fallback also failed');
+                    return false;
+                }
             }
 
             // Resume audio context if suspended
@@ -110,14 +112,72 @@ class SoundService {
                 console.log(`🔊 Played ${type} sound`);
                 return true;
             } else {
-                console.warn(`Unknown sound type: ${type}`);
-                return false;
+                console.warn(`Unknown sound type: ${type}, using fallback`);
+                return this.playFallbackSound(type);
             }
         } catch (error) {
             console.error('Failed to play sound:', error);
+            // Try fallback as last resort
+            return this.playFallbackSound(type);
+        }
+    }
+
+    // Fallback sound method using HTML5 Audio - IMPROVED WITH BETTER DEBUGGING
+    playFallbackSound(type = 'notification') {
+        try {
+            console.log(`🔊 Attempting to play fallback ${type} sound...`);
+
+            // Check if Web Audio API is supported
+            if (!window.AudioContext && !window.webkitAudioContext) {
+                console.error('🔊 Web Audio API not supported');
+                return false;
+            }
+
+            // Create a simple beep sound using Web Audio API
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
+            // Resume audio context if suspended
+            if (audioContext.state === 'suspended') {
+                console.log('🔊 Audio context suspended, attempting to resume...');
+                audioContext.resume();
+            }
+
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // Different frequencies for different sound types
+            let frequency = 800; // Default notification
+            switch (type) {
+                case 'alert':
+                    frequency = 400;
+                    break;
+                case 'delivery':
+                    frequency = 600;
+                    break;
+                case 'success':
+                    frequency = 1000;
+                    break;
+            }
+
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(0.5, audioContext.currentTime); // Increased volume
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.3);
+
+            console.log(`🔊 Successfully played fallback ${type} sound at ${frequency}Hz`);
+            return true;
+        } catch (error) {
+            console.error('🔊 Failed to play fallback sound:', error);
             return false;
         }
     }
+
+
 
     // Create notification sound (gentle ping)
     createNotificationSound() {

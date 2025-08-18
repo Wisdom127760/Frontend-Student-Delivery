@@ -4,14 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
 import apiService from '../../services/api';
-import { BellIcon, XMarkIcon, EyeIcon, ClockIcon, UserIcon } from '@heroicons/react/24/outline';
-import { useSnackbar } from '../common/SnackbarProvider';
+import { BellIcon, XMarkIcon, EyeIcon, ClockIcon, UserIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useToast } from '../common/ToastProvider';
+import Modal from '../common/Modal';
+import Button from '../common/Button';
 
 const SimpleNotifications = () => {
     console.log('🔔 SimpleNotifications: Component is being rendered');
     const { user } = useAuth();
     const navigate = useNavigate();
-    const { showSuccess, showError } = useSnackbar();
+    const { showSuccess, showError } = useToast();
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
@@ -75,9 +77,15 @@ const SimpleNotifications = () => {
             console.log('🔌 SimpleNotifications: Socket already connected');
         }
 
-        // Listen for notifications
+        // Listen for notifications - OPTIMIZED FOR IMMEDIATE RESPONSE
         socketService.on('receive_notification', (data) => {
             console.log('🎉 Admin received notification:', data);
+
+            // Play sound IMMEDIATELY (don't wait for notification to be added)
+            soundService.playSound('notification').catch(err =>
+                console.log('🔊 Sound play failed:', err)
+            );
+
             const notification = {
                 id: Date.now(),
                 message: data.message,
@@ -85,12 +93,16 @@ const SimpleNotifications = () => {
                 type: 'notification'
             };
 
-            // Play notification sound
-            soundService.playSound('notification');
+            // Add notification to UI
             addNotification(notification);
         });
 
         socketService.on('driver-status-changed', (data) => {
+            // Play sound IMMEDIATELY
+            soundService.playSound('notification').catch(err =>
+                console.log('🔊 Sound play failed:', err)
+            );
+
             const notification = {
                 id: Date.now(),
                 message: `Driver ${data.name || 'Unknown'} is now ${data.isOnline ? 'online' : 'offline'}`,
@@ -98,12 +110,13 @@ const SimpleNotifications = () => {
                 type: 'driver-status'
             };
 
-            // Play notification sound
-            soundService.playSound('notification');
             addNotification(notification);
         });
 
         socketService.on('delivery-status-changed', (data) => {
+            // Play delivery sound IMMEDIATELY
+            soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
+
             const notification = {
                 id: Date.now(),
                 message: `Delivery ${data.deliveryCode} status changed to ${data.status}`,
@@ -111,14 +124,16 @@ const SimpleNotifications = () => {
                 type: 'delivery-status'
             };
 
-            // Play delivery sound
-            soundService.playSound('delivery');
             addNotification(notification);
         });
 
         console.log('🔌 SimpleNotifications: Setting up emergency-alert listener');
         socketService.on('emergency-alert', (data) => {
             console.log('🚨 Admin received emergency alert:', data);
+
+            // Play emergency sound IMMEDIATELY (before any processing)
+            soundService.playSound('alert').catch(err => console.log('🔊 Emergency sound failed:', err));
+
             console.log('🔍 Emergency alert driver ID:', data.driverId);
             console.log('🔍 Emergency alert driver name:', data.driverName);
             console.log('🔍 Emergency alert message:', data.message);
@@ -146,15 +161,22 @@ const SimpleNotifications = () => {
                 }
             };
 
-            // Play emergency sound with higher volume
-            soundService.playSound('alert');
-
             addNotification(notification);
         });
 
-        // Listen for new notification events from API
+        // Listen for new notification events from API - IMPROVED FOR IMMEDIATE RESPONSE
         socketService.on('new-notification', (data) => {
             console.log('🔔 Admin received new notification from API:', data);
+
+            // Play sound IMMEDIATELY (before creating notification object)
+            if (data.type === 'emergency-alert') {
+                soundService.playSound('alert').catch(err => console.log('🔊 Alert sound failed:', err));
+            } else if (data.type === 'delivery') {
+                soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
+            } else {
+                soundService.playSound('notification').catch(err => console.log('🔊 Notification sound failed:', err));
+            }
+
             const notification = {
                 id: Date.now(),
                 message: data.message || data.title || 'New notification received',
@@ -163,32 +185,137 @@ const SimpleNotifications = () => {
                 priority: data.priority || 'medium'
             };
 
-            // Play appropriate sound based on notification type
-            if (data.type === 'emergency-alert') {
-                soundService.playSound('alert');
-            } else if (data.type === 'delivery') {
-                soundService.playSound('delivery');
-            } else {
-                soundService.playSound('notification');
-            }
+            // Add notification immediately without delays
+            addNotification(notification);
+        });
+
+        // Listen for driver messages (multiple possible event names) - IMPROVED FOR IMMEDIATE RESPONSE
+        socketService.on('driver-message', (data) => {
+            console.log('💬 Admin received driver message:', data);
+
+            // Play sound IMMEDIATELY
+            soundService.playSound('notification').catch(err => console.log('🔊 Message sound failed:', err));
+
+            const notification = {
+                id: Date.now(),
+                message: `💬 Message from ${data.driverName || 'Driver'}: ${data.message}`,
+                timestamp: new Date(),
+                type: 'driver-message',
+                priority: 'medium',
+                sender: data.driverName || 'Driver',
+                driverId: data.driverId
+            };
 
             addNotification(notification);
         });
 
-        // Check connection status
+        // Listen for new messages (general)
+        socketService.on('new-message', (data) => {
+            console.log('💬 Admin received new message:', data);
+            const notification = {
+                id: Date.now(),
+                message: `💬 Message from ${data.senderType || 'User'}: ${data.message}`,
+                timestamp: new Date(),
+                type: 'message',
+                priority: 'medium',
+                sender: data.senderType || 'User'
+            };
+
+            // Play notification sound
+            soundService.playSound('notification');
+            addNotification(notification);
+        });
+
+        // Listen for admin notifications (general)
+        socketService.on('admin-notification', (data) => {
+            console.log('🔔 Admin received admin notification:', data);
+            const notification = {
+                id: Date.now(),
+                message: data.message || 'New notification',
+                timestamp: new Date(),
+                type: data.type || 'notification',
+                priority: data.priority || 'medium'
+            };
+
+            // Play appropriate sound
+            soundService.playSound('notification');
+            addNotification(notification);
+        });
+
+        // Listen for system notifications
+        socketService.on('system-notification', (data) => {
+            console.log('🔔 Admin received system notification:', data);
+            const notification = {
+                id: Date.now(),
+                message: data.message || 'System notification',
+                timestamp: new Date(),
+                type: 'system',
+                priority: data.priority || 'medium'
+            };
+
+            // Play appropriate sound
+            soundService.playSound('notification');
+            addNotification(notification);
+        });
+
+        // Listen for any notification event (catch-all)
+        socketService.on('notification', (data) => {
+            console.log('🔔 Admin received notification event:', data);
+            const notification = {
+                id: Date.now(),
+                message: data.message || 'New notification',
+                timestamp: new Date(),
+                type: data.type || 'notification',
+                priority: data.priority || 'medium'
+            };
+
+            // Play notification sound
+            soundService.playSound('notification');
+            addNotification(notification);
+        });
+
+        // Check connection status and refresh notifications periodically
         const checkConnection = () => {
             setIsConnected(socketService.isConnected());
         };
         checkConnection();
         const interval = setInterval(checkConnection, 5000);
 
+        // Refresh notifications every 30 seconds as fallback
+        const refreshInterval = setInterval(async () => {
+            try {
+                const response = await apiService.getAdminNotifications({ limit: 10 });
+                if (response && response.success && response.data?.notifications) {
+                    const existingNotifications = response.data.notifications.map(notification => ({
+                        id: notification._id,
+                        message: notification.title || notification.message,
+                        timestamp: new Date(notification.createdAt),
+                        type: notification.type,
+                        priority: notification.priority || 'medium',
+                        isRead: notification.isRead,
+                        sender: notification.sender || notification.senderName || notification.from || null,
+                        emergencyData: notification.emergencyData || null
+                    }));
+                    setNotifications(existingNotifications);
+                }
+            } catch (error) {
+                console.error('Error refreshing notifications:', error);
+            }
+        }, 30000); // Refresh every 30 seconds
+
         return () => {
             clearInterval(interval);
+            clearInterval(refreshInterval);
             socketService.off('receive_notification');
             socketService.off('driver-status-changed');
             socketService.off('delivery-status-changed');
             socketService.off('emergency-alert');
             socketService.off('new-notification');
+            socketService.off('driver-message');
+            socketService.off('new-message');
+            socketService.off('admin-notification');
+            socketService.off('system-notification');
+            socketService.off('notification');
         };
     }, [user]);
 
@@ -219,24 +346,42 @@ const SimpleNotifications = () => {
 
     const markAsRead = async (notificationId) => {
         try {
-            await apiService.markAdminNotificationAsRead(notificationId);
+            const response = await apiService.markAdminNotificationAsRead(notificationId);
+
+            // Update local state regardless of API response
             setNotifications(prev =>
                 prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
             );
+
+            // Log success
+            console.log('✅ Notification marked as read:', notificationId);
         } catch (error) {
             console.error('Error marking notification as read:', error);
+            // Still update local state for better UX
+            setNotifications(prev =>
+                prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
+            );
         }
     };
 
     const markAllAsRead = async () => {
         try {
-            await apiService.markAllAdminNotificationsAsRead();
+            const response = await apiService.markAllAdminNotificationsAsRead();
+
+            // Update local state regardless of API response
+            setNotifications(prev =>
+                prev.map(n => ({ ...n, isRead: true }))
+            );
+
+            showSuccess('All notifications marked as read');
+            console.log('✅ All notifications marked as read');
+        } catch (error) {
+            console.error('Error marking all notifications as read:', error);
+            // Still update local state for better UX
             setNotifications(prev =>
                 prev.map(n => ({ ...n, isRead: true }))
             );
             showSuccess('All notifications marked as read');
-        } catch (error) {
-            console.error('Error marking all notifications as read:', error);
         }
     };
 
@@ -299,6 +444,8 @@ const SimpleNotifications = () => {
 
 
 
+
+
     return (
         <>
             <div className="relative">
@@ -340,6 +487,7 @@ const SimpleNotifications = () => {
                                             Mark all read
                                         </button>
                                     )}
+
                                     <button onClick={() => setShowDropdown(false)}>
                                         <XMarkIcon className="h-5 w-5 text-gray-400 hover:text-gray-600" />
                                     </button>
@@ -471,181 +619,194 @@ const SimpleNotifications = () => {
             </div>
 
             {/* Notification Detail Modal */}
-            {selectedNotification && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-96 max-w-md mx-4 max-h-96 overflow-y-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                                <span className="text-2xl mr-2">{getNotificationIcon(selectedNotification.type)}</span>
-                                Notification Details
-                            </h3>
-                            <button
-                                onClick={() => setSelectedNotification(null)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <XMarkIcon className="h-6 w-6" />
-                            </button>
+            <Modal
+                isOpen={!!selectedNotification}
+                onClose={() => setSelectedNotification(null)}
+                title={
+                    <div className="flex items-center">
+                        <span className="text-2xl mr-3">{getNotificationIcon(selectedNotification?.type)}</span>
+                        Notification Details
+                    </div>
+                }
+                size="md"
+            >
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <p className="text-gray-900 leading-relaxed">
+                                {selectedNotification?.message}
+                            </p>
                         </div>
+                    </div>
 
-                        <div className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
-                                <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded-lg">
-                                    {selectedNotification.message}
-                                </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                            <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <span className="text-gray-900 capitalize">
+                                    {selectedNotification?.type ? selectedNotification.type.replace(/_/g, ' ') : 'General'}
+                                </span>
                             </div>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                            <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedNotification?.priority === 'high'
+                                    ? 'bg-red-100 text-red-800'
+                                    : selectedNotification?.priority === 'medium'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-green-100 text-green-800'
+                                    }`}>
+                                    {selectedNotification?.priority || 'Medium'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
 
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
-                                    <p className="text-sm text-gray-900">
-                                        {selectedNotification.type ? selectedNotification.type.replace(/_/g, ' ') : 'General'}
-                                    </p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Priority</label>
-                                    <p className="text-sm text-gray-900">
-                                        {selectedNotification.priority || 'Medium'}
-                                    </p>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Time</label>
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                            <div className="flex items-center text-gray-900">
+                                <ClockIcon className="h-4 w-4 mr-2 text-gray-500" />
+                                {selectedNotification?.timestamp.toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+
+                    {selectedNotification?.sender && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Sender</label>
+                            <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <div className="flex items-center text-gray-900">
+                                    <UserIcon className="h-4 w-4 mr-2 text-gray-500" />
+                                    {selectedNotification.sender}
                                 </div>
                             </div>
+                        </div>
+                    )}
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Time</label>
-                                <p className="text-sm text-gray-900 flex items-center">
-                                    <ClockIcon className="h-4 w-4 mr-2" />
-                                    {selectedNotification.timestamp.toLocaleString()}
-                                </p>
-                            </div>
-
-                            {selectedNotification.sender && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Sender</label>
-                                    <p className="text-sm text-gray-900 flex items-center">
-                                        <UserIcon className="h-4 w-4 mr-2" />
-                                        {selectedNotification.sender}
-                                    </p>
-                                </div>
-                            )}
-
-                            {selectedNotification.emergencyData && (
-                                <div className="border-t pt-4">
-                                    <h4 className="font-medium text-red-800 mb-2">Emergency Contact Information</h4>
-                                    <div className="space-y-2 text-sm">
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Driver:</span>
-                                            <span className="font-medium">{selectedNotification.emergencyData.driverName}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Phone:</span>
-                                            <span className="font-medium">{selectedNotification.emergencyData.driverPhone}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Email:</span>
-                                            <span className="font-medium">{selectedNotification.emergencyData.driverEmail}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="text-gray-600">Area:</span>
-                                            <span className="font-medium">{selectedNotification.emergencyData.driverArea}</span>
-                                        </div>
+                    {selectedNotification?.emergencyData && (
+                        <div className="border-t border-gray-200 pt-6">
+                            <h4 className="font-medium text-red-800 mb-4 flex items-center">
+                                <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
+                                Emergency Contact Information
+                            </h4>
+                            <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                                <div className="space-y-3 text-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600 font-medium">Driver:</span>
+                                        <span className="font-semibold text-gray-900">{selectedNotification.emergencyData.driverName}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600 font-medium">Phone:</span>
+                                        <span className="font-semibold text-gray-900">{selectedNotification.emergencyData.driverPhone}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600 font-medium">Email:</span>
+                                        <span className="font-semibold text-gray-900">{selectedNotification.emergencyData.driverEmail}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-gray-600 font-medium">Area:</span>
+                                        <span className="font-semibold text-gray-900">{selectedNotification.emergencyData.driverArea}</span>
                                     </div>
                                 </div>
-                            )}
+                            </div>
                         </div>
+                    )}
 
-                        <div className="flex space-x-3 mt-6">
-                            <button
-                                onClick={() => navigate('/admin/notifications')}
-                                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                            >
-                                View All Notifications
-                            </button>
-                            <button
-                                onClick={() => setSelectedNotification(null)}
-                                className="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
-                            >
-                                Close
-                            </button>
-                        </div>
+                    <div className="flex space-x-3 pt-4">
+                        <Button
+                            onClick={() => {
+                                setSelectedNotification(null);
+                                navigate('/admin/notifications');
+                            }}
+                            variant="primary"
+                            fullWidth
+                        >
+                            View All Notifications
+                        </Button>
+                        <Button
+                            onClick={() => setSelectedNotification(null)}
+                            variant="secondary"
+                            fullWidth
+                        >
+                            Close
+                        </Button>
                     </div>
                 </div>
-            )}
+            </Modal>
 
             {/* Emergency Reply Modal */}
-            {showReplyModal && selectedEmergency && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-96 max-w-md">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-900">
-                                Reply to Emergency Alert
-                            </h3>
-                            <button
-                                onClick={() => setShowReplyModal(false)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
-                                <XMarkIcon className="h-6 w-6" />
-                            </button>
-                        </div>
-
-                        <div className="mb-4 p-3 bg-red-50 rounded border border-red-200">
-                            <p className="text-sm text-red-800 mb-2">
-                                <strong>Driver:</strong> {selectedEmergency.driverName}
+            <Modal
+                isOpen={showReplyModal && !!selectedEmergency}
+                onClose={() => setShowReplyModal(false)}
+                title="Reply to Emergency Alert"
+                size="md"
+            >
+                <div className="space-y-6">
+                    <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+                        <div className="space-y-2">
+                            <p className="text-sm text-red-800">
+                                <span className="font-semibold">Driver:</span> {selectedEmergency?.driverName}
                             </p>
                             <p className="text-sm text-red-700">
-                                <strong>Message:</strong> {selectedEmergency.message}
+                                <span className="font-semibold">Message:</span> {selectedEmergency?.message}
                             </p>
                         </div>
+                    </div>
 
-                        <div className="mb-4">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Your Reply:
-                            </label>
-                            <textarea
-                                value={replyMessage}
-                                onChange={(e) => setReplyMessage(e.target.value)}
-                                placeholder="Enter your reply to the driver..."
-                                className="w-full p-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                rows={4}
-                                required
-                            />
-                        </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Your Reply:
+                        </label>
+                        <textarea
+                            value={replyMessage}
+                            onChange={(e) => setReplyMessage(e.target.value)}
+                            placeholder="Enter your reply to the driver..."
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                            rows={4}
+                            required
+                        />
+                    </div>
 
-                        <div className="flex justify-end space-x-3">
-                            <button
-                                onClick={() => setShowReplyModal(false)}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => {
-                                    if (replyMessage.trim()) {
-                                        console.log('📞 Sending emergency reply:', {
-                                            driverId: selectedEmergency.driverId,
-                                            message: replyMessage,
-                                            adminName: user?.name || 'Admin'
-                                        });
+                    <div className="flex space-x-3 pt-4">
+                        <Button
+                            onClick={() => setShowReplyModal(false)}
+                            variant="secondary"
+                            fullWidth
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                if (replyMessage.trim()) {
+                                    console.log('📞 Sending emergency reply:', {
+                                        driverId: selectedEmergency?.driverId,
+                                        message: replyMessage,
+                                        adminName: user?.name || 'Admin'
+                                    });
 
-                                        socketService.emit('admin-emergency-reply', {
-                                            driverId: selectedEmergency.driverId,
-                                            message: replyMessage,
-                                            adminName: user?.name || 'Admin'
-                                        });
+                                    socketService.emit('admin-emergency-reply', {
+                                        driverId: selectedEmergency?.driverId,
+                                        message: replyMessage,
+                                        adminName: user?.name || 'Admin'
+                                    });
 
-                                        setShowReplyModal(false);
-                                        setReplyMessage('');
-                                        setSelectedEmergency(null);
-                                    }
-                                }}
-                                disabled={!replyMessage.trim()}
-                                className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                Send Reply
-                            </button>
-                        </div>
+                                    setShowReplyModal(false);
+                                    setReplyMessage('');
+                                    setSelectedEmergency(null);
+                                }
+                            }}
+                            disabled={!replyMessage.trim()}
+                            variant="primary"
+                            fullWidth
+                        >
+                            Send Reply
+                        </Button>
                     </div>
                 </div>
-            )}
+            </Modal>
         </>
     );
 };

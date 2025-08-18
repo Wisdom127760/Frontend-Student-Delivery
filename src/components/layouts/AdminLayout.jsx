@@ -5,7 +5,7 @@ import { isSuperAdmin } from '../../utils/userHelpers';
 import SimpleNotifications from '../admin/SimpleNotifications';
 import Avatar from '../common/Avatar';
 import GlobalSearch from '../common/GlobalSearch';
-import toast from 'react-hot-toast';
+import { useToast } from '../common/ToastProvider';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -18,10 +18,9 @@ import {
     ShieldCheckIcon,
     XMarkIcon,
     DocumentTextIcon,
-    MagnifyingGlassIcon,
-    CommandLineIcon,
     DocumentMagnifyingGlassIcon,
-    BellIcon
+    BellIcon,
+    Bars3Icon
 } from '@heroicons/react/24/outline';
 
 const AdminLayout = ({ children }) => {
@@ -30,8 +29,7 @@ const AdminLayout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-
-
+    const { showSuccess } = useToast();
 
     const navigation = [
         { name: 'Dashboard', href: '/admin', icon: HomeIcon },
@@ -49,6 +47,7 @@ const AdminLayout = ({ children }) => {
     const handleLogout = async () => {
         await logout();
         navigate('/');
+        showSuccess('Logged out successfully');
     };
 
     // Updated isActive logic for better path matching
@@ -69,27 +68,26 @@ const AdminLayout = ({ children }) => {
             )}
 
             {/* Sidebar */}
-            <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-                }`}>
-                <div className="flex items-center justify-between h-16 px-6 border-b border-gray-200 bg-white">
+            <div className={`fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-xl transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-gray-200 bg-white">
                     <div className="flex items-center">
                         <img
                             src="/White.png"
                             alt="Student Delivery Logo"
-                            className="w-10 h-10 object-contain rounded-xl shadow-lg"
+                            className="w-8 h-8 sm:w-10 sm:h-10 object-contain rounded-xl shadow-lg"
                         />
-                        <h1 className="ml-3 text-xl font-bold text-gray-900">Admin Panel</h1>
+                        <h1 className="ml-2 sm:ml-3 text-lg sm:text-xl font-bold text-gray-900">Admin Panel</h1>
                     </div>
                     <button
                         onClick={() => setSidebarOpen(false)}
                         className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
                     >
-                        <XMarkIcon className="h-6 w-6" />
+                        <XMarkIcon className="h-5 w-5 sm:h-6 sm:w-6" />
                     </button>
                 </div>
 
-                <nav className="flex-1 mt-8 px-4 overflow-y-auto">
-                    <div className="space-y-2">
+                <nav className="flex-1 mt-6 sm:mt-8 px-3 sm:px-4 overflow-y-auto">
+                    <div className="space-y-1 sm:space-y-2">
                         {navigation.map((item) => {
                             const Icon = item.icon;
                             const active = isActive(item.href);
@@ -98,13 +96,12 @@ const AdminLayout = ({ children }) => {
                                     key={item.name}
                                     to={item.href}
                                     onClick={() => setSidebarOpen(false)}
-                                    className={`group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 ${active
-                                        ? 'bg-gradient-to-r from-primary-50 to-primary-100 text-primary-700 border-l-4 border-primary-600 shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm'
+                                    className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors ${active
+                                        ? 'bg-green-100 text-green-700 border-r-2 border-green-500'
+                                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                                         }`}
                                 >
-                                    <Icon className={`mr-3 h-5 w-5 transition-colors ${active ? 'text-primary-600' : 'text-gray-400 group-hover:text-gray-600'
-                                        }`} />
+                                    <Icon className={`mr-3 h-5 w-5 ${active ? 'text-green-600' : 'text-gray-400'}`} />
                                     {item.name}
                                 </Link>
                             );
@@ -113,124 +110,96 @@ const AdminLayout = ({ children }) => {
                 </nav>
             </div>
 
-            {/* Main Content Area */}
-            <div className="flex flex-col flex-1 lg:ml-0">
-                {/* Top Navigation */}
-                <div className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-gray-200 bg-white shadow-sm">
-                    <div className="flex items-center">
+            {/* Main content */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Top navigation */}
+                <header className="bg-white shadow-sm border-b border-gray-200">
+                    <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+                        {/* Mobile menu button */}
                         <button
-                            type="button"
-                            className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
                             onClick={() => setSidebarOpen(true)}
+                            className="lg:hidden p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100 transition-colors"
                         >
-                            <span className="sr-only">Open sidebar</span>
-                            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div className="flex items-center space-x-2 sm:space-x-4">
-                        {/* Global Search Trigger */}
-                        <button
-                            onClick={() => {
-                                // Check authentication before opening search
-                                const token = localStorage.getItem('token');
-                                if (token) {
-                                    // This will be handled by the GlobalSearch component's keyboard listener
-                                    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }));
-                                } else {
-                                    toast.error('Please log in to use search');
-                                }
-                            }}
-                            className="group flex items-center space-x-2 px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gradient-to-r from-gray-50 to-white hover:from-gray-100 hover:to-gray-50 border border-gray-200/50 hover:border-gray-300 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md"
-                        >
-                            <MagnifyingGlassIcon className="h-4 w-4 group-hover:scale-110 transition-transform" />
-                            <span className="hidden sm:inline">Search</span>
-                            <div className="hidden sm:flex items-center space-x-1 text-xs bg-gray-100 px-2 py-1 rounded-md">
-                                <CommandLineIcon className="h-3 w-3" />
-                                <span className="font-medium">K</span>
-                            </div>
+                            <Bars3Icon className="h-6 w-6" />
                         </button>
 
-                        {/* Notifications */}
-                        <SimpleNotifications />
+                        {/* Search bar - hidden on mobile */}
+                        <div className="hidden sm:flex flex-1 max-w-lg mx-4">
+                            <GlobalSearch />
+                        </div>
 
-                        {/* User Menu */}
-                        <div className="relative">
-                            <button
-                                onClick={() => setUserMenuOpen(!userMenuOpen)}
-                                className="flex items-center space-x-2 sm:space-x-3 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                            >
-                                <Avatar user={user} size="md" />
-                                <div className="hidden sm:block text-left">
-                                    <p className="text-sm font-semibold text-gray-900 capitalize">{user?.name || 'Admin User'}</p>
-                                    <p className="text-xs text-gray-500">{user?.email}</p>
-                                </div>
-                                <ChevronDownIcon className={`h-4 w-4 text-gray-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
-                            </button>
+                        {/* Right side */}
+                        <div className="flex items-center space-x-2 sm:space-x-4">
+                            {/* Notifications */}
+                            <SimpleNotifications />
 
-                            {/* User Dropdown Menu */}
-                            {userMenuOpen && (
-                                <div className="absolute right-0 mt-2 w-48 sm:w-56 bg-white rounded-xl shadow-lg border border-gray-200 py-2 z-50">
-                                    <div className="px-4 py-3 border-b border-gray-100">
-                                        <p className="text-sm font-semibold text-gray-900">{user?.name || 'Admin User'}</p>
-                                        <p className="text-xs text-gray-500">{user?.email}</p>
+                            {/* User menu */}
+                            <div className="relative">
+                                <button
+                                    onClick={() => setUserMenuOpen(!userMenuOpen)}
+                                    className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                                >
+                                    <Avatar user={user} size="sm" />
+                                    <div className="hidden sm:block text-left">
+                                        <div className="text-sm font-medium text-gray-900">
+                                            {user?.name || 'Admin User'}
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            {user?.email || 'admin@example.com'}
+                                        </div>
                                     </div>
-                                    <div className="py-1">
-                                        <button
-                                            onClick={() => {
-                                                setUserMenuOpen(false);
-                                                navigate('/admin/profile');
-                                            }}
-                                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                    <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                </button>
+
+                                {/* User dropdown */}
+                                {userMenuOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                                        <Link
+                                            to="/admin/profile"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                         >
                                             <UserCircleIcon className="mr-3 h-4 w-4" />
                                             Profile
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                setUserMenuOpen(false);
-                                                navigate('/admin/settings');
-                                            }}
-                                            className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                        </Link>
+                                        <Link
+                                            to="/admin/settings"
+                                            onClick={() => setUserMenuOpen(false)}
+                                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                                         >
                                             <Cog6ToothIcon className="mr-3 h-4 w-4" />
                                             Settings
-                                        </button>
-                                        <div className="border-t border-gray-100 my-1"></div>
+                                        </Link>
+                                        <hr className="my-1" />
                                         <button
-                                            onClick={() => {
-                                                setUserMenuOpen(false);
-                                                handleLogout();
-                                            }}
-                                            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                            onClick={handleLogout}
+                                            className="flex items-center w-full px-4 py-2 text-sm text-red-700 hover:bg-red-50"
                                         >
                                             <ArrowRightOnRectangleIcon className="mr-3 h-4 w-4" />
-                                            Sign out
+                                            Logout
                                         </button>
                                     </div>
-                                </div>
-                            )}
+                                )}
+                            </div>
                         </div>
                     </div>
-                </div>
+                </header>
 
-                {/* Page Content */}
-                <main className="flex-1 p-4 sm:p-6 bg-gray-50 overflow-auto">
-                    <div className="max-w-7xl mx-auto">
+                {/* Main content area */}
+                <main className="flex-1 overflow-y-auto">
+                    <div className="p-4 sm:p-6">
                         {children}
                     </div>
                 </main>
             </div>
 
-            {/* Click outside to close user menu */}
+            {/* Close user menu when clicking outside */}
             {userMenuOpen && (
-                <div className="fixed inset-0 z-30" onClick={() => setUserMenuOpen(false)} />
+                <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setUserMenuOpen(false)}
+                />
             )}
-
-            {/* Global Search Modal */}
-            <GlobalSearch />
         </div>
     );
 };

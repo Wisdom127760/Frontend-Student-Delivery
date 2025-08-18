@@ -13,6 +13,8 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import apiService from '../../services/api';
+import Modal from '../../components/common/Modal';
+import Button from '../../components/common/Button';
 
 const AdminNotificationsPage = () => {
     const [notifications, setNotifications] = useState([]);
@@ -22,36 +24,47 @@ const AdminNotificationsPage = () => {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
 
     // Load notifications from API
-    useEffect(() => {
-        const loadNotifications = async () => {
-            setLoading(true);
-            try {
-                console.log('🔔 AdminNotificationsPage: Loading notifications with filter:', filter);
+    const loadNotifications = async (silent = false) => {
+        if (!silent) setLoading(true);
+        try {
+            console.log('🔔 AdminNotificationsPage: Loading notifications with filter:', filter);
 
-                // Use the correct admin notifications API
-                const response = await apiService.getAdminNotifications({ filter });
-                console.log('🔔 AdminNotificationsPage: Notifications API response:', response);
-
-                if (response && response.success) {
-                    // The backend returns { data: { notifications: [...] } }
-                    const notificationsData = response.data?.notifications || response.data || response.notifications || [];
-                    const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
-                    console.log('🔔 AdminNotificationsPage: Setting notifications array:', notificationsArray);
-                    setNotifications(notificationsArray);
-                } else {
-                    console.warn('🔔 AdminNotificationsPage: Backend returned unsuccessful response:', response);
-                    setNotifications([]);
+            // Check if user is authenticated
+            const token = localStorage.getItem('token');
+            if (!token) {
+                console.warn('🔔 AdminNotificationsPage: No authentication token found');
+                if (!silent) {
+                    toast.error('Authentication required. Please log in again.');
                 }
-            } catch (error) {
-                console.error('❌ AdminNotificationsPage: Error loading notifications:', error);
-                console.error('❌ AdminNotificationsPage: Error details:', {
-                    status: error.response?.status,
-                    statusText: error.response?.statusText,
-                    data: error.response?.data,
-                    message: error.message
-                });
+                setNotifications([]);
+                return;
+            }
 
-                // Show user-friendly error message
+            // Use the correct admin notifications API
+            const response = await apiService.getAdminNotifications({ filter });
+            console.log('🔔 AdminNotificationsPage: Notifications API response:', response);
+
+            if (response && response.success) {
+                // The backend returns { data: { notifications: [...] } }
+                const notificationsData = response.data?.notifications || response.data || response.notifications || [];
+                const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
+                console.log('🔔 AdminNotificationsPage: Setting notifications array:', notificationsArray);
+                setNotifications(notificationsArray);
+            } else {
+                console.warn('🔔 AdminNotificationsPage: Backend returned unsuccessful response:', response);
+                setNotifications([]);
+            }
+        } catch (error) {
+            console.error('❌ AdminNotificationsPage: Error loading notifications:', error);
+            console.error('❌ AdminNotificationsPage: Error details:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            // Show user-friendly error message only for non-silent loads
+            if (!silent) {
                 if (error.response?.status === 400) {
                     toast.error('Notifications failed: Invalid filter parameter.');
                 } else if (error.response?.status === 401) {
@@ -65,16 +78,28 @@ const AdminNotificationsPage = () => {
                 } else {
                     toast.error('Failed to load notifications');
                 }
-
-                // Always ensure we set an empty array on error
-                console.log('🔔 AdminNotificationsPage: Setting empty array due to error');
-                setNotifications([]);
-            } finally {
-                setLoading(false);
             }
-        };
 
+            // Always ensure we set an empty array on error
+            console.log('🔔 AdminNotificationsPage: Setting empty array due to error');
+            setNotifications([]);
+        } finally {
+            if (!silent) setLoading(false);
+        }
+    };
+
+    // Initial load and filter changes
+    useEffect(() => {
         loadNotifications();
+    }, [filter]);
+
+    // Silent refresh every 30 seconds
+    useEffect(() => {
+        const refreshInterval = setInterval(() => {
+            loadNotifications(true); // Silent refresh
+        }, 30000);
+
+        return () => clearInterval(refreshInterval);
     }, [filter]);
 
     const markAsRead = async (notificationId) => {
@@ -377,44 +402,74 @@ const AdminNotificationsPage = () => {
             </div>
 
             {/* Details Modal */}
-            {showDetailsModal && selectedNotification && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-                        <div className="p-4 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h3 className="text-sm font-semibold text-gray-900">Notification Details</h3>
-                                <button
-                                    onClick={() => setShowDetailsModal(false)}
-                                    className="text-gray-400 hover:text-gray-600"
-                                >
-                                    <XMarkIcon className="w-4 h-4" />
-                                </button>
+            <Modal
+                isOpen={showDetailsModal && !!selectedNotification}
+                onClose={() => setShowDetailsModal(false)}
+                title="Notification Details"
+                size="md"
+            >
+                <div className="space-y-6">
+                    <div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">{selectedNotification?.title}</h4>
+                        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <p className="text-gray-700 leading-relaxed">{selectedNotification?.message}</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
+                            <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <span className="text-gray-900 capitalize">{selectedNotification?.type}</span>
                             </div>
                         </div>
-                        <div className="p-4">
-                            <div className="space-y-3">
-                                <div>
-                                    <h4 className="text-sm font-medium text-gray-900">{selectedNotification.title}</h4>
-                                    <p className="text-xs text-gray-600 mt-1">{selectedNotification.message}</p>
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                    <p>Type: {selectedNotification.type}</p>
-                                    <p>Priority: {selectedNotification.priority}</p>
-                                    <p>Created: {selectedNotification.createdAt.toLocaleString()}</p>
-                                </div>
-                                {selectedNotification.metadata && (
-                                    <div>
-                                        <h5 className="text-xs font-medium text-gray-900 mb-1">Metadata:</h5>
-                                        <pre className="text-xs text-gray-600 bg-gray-50 p-2 rounded overflow-auto">
-                                            {JSON.stringify(selectedNotification.metadata, null, 2)}
-                                        </pre>
-                                    </div>
-                                )}
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Priority</label>
+                            <div className="bg-white p-3 rounded-lg border border-gray-200">
+                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedNotification?.priority === 'high'
+                                    ? 'bg-red-100 text-red-800'
+                                    : selectedNotification?.priority === 'medium'
+                                        ? 'bg-yellow-100 text-yellow-800'
+                                        : 'bg-green-100 text-green-800'
+                                    }`}>
+                                    {selectedNotification?.priority}
+                                </span>
                             </div>
                         </div>
                     </div>
+
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Created</label>
+                        <div className="bg-white p-3 rounded-lg border border-gray-200">
+                            <div className="flex items-center text-gray-900">
+                                <ClockIcon className="h-4 w-4 mr-2 text-gray-500" />
+                                {selectedNotification?.createdAt.toLocaleString()}
+                            </div>
+                        </div>
+                    </div>
+
+                    {selectedNotification?.metadata && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Metadata</label>
+                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                <pre className="text-sm text-gray-700 overflow-auto whitespace-pre-wrap">
+                                    {JSON.stringify(selectedNotification.metadata, null, 2)}
+                                </pre>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex space-x-3 pt-4">
+                        <Button
+                            onClick={() => setShowDetailsModal(false)}
+                            variant="secondary"
+                            fullWidth
+                        >
+                            Close
+                        </Button>
+                    </div>
                 </div>
-            )}
+            </Modal>
         </div>
     );
 };

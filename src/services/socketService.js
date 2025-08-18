@@ -52,9 +52,13 @@ class SocketService {
         this.socket.on('connect_error', (error) => {
             console.error('🔌 Socket connection error:', error);
             this.reconnectAttempts++;
+            this.connected = false;
 
             if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-                console.error('🔌 Max reconnection attempts reached');
+                console.error('🔌 Max reconnection attempts reached. Backend server may not be running.');
+                console.error('🔌 Please ensure the backend server is running on localhost:3001');
+                // Stop trying to reconnect to avoid spam
+                this.socket.disconnect();
             }
         });
 
@@ -127,9 +131,21 @@ class SocketService {
         return this.initialized;
     }
 
+    // Force socket initialization if not already done
+    ensureInitialized(userId, userType) {
+        if (!this.initialized && userId && userType) {
+            this.connect(userId, userType);
+        }
+        return this.initialized;
+    }
+
     // Check connection status
     isConnected() {
-        return this.connected && this.socket?.connected;
+        // If socket is not initialized, consider it as not connected yet
+        if (!this.initialized || !this.socket) {
+            return false;
+        }
+        return this.connected && this.socket.connected;
     }
 
     // Alternative method name for consistency

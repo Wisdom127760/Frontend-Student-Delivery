@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon, CheckCircleIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 
-const Snackbar = ({ message, type = 'info', duration = 4000, onClose }) => {
+const Toast = ({ message, type = 'info', duration = 4000, onClose }) => {
     const [isVisible, setIsVisible] = useState(true);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             setIsVisible(false);
-            setTimeout(() => onClose(), 300); // Wait for animation to complete
+            setTimeout(() => onClose(), 300);
         }, duration);
 
         return () => clearTimeout(timer);
@@ -42,16 +42,14 @@ const Snackbar = ({ message, type = 'info', duration = 4000, onClose }) => {
     if (!isVisible) return null;
 
     return (
-        <div className={`fixed top-4 right-4 z-50 max-w-sm w-full transform transition-all duration-300 ${
-            isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'
-        }`}>
-            <div className={`rounded-lg border p-4 shadow-lg ${getStyles()}`}>
-                <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0">
+        <div className={`fixed bottom-8 right-8 z-50 w-80 max-w-sm transition-all duration-300 ease-out ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}`}>
+            <div className={`rounded-lg border p-4 shadow-lg w-full ${getStyles()}`}>
+                <div className="flex items-start space-x-3 w-full">
+                    <div className="flex-shrink-0 mt-0.5">
                         {getIcon()}
                     </div>
-                    <div className="flex-1">
-                        <p className="text-sm font-medium">{message}</p>
+                    <div className="flex-1 min-w-0 w-full">
+                        <p className="text-sm font-medium break-words leading-relaxed">{message}</p>
                     </div>
                     <div className="flex-shrink-0">
                         <button
@@ -70,4 +68,4 @@ const Snackbar = ({ message, type = 'info', duration = 4000, onClose }) => {
     );
 };
 
-export default Snackbar;
+export default Toast;

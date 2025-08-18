@@ -157,8 +157,7 @@ const DriversPage = () => {
       return;
     }
 
-    const reason = prompt('Enter suspension reason (optional):');
-    if (reason === null) return; // User cancelled
+    const reason = ''; // No reason required for bulk suspension
 
     try {
       setIsBulkActionLoading(true);

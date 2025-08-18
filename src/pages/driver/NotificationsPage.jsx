@@ -15,10 +15,14 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import apiService from '../../services/api';
+import soundService from '../../services/soundService';
+import socketService from '../../services/socketService';
+import { useAuth } from '../../context/AuthContext';
 import NotificationsSkeleton from '../../components/common/NotificationsSkeleton';
 import Pagination from '../../components/common/Pagination';
 
 const NotificationsPage = () => {
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -28,6 +32,7 @@ const NotificationsPage = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
+    const [isConnected, setIsConnected] = useState(false);
     const itemsPerPage = 10;
 
     useEffect(() => {
@@ -35,112 +40,155 @@ const NotificationsPage = () => {
         fetchUnreadCount();
     }, [currentPage, filter]);
 
-    const fetchNotifications = async () => {
+    // Socket connection and real-time notifications
+    useEffect(() => {
+        if (!user) return;
+
+        console.log('🔌 DriverNotificationsPage: Setting up socket connection for user:', user._id || user.id);
+
+        // Connect to socket if not already connected
+        if (!socketService.isConnected()) {
+            socketService.connect(user._id || user.id, user.userType || user.role);
+        }
+
+        // Check connection status
+        const checkConnection = () => {
+            setIsConnected(socketService.isConnected());
+        };
+        checkConnection();
+        const connectionInterval = setInterval(checkConnection, 5000);
+
+        // Listen for new notifications
+        socketService.on('new-notification', (data) => {
+            console.log('🔔 DriverNotificationsPage: Received new notification:', data);
+
+            // Play sound for new notifications
+            soundService.playSound('notification');
+
+            // Add new notification to the top of the list
+            const newNotification = {
+                _id: Date.now().toString(),
+                title: data.title || 'New Notification',
+                message: data.message || 'You have a new notification',
+                type: data.type || 'notification',
+                priority: data.priority || 'medium',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                metadata: data.metadata || {}
+            };
+
+            setNotifications(prev => [newNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for delivery assignments
+        socketService.on('delivery-assigned', (data) => {
+            console.log('🚚 DriverNotificationsPage: Received delivery assignment:', data);
+
+            // Play delivery sound
+            soundService.playSound('delivery');
+
+            const deliveryNotification = {
+                _id: Date.now().toString(),
+                title: 'New Delivery Assigned',
+                message: `You have been assigned delivery ${data.deliveryCode || 'Unknown'}`,
+                type: 'delivery',
+                priority: 'high',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                metadata: data
+            };
+
+            setNotifications(prev => [deliveryNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for admin messages
+        socketService.on('admin-message', (data) => {
+            console.log('💬 DriverNotificationsPage: Received admin message:', data);
+
+            // Play notification sound
+            soundService.playSound('notification');
+
+            const messageNotification = {
+                _id: Date.now().toString(),
+                title: 'Message from Admin',
+                message: data.message || 'You have a new message from admin',
+                type: 'message',
+                priority: 'medium',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                metadata: data
+            };
+
+            setNotifications(prev => [messageNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        return () => {
+            clearInterval(connectionInterval);
+            socketService.off('new-notification');
+            socketService.off('delivery-assigned');
+            socketService.off('admin-message');
+        };
+    }, [user]);
+
+    // Silent refresh every 30 seconds
+    useEffect(() => {
+        const refreshInterval = setInterval(() => {
+            fetchNotifications(true); // Silent refresh
+            fetchUnreadCount(true); // Silent refresh
+        }, 30000);
+
+        return () => clearInterval(refreshInterval);
+    }, [currentPage, filter]);
+
+    const fetchNotifications = async (silent = false) => {
         try {
-            setLoading(true);
+            if (!silent) setLoading(true);
+            console.log('🔔 DriverNotificationsPage: Fetching notifications with params:', {
+                page: currentPage,
+                limit: itemsPerPage,
+                status: filter === 'all' ? undefined : filter
+            });
+
             const response = await apiService.getDriverNotifications({
                 page: currentPage,
                 limit: itemsPerPage,
                 status: filter === 'all' ? undefined : filter
             });
 
-            if (response.success) {
-                setNotifications(response.data.notifications || []);
-                setTotalPages(response.data.totalPages || 1);
-                setTotalItems(response.data.totalItems || 0);
+            console.log('🔔 DriverNotificationsPage: API response:', response);
+
+            if (response && response.success) {
+                const notificationsData = response.data?.notifications || response.data || [];
+                const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
+
+                console.log('🔔 DriverNotificationsPage: Setting notifications:', notificationsArray.length);
+                setNotifications(notificationsArray);
+                setTotalPages(response.data?.totalPages || 1);
+                setTotalItems(response.data?.totalItems || notificationsArray.length);
             } else {
-                // Fallback to mock data for now
-                loadMockNotifications();
+                console.warn('🔔 DriverNotificationsPage: API returned unsuccessful response:', response);
+                if (!silent) {
+                    toast.error('Failed to load notifications. Please try again.');
+                }
+                setNotifications([]);
             }
         } catch (error) {
-            console.error('Error fetching notifications:', error);
-            loadMockNotifications();
+            console.error('❌ DriverNotificationsPage: Error fetching notifications:', error);
+            if (!silent) {
+                toast.error('Failed to load notifications. Please check your connection.');
+            }
+            setNotifications([]);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 
-    const loadMockNotifications = () => {
-        const mockNotifications = [
-            {
-                _id: '1',
-                title: 'Delivery Completed',
-                message: 'Your delivery #DEL-001 has been completed successfully. Payment has been processed.',
-                type: 'delivery',
-                priority: 'high',
-                isRead: false,
-                createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-                metadata: {
-                    deliveryId: 'DEL-001',
-                    amount: 150,
-                    location: 'University Campus'
-                }
-            },
-            {
-                _id: '2',
-                title: 'Payment Received',
-                message: 'You have received a payment of $95 for delivery #DEL-002.',
-                type: 'payment',
-                priority: 'medium',
-                isRead: true,
-                createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-                metadata: {
-                    amount: 95,
-                    deliveryId: 'DEL-002'
-                }
-            },
-            {
-                _id: '3',
-                title: 'New Delivery Request',
-                message: 'A new delivery request is available in your area. Check the app for details.',
-                type: 'delivery',
-                priority: 'high',
-                isRead: false,
-                createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-                metadata: {
-                    location: 'Downtown Area',
-                    estimatedEarning: 120
-                }
-            },
-            {
-                _id: '4',
-                title: 'Account Update',
-                message: 'Your profile information has been updated successfully.',
-                type: 'account',
-                priority: 'low',
-                isRead: true,
-                createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                metadata: {
-                    updatedFields: ['phone', 'address']
-                }
-            },
-            {
-                _id: '5',
-                title: 'Weekly Summary',
-                message: 'Your weekly earnings summary is ready. You earned $450 this week.',
-                type: 'earnings',
-                priority: 'medium',
-                isRead: false,
-                createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-                metadata: {
-                    period: 'weekly',
-                    totalEarnings: 450,
-                    totalDeliveries: 8
-                }
-            }
-        ];
+    // Mock data function removed - using real API data now
 
-        // Filter notifications based on current filter
-        const filteredNotifications = filter === 'all'
-            ? mockNotifications
-            : mockNotifications.filter(n => n.type === filter);
-
-        setNotifications(filteredNotifications);
-        setTotalPages(Math.ceil(filteredNotifications.length / itemsPerPage));
-        setTotalItems(filteredNotifications.length);
-    };
-
-    const fetchUnreadCount = async () => {
+    const fetchUnreadCount = async (silent = false) => {
         try {
             const response = await apiService.getDriverUnreadNotificationsCount();
 
@@ -228,19 +276,32 @@ const NotificationsPage = () => {
 
     const deleteNotification = async (notificationId) => {
         try {
-            const response = await apiService.deleteNotification(notificationId);
+            // Check if this is a real notification from the database (has a MongoDB-style ID)
+            const notification = notifications.find(n => n._id === notificationId);
+            const isRealNotification = notification && notification._id && notification._id.length > 10;
 
-            if (response.success) {
-                setNotifications(prev =>
-                    prev.filter(notification => notification._id !== notificationId)
-                );
-                toast.success('Notification deleted');
+            if (isRealNotification) {
+                // This is a real notification from the database, try to delete via API
+                const response = await apiService.deleteNotification(notificationId);
+
+                if (response.success) {
+                    setNotifications(prev =>
+                        prev.filter(notification => notification._id !== notificationId)
+                    );
+                    toast.success('Notification deleted');
+                } else {
+                    // Fallback to local update
+                    setNotifications(prev =>
+                        prev.filter(notification => notification._id !== notificationId)
+                    );
+                    toast.success('Notification deleted');
+                }
             } else {
-                // Fallback to local update
+                // This is a socket-generated notification or local notification, just remove locally
                 setNotifications(prev =>
                     prev.filter(notification => notification._id !== notificationId)
                 );
-                toast.success('Notification deleted');
+                toast.success('Notification removed');
             }
         } catch (error) {
             console.error('Error deleting notification:', error);
@@ -248,7 +309,7 @@ const NotificationsPage = () => {
             setNotifications(prev =>
                 prev.filter(notification => notification._id !== notificationId)
             );
-            toast.success('Notification deleted');
+            toast.success('Notification removed');
         }
     };
 
@@ -264,6 +325,8 @@ const NotificationsPage = () => {
                 return <UserGroupIcon className="h-6 w-6" />;
             case 'document':
                 return <DocumentTextIcon className="h-6 w-6" />;
+            case 'message':
+                return <InformationCircleIcon className="h-6 w-6" />;
             default:
                 return <BellIcon className="h-6 w-6" />;
         }
@@ -344,6 +407,17 @@ const NotificationsPage = () => {
                         </p>
                     </div>
                     <div className="flex items-center space-x-4">
+                        {/* Connection Status */}
+                        <div className="flex items-center space-x-2">
+                            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                            <span className="text-sm text-gray-600">
+                                {isConnected ? 'Connected' : 'Disconnected'}
+                            </span>
+                        </div>
+
+                        {/* Sound Test Button */}
+
+
                         {unreadCount > 0 && (
                             <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                                 {unreadCount} unread

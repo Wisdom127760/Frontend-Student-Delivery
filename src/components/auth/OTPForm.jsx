@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
 
+// API Configuration
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+
 const OTPForm = ({ email, userType, onBack }) => {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,7 +77,7 @@ const OTPForm = ({ email, userType, onBack }) => {
     setIsLoading(true);
     try {
       // Call resend OTP API
-      const response = await fetch('/api/auth/resend-otp', {
+      const response = await fetch(`${API_BASE_URL}/auth/resend-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

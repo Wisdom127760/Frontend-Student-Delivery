@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
+import { StatCardSkeleton } from '../common/SkeletonLoader';
 
 const BroadcastMonitor = () => {
     const [broadcastStats, setBroadcastStats] = useState({
@@ -64,7 +65,8 @@ const BroadcastMonitor = () => {
             const response = await apiService.handleExpiredBroadcasts();
             if (response.success) {
                 toast.success('Expired broadcasts processed successfully');
-                await loadBroadcastStats();
+                // Refresh data after successful operation
+                await refreshData();
             } else {
                 toast.error(response.message || 'Failed to process expired broadcasts');
             }
@@ -83,7 +85,8 @@ const BroadcastMonitor = () => {
             const response = await apiService.triggerBroadcastProcessing();
             if (response.success) {
                 toast.success('Broadcast processing triggered successfully');
-                await loadBroadcastStats();
+                // Refresh data after successful operation
+                await refreshData();
             } else {
                 toast.error(response.message || 'Failed to trigger broadcast processing');
             }
@@ -118,16 +121,14 @@ const BroadcastMonitor = () => {
 
         loadData();
 
-        // Auto-refresh every 30 seconds
+        // Auto-refresh every 30 seconds (only when not loading)
         const interval = setInterval(() => {
-            if (!loading) {
-                loadBroadcastStats();
-                loadBackgroundJobStatus();
-            }
+            loadBroadcastStats();
+            loadBackgroundJobStatus();
         }, 30000);
 
         return () => clearInterval(interval);
-    }, [loadBroadcastStats, loadBackgroundJobStatus, loading]);
+    }, []); // Empty dependency array to run only once on mount
 
     // Get status color
     const getStatusColor = (status) => {
@@ -159,10 +160,72 @@ const BroadcastMonitor = () => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="mt-2 text-sm text-gray-500">Loading broadcast monitor...</p>
+            <div className="space-y-6">
+                {/* Header Skeleton */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="px-4 py-5 sm:p-6">
+                        <div className="flex items-center justify-between">
+                            <div className="space-y-2">
+                                <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
+                                <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
+                            </div>
+                            <div className="h-10 bg-gray-200 rounded w-24 animate-pulse"></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Statistics Skeleton */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <StatCardSkeleton />
+                    <StatCardSkeleton />
+                    <StatCardSkeleton />
+                    <StatCardSkeleton />
+                </div>
+
+                {/* Status Breakdown Skeleton */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="px-4 py-5 sm:p-6">
+                        <div className="h-6 bg-gray-200 rounded w-48 animate-pulse mb-4"></div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {Array.from({ length: 4 }).map((_, index) => (
+                                <div key={index} className="bg-gray-50 rounded-lg p-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                                        <div className="h-6 bg-gray-200 rounded w-8 animate-pulse"></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Background Job Status Skeleton */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="px-4 py-5 sm:p-6">
+                        <div className="h-6 bg-gray-200 rounded w-48 animate-pulse mb-4"></div>
+                        <div className="space-y-4">
+                            {Array.from({ length: 2 }).map((_, index) => (
+                                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                    <div className="flex items-center">
+                                        <div className="w-10 h-10 bg-gray-200 rounded-lg animate-pulse"></div>
+                                        <div className="ml-3 space-y-2">
+                                            <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                                            <div className="h-3 bg-gray-200 rounded w-24 animate-pulse"></div>
+                                        </div>
+                                    </div>
+                                    <div className="h-8 bg-gray-200 rounded w-20 animate-pulse"></div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Auto-refresh notice skeleton */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center">
+                        <div className="w-4 h-4 bg-blue-200 rounded animate-pulse mr-2"></div>
+                        <div className="h-4 bg-blue-200 rounded w-64 animate-pulse"></div>
+                    </div>
                 </div>
             </div>
         );
@@ -201,7 +264,7 @@ const BroadcastMonitor = () => {
                         </div>
                         <div className="ml-3">
                             <p className="text-sm font-medium text-gray-500">Total Broadcasts</p>
-                            <p className="text-lg font-semibold text-gray-900">{broadcastStats.totalBroadcasts}</p>
+                            <p className="text-lg font-semibold text-gray-900">{broadcastStats?.totalBroadcasts || 0}</p>
                         </div>
                     </div>
                 </div>
@@ -213,7 +276,7 @@ const BroadcastMonitor = () => {
                         </div>
                         <div className="ml-3">
                             <p className="text-sm font-medium text-gray-500">Active</p>
-                            <p className="text-lg font-semibold text-gray-900">{broadcastStats.activeCount}</p>
+                            <p className="text-lg font-semibold text-gray-900">{broadcastStats?.activeCount || 0}</p>
                         </div>
                     </div>
                 </div>
@@ -225,7 +288,7 @@ const BroadcastMonitor = () => {
                         </div>
                         <div className="ml-3">
                             <p className="text-sm font-medium text-gray-500">Expired</p>
-                            <p className="text-lg font-semibold text-gray-900">{broadcastStats.expiredCount}</p>
+                            <p className="text-lg font-semibold text-gray-900">{broadcastStats?.expiredCount || 0}</p>
                         </div>
                     </div>
                 </div>
@@ -238,7 +301,7 @@ const BroadcastMonitor = () => {
                         <div className="ml-3">
                             <p className="text-sm font-medium text-gray-500">Accepted</p>
                             <p className="text-lg font-semibold text-gray-900">
-                                {broadcastStats.byStatus.find(s => s._id === 'accepted')?.count || 0}
+                                {broadcastStats?.byStatus?.find(s => s._id === 'accepted')?.count || 0}
                             </p>
                         </div>
                     </div>
@@ -250,11 +313,11 @@ const BroadcastMonitor = () => {
                 <div className="px-4 py-5 sm:p-6">
                     <h4 className="text-lg font-medium text-gray-900 mb-4">Broadcast Status Breakdown</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {broadcastStats.byStatus.map((status) => (
-                            <div key={status._id} className="bg-gray-50 rounded-lg p-4">
+                        {broadcastStats.byStatus?.map((status) => (
+                            <div key={status._id || 'unknown'} className="bg-gray-50 rounded-lg p-4">
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm font-medium text-gray-700 capitalize">
-                                        {status._id.replace('_', ' ')}
+                                        {status._id ? status._id.replace('_', ' ') : 'Unknown'}
                                     </span>
                                     <span className="text-lg font-bold text-gray-900">{status.count}</span>
                                 </div>
@@ -271,13 +334,13 @@ const BroadcastMonitor = () => {
                     <div className="space-y-4">
                         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                             <div className="flex items-center">
-                                <div className={`p-2 rounded-lg ${getStatusColor(backgroundJobStatus.expiredBroadcastHandler.status)}`}>
-                                    {getStatusIcon(backgroundJobStatus.expiredBroadcastHandler.status)}
+                                <div className={`p-2 rounded-lg ${getStatusColor(backgroundJobStatus?.expiredBroadcastHandler?.status || 'unknown')}`}>
+                                    {getStatusIcon(backgroundJobStatus?.expiredBroadcastHandler?.status || 'unknown')}
                                 </div>
                                 <div className="ml-3">
                                     <p className="text-sm font-medium text-gray-900">Expired Broadcast Handler</p>
                                     <p className="text-xs text-gray-500">
-                                        Last run: {backgroundJobStatus.expiredBroadcastHandler.lastRun
+                                        Last run: {backgroundJobStatus?.expiredBroadcastHandler?.lastRun
                                             ? new Date(backgroundJobStatus.expiredBroadcastHandler.lastRun).toLocaleString()
                                             : 'Never'}
                                     </p>
@@ -294,13 +357,13 @@ const BroadcastMonitor = () => {
 
                         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                             <div className="flex items-center">
-                                <div className={`p-2 rounded-lg ${getStatusColor(backgroundJobStatus.broadcastProcessor.status)}`}>
-                                    {getStatusIcon(backgroundJobStatus.broadcastProcessor.status)}
+                                <div className={`p-2 rounded-lg ${getStatusColor(backgroundJobStatus?.broadcastProcessor?.status || 'unknown')}`}>
+                                    {getStatusIcon(backgroundJobStatus?.broadcastProcessor?.status || 'unknown')}
                                 </div>
                                 <div className="ml-3">
                                     <p className="text-sm font-medium text-gray-900">Broadcast Processor</p>
                                     <p className="text-xs text-gray-500">
-                                        Last run: {backgroundJobStatus.broadcastProcessor.lastRun
+                                        Last run: {backgroundJobStatus?.broadcastProcessor?.lastRun
                                             ? new Date(backgroundJobStatus.broadcastProcessor.lastRun).toLocaleString()
                                             : 'Never'}
                                     </p>

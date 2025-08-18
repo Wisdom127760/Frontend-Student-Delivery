@@ -830,11 +830,8 @@ const DocumentVerificationPage = () => {
                                             </button>
                                             <button
                                                 onClick={() => {
-                                                    const reason = prompt('Enter rejection reason:');
-                                                    if (reason) {
-                                                        handleRejectDocument(selectedDocument._id || selectedDocument.id, reason);
-                                                        setShowDocumentModal(false);
-                                                    }
+                                                    handleRejectDocument(selectedDocument._id || selectedDocument.id, 'Document rejected');
+                                                    setShowDocumentModal(false);
                                                 }}
                                                 disabled={processingAction === (selectedDocument._id || selectedDocument.id)}
                                                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"

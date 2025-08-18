@@ -166,18 +166,7 @@ const DriverRealTimeNotifications = () => {
             });
         });
 
-        // Listen for test events from admin
-        socketService.on('test', (data) => {
-            console.log('🧪 Driver received test event:', data);
-            addNotification({
-                id: Date.now(),
-                type: 'test',
-                title: '🧪 Test Notification',
-                message: data.message || 'Test message from admin',
-                timestamp: new Date(),
-                data
-            });
-        });
+
 
         return () => {
             clearInterval(interval);
@@ -189,10 +178,10 @@ const DriverRealTimeNotifications = () => {
             socketService.off('new-notification');
             socketService.off('new-message');
             socketService.off('status-update');
-            socketService.off('test');
+
 
         };
-    }, [user, addNotification]);
+    }, [user]);
 
     const getNotificationIcon = (type) => {
         switch (type) {
@@ -202,8 +191,7 @@ const DriverRealTimeNotifications = () => {
                 return <ChatBubbleLeftRightIcon className="h-5 w-5" />;
             case 'status-update':
                 return <CheckCircleIcon className="h-5 w-5" />;
-            case 'test':
-                return <BellIcon className="h-5 w-5" />;
+
             default:
                 return <BellIcon className="h-5 w-5" />;
         }
@@ -217,8 +205,7 @@ const DriverRealTimeNotifications = () => {
                 return 'bg-purple-50 border-purple-200 text-purple-800';
             case 'status-update':
                 return 'bg-green-50 border-green-200 text-green-800';
-            case 'test':
-                return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+
             default:
                 return 'bg-gray-50 border-gray-200 text-gray-800';
         }

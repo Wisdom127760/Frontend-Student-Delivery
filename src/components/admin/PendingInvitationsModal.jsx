@@ -28,10 +28,6 @@ const PendingInvitationsModal = ({ isOpen, onClose, onInvitationUpdate }) => {
     };
 
     const handleCancelInvitation = async (invitationId, driverName) => {
-        if (!window.confirm(`Are you sure you want to cancel the invitation for ${driverName}?`)) {
-            return;
-        }
-
         try {
             setIsActionLoading(true);
             await driverService.cancelInvitation(invitationId);
@@ -168,8 +164,8 @@ const PendingInvitationsModal = ({ isOpen, onClose, onInvitationUpdate }) => {
                                                                 Invited: {formatDate(invitation.invitedAt)}
                                                             </span>
                                                             <span className={`text-xs px-2 py-1 rounded-full ${expiryStatus === 'expired' ? 'bg-red-100 text-red-800' :
-                                                                    expiryStatus === 'expiring-soon' ? 'bg-yellow-100 text-yellow-800' :
-                                                                        'bg-green-100 text-green-800'
+                                                                expiryStatus === 'expiring-soon' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-green-100 text-green-800'
                                                                 }`}>
                                                                 {timeLeft}
                                                             </span>

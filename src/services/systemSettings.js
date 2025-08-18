@@ -27,6 +27,21 @@ export const formatCurrency = (amount, currency = 'TRY') => {
   }).format(numAmount);
 };
 
+// Enhanced formatCurrency that uses system settings
+export const formatCurrencyWithSettings = async (amount) => {
+  try {
+    // Try to get currency from system settings
+    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/system-settings/public`);
+    const data = await response.json();
+    const currency = data.success ? data.data.display?.currency : 'TRY';
+
+    return formatCurrency(amount, currency);
+  } catch (error) {
+    console.error('Error getting currency from settings:', error);
+    return formatCurrency(amount, 'TRY'); // Fallback
+  }
+};
+
 export const formatDate = (date, format = 'DD/MM/YYYY') => {
   if (!date) return '';
 

@@ -1,0 +1,64 @@
+.location-input-container {
+    position: relative;
+}
+
+.location-input-container input {
+    transition: all 0.2s ease-in-out;
+}
+
+.location-input-container input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.map-container {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background-color: #f9fafb;
+}
+
+.map-placeholder {
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border: 2px dashed #d1d5db;
+    transition: all 0.2s ease-in-out;
+}
+
+.map-placeholder:hover {
+    border-color: #3b82f6;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.location-search-input {
+    position: relative;
+    z-index: 10;
+}
+
+.location-search-input input {
+    background: white;
+    border: 1px solid #d1d5db;
+    border-radius: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    width: 100%;
+    transition: all 0.2s ease-in-out;
+}
+
+.location-search-input input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.map-button {
+    transition: all 0.2s ease-in-out;
+}
+
+.map-button:hover {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+.map-button:active {
+    transform: scale(0.95);
+}

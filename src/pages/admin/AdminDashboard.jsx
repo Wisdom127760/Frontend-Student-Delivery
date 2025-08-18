@@ -18,9 +18,10 @@ import { formatCurrency } from '../../services/systemSettings';
 import RealTimeDriverStatus from '../../components/admin/RealTimeDriverStatus';
 // import RealTimeNotifications from '../../components/admin/RealTimeNotifications'; // Unused import
 // import BroadcastMonitor from '../../components/admin/BroadcastMonitor'; // Unused import
-import SocketTestPanel from '../../components/admin/SocketTestPanel';
+
 import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
+import socketService from '../../services/socketService';
 
 const AdminDashboard = () => {
     const navigate = useNavigate();
@@ -72,11 +73,37 @@ const AdminDashboard = () => {
         return () => clearInterval(interval);
     }, [loadDashboardData]);
 
+    // Socket listener for real-time driver status updates
+    useEffect(() => {
+        const socket = socketService.getSocket();
+        if (!socket || !socketService.isConnected()) {
+            console.log('⚠️ AdminDashboard: Socket not available for real-time updates');
+            return;
+        }
+
+        console.log('🔌 AdminDashboard: Setting up socket event listeners');
+
+        const handleDriverStatusChanged = (data) => {
+            console.log('🔄 AdminDashboard: Driver status changed, refreshing dashboard data:', data);
+            // Refresh dashboard data when driver status changes
+            loadDashboardData(true); // Silent refresh
+        };
+
+        socket.on('driver-status-changed', handleDriverStatusChanged);
+
+        return () => {
+            if (socket) {
+                console.log('🧹 AdminDashboard: Cleaning up socket event listeners');
+                socket.off('driver-status-changed', handleDriverStatusChanged);
+            }
+        };
+    }, [loadDashboardData]);
+
     // Show skeleton loading state
     if (isLoading) {
         return (
             <div className="min-h-screen bg-gray-50">
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-4">
                     <DashboardSkeleton />
                 </div>
             </div>
@@ -162,7 +189,7 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-4">
                 {/* Header */}
                 <div className="mb-4">
                     <div className="flex items-center justify-between">
@@ -187,7 +214,7 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                     {stats.map((stat, index) => {
                         const Icon = stat.icon;
                         return (
@@ -210,10 +237,10 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
                     {/* Enhanced Recent Deliveries */}
-                    <div className="lg:col-span-2">
-                        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="xl:col-span-2">
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
                             <div className="px-3 py-2 border-b border-gray-200">
                                 <div className="flex items-center justify-between">
                                     <h2 className="text-xs font-semibold text-gray-900">Live Delivery Activity</h2>
@@ -225,31 +252,41 @@ const AdminDashboard = () => {
                                     </button>
                                 </div>
                             </div>
-                            <div className="p-2">
+                            <div className="p-2 flex-1 flex flex-col">
                                 {recentDeliveries.length === 0 ? (
-                                    <div className="text-center py-3">
-                                        <TruckIcon className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-                                        <p className="text-xs text-gray-500">No recent deliveries</p>
+                                    <div className="text-center py-3 flex-1 flex items-center justify-center">
+                                        <div>
+                                            <TruckIcon className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+                                            <p className="text-xs text-gray-500">No recent deliveries</p>
+                                        </div>
                                     </div>
                                 ) : (
-                                    <div className="space-y-1">
+                                    <div className="space-y-1 flex-1 overflow-y-auto">
                                         {recentDeliveries.slice(0, 6).map((delivery, index) => (
-                                            <div key={delivery._id || delivery.id || `delivery-${index}`} className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className={`p-1 rounded-full ${getStatusColor(delivery.status)}`}>
+                                            <div key={delivery._id || delivery.id || `delivery-${index}`} className="flex items-start justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                                                <div className="flex items-start space-x-2 min-w-0 flex-1">
+                                                    <div className={`p-1 rounded-full flex-shrink-0 ${getStatusColor(delivery.status)}`}>
                                                         {getStatusIcon(delivery.status)}
                                                     </div>
                                                     <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center space-x-2">
-                                                            <p className="text-xs font-medium text-gray-900">#{delivery.deliveryCode || delivery.id}</p>
+                                                        <div className="flex items-center space-x-2 mb-1">
+                                                            <p className="text-xs font-medium text-gray-900 truncate">#{delivery.deliveryCode || delivery.id}</p>
                                                             {delivery.priority === 'high' && (
-                                                                <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded-full">Priority</span>
+                                                                <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs rounded-full flex-shrink-0">Priority</span>
                                                             )}
                                                         </div>
-                                                        <p className="text-xs text-gray-600 truncate">
-                                                            {delivery.customerName || 'Customer'} • {delivery.pickupAddress || delivery.pickup} → {delivery.deliveryAddress || delivery.delivery}
-                                                        </p>
-                                                        <div className="flex items-center space-x-3 mt-1">
+                                                        <div className="space-y-1">
+                                                            <p className="text-xs text-gray-600 break-words leading-tight">
+                                                                <span className="font-medium">{delivery.customerName || 'Customer'}</span>
+                                                            </p>
+                                                            <p className="text-xs text-gray-500 break-words leading-tight">
+                                                                📍 {delivery.pickupAddress || delivery.pickup || 'Pickup location'}
+                                                            </p>
+                                                            <p className="text-xs text-gray-500 break-words leading-tight">
+                                                                🎯 {delivery.deliveryAddress || delivery.delivery || 'Delivery location'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2 mt-2 flex-wrap gap-1">
                                                             <span className="text-xs text-gray-500">
                                                                 {delivery.driver ? `👤 ${delivery.driver}` : '🚫 Unassigned'}
                                                             </span>
@@ -261,7 +298,7 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="text-right ml-2">
+                                                <div className="text-right ml-2 flex-shrink-0">
                                                     <p className="text-xs font-bold text-gray-900">{formatCurrency(delivery.amount)}</p>
                                                     <p className="text-xs text-gray-500">
                                                         {delivery.paymentMethod === 'cash' ? '💵 Cash' : '💳 Card'}
@@ -281,13 +318,13 @@ const AdminDashboard = () => {
                     </div>
 
                     {/* Real-time Driver Status */}
-                    <div className="lg:col-span-1">
+                    <div className="xl:col-span-1 h-full">
                         <RealTimeDriverStatus />
                     </div>
                 </div>
 
                 {/* Bottom Row */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 mt-4">
                     {/* Gamified Driver Leaderboard */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="px-3 py-2 border-b border-gray-200">
@@ -323,19 +360,19 @@ const AdminDashboard = () => {
                                         const isOnline = driver.isOnline || driver.isActive;
 
                                         return (
-                                            <div key={driver._id || driver.id || `driver-${index}`} className="flex items-center justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className={`w-6 h-6 ${rankBadge.bg} rounded-full flex items-center justify-center`}>
+                                            <div key={driver._id || driver.id || `driver-${index}`} className="flex items-start justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                                                <div className="flex items-start space-x-2 min-w-0 flex-1">
+                                                    <div className={`w-6 h-6 ${rankBadge.bg} rounded-full flex items-center justify-center flex-shrink-0`}>
                                                         <span className="text-xs font-bold">{rankBadge.icon}</span>
                                                     </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center space-x-2">
-                                                            <p className="text-xs font-medium text-gray-900">{driver.name}</p>
-                                                            <div className={`w-2 h-2 rounded-full ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="flex items-center space-x-2 mb-1">
+                                                            <p className="text-xs font-medium text-gray-900 truncate">{driver.name}</p>
+                                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                                         </div>
-                                                        <div className="flex items-center space-x-3 mt-1">
+                                                        <div className="flex items-center space-x-2 flex-wrap gap-1">
                                                             <span className="text-xs text-gray-600">
-                                                                📦 {driver.deliveries || 0} deliveries
+                                                                📦 {driver.deliveries || 0}
                                                             </span>
                                                             <span className="text-xs text-gray-600">
                                                                 ⭐ {driver.rating || 'N/A'}
@@ -348,10 +385,10 @@ const AdminDashboard = () => {
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
+                                                <div className="text-right ml-2 flex-shrink-0">
                                                     <p className="text-xs font-bold text-gray-900">{formatCurrency(driver.earnings)}</p>
                                                     <p className="text-xs text-gray-500">
-                                                        {driver.activeHours ? `${driver.activeHours}h` : 'N/A'} online
+                                                        {driver.activeHours ? `${driver.activeHours}h` : 'N/A'}
                                                     </p>
                                                     {driver.achievements && driver.achievements.length > 0 && (
                                                         <div className="flex justify-end space-x-1 mt-1">
@@ -442,10 +479,7 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Socket Test Panel */}
-                    <div className="mt-6">
-                        <SocketTestPanel />
-                    </div>
+
                 </div>
             </div>
         </div>
