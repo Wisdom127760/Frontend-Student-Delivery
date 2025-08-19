@@ -184,9 +184,14 @@ const DeliveryBroadcastModal = ({ delivery, onAccept, onClose, onExpire }) => {
                         <div className="bg-green-50 rounded-xl p-4 border border-green-200">
                             <div className="flex items-start space-x-3">
                                 <MapPinIcon className="h-5 w-5 text-green-600 mt-1" />
-                                <div>
+                                <div className="flex-1">
                                     <h4 className="font-bold text-lg text-gray-900 mb-2">📍 Pickup Location</h4>
-                                    <p className="text-gray-700">{delivery.pickupLocation}</p>
+                                    <p className="text-gray-700 font-medium">{delivery.pickupLocation}</p>
+                                    {delivery.pickupLocationDescription && (
+                                        <p className="text-sm text-green-600 mt-1 font-medium">
+                                            📍 {delivery.pickupLocationDescription}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -194,9 +199,14 @@ const DeliveryBroadcastModal = ({ delivery, onAccept, onClose, onExpire }) => {
                         <div className="bg-red-50 rounded-xl p-4 border border-red-200">
                             <div className="flex items-start space-x-3">
                                 <MapPinIcon className="h-5 w-5 text-red-600 mt-1" />
-                                <div>
+                                <div className="flex-1">
                                     <h4 className="font-bold text-lg text-gray-900 mb-2">🎯 Delivery Location</h4>
-                                    <p className="text-gray-700">{delivery.deliveryLocation}</p>
+                                    <p className="text-gray-700 font-medium">{delivery.deliveryLocation}</p>
+                                    {delivery.deliveryLocationDescription && (
+                                        <p className="text-sm text-red-600 mt-1 font-medium">
+                                            📍 {delivery.deliveryLocationDescription}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>

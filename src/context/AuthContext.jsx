@@ -131,8 +131,20 @@ export const AuthProvider = ({ children }) => {
             // Initialize socket connection for real-time features
             if (userData._id) {
                 try {
+                    console.log('🔌 Attempting to connect socket for user:', userData._id, 'type:', userData.userType || userData.role);
                     socketService.connect(userData._id, userData.userType || userData.role);
-                    console.log('🔌 Socket initialized for user:', userData._id);
+
+                    // Verify connection was established
+                    setTimeout(() => {
+                        if (socketService.isConnected()) {
+                            console.log('✅ Socket connection verified for user:', userData._id);
+                        } else {
+                            console.error('❌ Socket connection failed for user:', userData._id);
+                            // Try to reconnect
+                            console.log('🔄 Attempting socket reconnection...');
+                            socketService.connect(userData._id, userData.userType || userData.role);
+                        }
+                    }, 1000);
                 } catch (error) {
                     console.warn('⚠️ Socket initialization failed:', error);
                 }
@@ -201,8 +213,20 @@ export const AuthProvider = ({ children }) => {
                     // Initialize socket connection for restored session
                     if (userData._id) {
                         try {
+                            console.log('🔌 Attempting to connect socket for restored session:', userData._id, 'type:', userData.userType || userData.role);
                             socketService.connect(userData._id, userData.userType || userData.role);
-                            console.log('🔌 Socket initialized for restored session:', userData._id);
+
+                            // Verify connection was established
+                            setTimeout(() => {
+                                if (socketService.isConnected()) {
+                                    console.log('✅ Socket connection verified for restored session:', userData._id);
+                                } else {
+                                    console.error('❌ Socket connection failed for restored session:', userData._id);
+                                    // Try to reconnect
+                                    console.log('🔄 Attempting socket reconnection for restored session...');
+                                    socketService.connect(userData._id, userData.userType || userData.role);
+                                }
+                            }, 1000);
                         } catch (error) {
                             console.warn('⚠️ Socket initialization failed for restored session:', error);
                         }

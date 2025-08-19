@@ -18,6 +18,7 @@ import AIVerificationStatus from './AIVerificationStatus';
 
 const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
     const [uploading, setUploading] = useState({});
+    const [uploadingAll, setUploadingAll] = useState(false);
     const [selectedFiles, setSelectedFiles] = useState({});
     const [aiVerification, setAiVerification] = useState({});
     const [showAiVerification, setShowAiVerification] = useState(false);
@@ -30,7 +31,8 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             description: 'Upload your current student identification card',
             required: true,
             icon: IdentificationIcon,
-            acceptedTypes: 'image/*,.pdf'
+            acceptedTypes: 'image/*', // Changed: Only images allowed
+            fileTypeHint: 'JPEG, PNG, or WebP image'
         },
         {
             key: 'profilePhoto',
@@ -38,7 +40,8 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             description: 'Upload a clear photo of yourself',
             required: true,
             icon: PhotoIcon,
-            acceptedTypes: 'image/*'
+            acceptedTypes: 'image/*',
+            fileTypeHint: 'JPEG, PNG, or WebP image'
         },
         {
             key: 'universityEnrollment',
@@ -46,7 +49,8 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             description: 'Upload your university enrollment or registration certificate',
             required: true,
             icon: AcademicCapIcon,
-            acceptedTypes: 'image/*,.pdf'
+            acceptedTypes: 'image/*', // Changed: Only images allowed
+            fileTypeHint: 'JPEG, PNG, or WebP image'
         },
         {
             key: 'identityCard',
@@ -54,7 +58,8 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             description: 'Upload your national identity card or passport',
             required: true,
             icon: IdentificationIcon,
-            acceptedTypes: 'image/*,.pdf'
+            acceptedTypes: 'image/*', // Changed: Only images allowed
+            fileTypeHint: 'JPEG, PNG, or WebP image'
         },
         {
             key: 'transportationLicense',
@@ -62,7 +67,8 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             description: 'Upload your driver\'s license (required for car/motorcycle)',
             required: false,
             icon: TruckIcon,
-            acceptedTypes: 'image/*,.pdf'
+            acceptedTypes: 'image/*', // Changed: Only images allowed
+            fileTypeHint: 'JPEG, PNG, or WebP image'
         }
     ];
 
@@ -89,9 +95,113 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
         }
     };
 
+    // Upload all selected documents at once
+    const handleUploadAll = async () => {
+        const filesToUpload = Object.keys(selectedFiles).filter(key => selectedFiles[key]);
+
+        if (filesToUpload.length === 0) {
+            toast.error('Please select at least one document to upload');
+            return;
+        }
+
+        setUploadingAll(true);
+
+        try {
+            const uploadPromises = filesToUpload.map(async (documentType) => {
+                const file = selectedFiles[documentType];
+
+                // Validate file type
+                if (!file.type.startsWith('image/')) {
+                    throw new Error(`${documentTypes.find(d => d.key === documentType)?.label}: Only image files (JPEG, PNG, WebP) are allowed. PDF files are not supported.`);
+                }
+
+                // Validate file size
+                if (file.size > 5 * 1024 * 1024) {
+                    throw new Error(`${documentTypes.find(d => d.key === documentType)?.label}: File size must be less than 5MB`);
+                }
+
+                let fileToUpload = file;
+
+                // Compress images before upload
+                if (file.type.startsWith('image/')) {
+                    try {
+                        fileToUpload = await compressImage(file, 1200, 1200, 0.8);
+                    } catch (compressionError) {
+                        console.warn(`⚠️ Image compression failed for ${documentType}:`, compressionError);
+                        fileToUpload = file;
+                    }
+                }
+
+                const formData = new FormData();
+                formData.append('profilePicture', fileToUpload);
+
+                const response = await apiService.uploadDriverDocument(documentType, formData);
+
+                if (!response.success) {
+                    throw new Error(`${documentTypes.find(d => d.key === documentType)?.label}: ${response.message || 'Upload failed'}`);
+                }
+
+                return { documentType, success: true, data: response.data };
+            });
+
+            const results = await Promise.allSettled(uploadPromises);
+
+            let successCount = 0;
+            let errorMessages = [];
+
+            results.forEach((result, index) => {
+                const documentType = filesToUpload[index];
+                if (result.status === 'fulfilled' && result.value.success) {
+                    successCount++;
+                    // Clear the selected file
+                    setSelectedFiles(prev => {
+                        const newState = { ...prev };
+                        delete newState[documentType];
+                        return newState;
+                    });
+                    // Notify parent component
+                    if (onDocumentUploaded) {
+                        onDocumentUploaded(documentType, result.value.data);
+                    }
+                } else {
+                    const errorMessage = result.status === 'rejected' ? result.reason.message : 'Upload failed';
+                    errorMessages.push(errorMessage);
+                }
+            });
+
+            if (successCount > 0) {
+                toast.success(`✅ Successfully uploaded ${successCount} document${successCount > 1 ? 's' : ''}!`);
+            }
+
+            if (errorMessages.length > 0) {
+                toast.error(`❌ Upload errors:\n${errorMessages.join('\n')}`);
+            }
+
+        } catch (error) {
+            console.error('❌ Error in bulk upload:', error);
+            toast.error(`Upload failed: ${error.message}`);
+        } finally {
+            setUploadingAll(false);
+        }
+    };
+
     const handleFileSelect = (documentType, event) => {
         const file = event.target.files[0];
         if (file) {
+            // Validate file type immediately
+            if (!file.type.startsWith('image/')) {
+                toast.error(`❌ Invalid file type for ${documentTypes.find(d => d.key === documentType)?.label}. Only image files (JPEG, PNG, WebP) are allowed. PDF files are not supported.`);
+                event.target.value = ''; // Clear the input
+                return;
+            }
+
+            // Validate file size immediately
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error(`❌ File too large for ${documentTypes.find(d => d.key === documentType)?.label}. Maximum size is 5MB.`);
+                event.target.value = ''; // Clear the input
+                return;
+            }
+
             setSelectedFiles(prev => ({
                 ...prev,
                 [documentType]: file
@@ -263,6 +373,27 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                                 </label>
                             </div>
 
+                            {/* Upload All Button */}
+                            {Object.keys(selectedFiles).filter(key => selectedFiles[key]).length > 0 && (
+                                <button
+                                    onClick={handleUploadAll}
+                                    disabled={uploadingAll}
+                                    className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                                >
+                                    {uploadingAll ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <span>Uploading All...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <DocumentArrowUpIcon className="w-4 h-4" />
+                                            <span>Upload All ({Object.keys(selectedFiles).filter(key => selectedFiles[key]).length})</span>
+                                        </>
+                                    )}
+                                </button>
+                            )}
+
                             {/* Document Count */}
                             <div>
                                 <p className="text-sm text-gray-600">Documents Verified</p>
@@ -334,37 +465,26 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                                                     <div className="flex items-center space-x-3">
                                                         <input
                                                             type="file"
-                                                            accept={docType.acceptedTypes}
+                                                            accept="image/*"
                                                             onChange={(e) => handleFileSelect(docType.key, e)}
                                                             className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                                                             disabled={isUploading}
                                                         />
-                                                        {hasSelectedFile && (
-                                                            <button
-                                                                onClick={() => handleUpload(docType.key)}
-                                                                disabled={isUploading}
-                                                                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                                                            >
-                                                                {isUploading ? (
-                                                                    <>
-                                                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                                        <span>Processing...</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <DocumentArrowUpIcon className="w-4 h-4" />
-                                                                        <span>Upload</span>
-                                                                    </>
-                                                                )}
-                                                            </button>
-                                                        )}
                                                     </div>
                                                     {hasSelectedFile && (
-                                                        <p className="text-xs text-gray-600">
-                                                            Selected: {selectedFiles[docType.key]?.name}
-                                                            ({(selectedFiles[docType.key]?.size / 1024 / 1024).toFixed(2)} MB)
-                                                        </p>
+                                                        <div className="flex items-center justify-between">
+                                                            <p className="text-xs text-gray-600">
+                                                                Selected: {selectedFiles[docType.key]?.name}
+                                                                ({(selectedFiles[docType.key]?.size / 1024 / 1024).toFixed(2)} MB)
+                                                            </p>
+                                                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                                                Ready to upload
+                                                            </span>
+                                                        </div>
                                                     )}
+                                                    <p className="text-xs text-gray-500">
+                                                        📷 Accepted: JPEG, PNG, WebP images only (max 5MB)
+                                                    </p>
                                                 </div>
                                             )}
 
@@ -404,14 +524,15 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                         <div>
                             <p className="text-sm font-medium text-blue-800 mb-1">Document Upload Guidelines</p>
                             <ul className="text-xs text-blue-700 space-y-1">
-                                <li>• Accepted formats: JPEG, PNG, WebP, PDF</li>
-                                <li>• Maximum file size: 5MB per document</li>
-                                <li>• Images are automatically compressed for faster upload</li>
-                                <li>• Enable AI Verification for instant document analysis</li>
-                                <li>• AI can detect fraud, extract text, and verify authenticity</li>
-                                <li>• Ensure documents are clear and readable</li>
-                                <li>• Documents will be reviewed by admin team</li>
-                                <li>• You'll be notified once verification is complete</li>
+                                <li>• <strong>Accepted formats:</strong> JPEG, PNG, WebP images only</li>
+                                <li>• <strong>Not accepted:</strong> PDF files are not supported</li>
+                                <li>• <strong>Maximum file size:</strong> 5MB per document</li>
+                                <li>• <strong>Image compression:</strong> Images are automatically compressed for faster upload</li>
+                                <li>• <strong>Bulk upload:</strong> Select multiple documents and upload all at once</li>
+                                <li>• <strong>AI Verification:</strong> Enable for instant document analysis</li>
+                                <li>• <strong>Document quality:</strong> Ensure documents are clear and readable</li>
+                                <li>• <strong>Review process:</strong> Documents will be reviewed by admin team</li>
+                                <li>• <strong>Notifications:</strong> You'll be notified once verification is complete</li>
                             </ul>
                         </div>
                     </div>

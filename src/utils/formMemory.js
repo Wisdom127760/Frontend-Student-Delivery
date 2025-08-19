@@ -128,7 +128,7 @@ export const whatsAppUtils = {
 
 // Google Maps utility
 export const mapsUtils = {
-    // Generate Google Maps directions link
+    // Generate Google Maps directions link (from current location to destination)
     generateDirectionsLink: (pickupLocation, deliveryLocation) => {
         if (!pickupLocation || !deliveryLocation) return null;
 
@@ -144,5 +144,83 @@ export const mapsUtils = {
 
         const encodedLocation = encodeURIComponent(location);
         return `https://www.google.com/maps/search/${encodedLocation}`;
+    },
+
+    // Generate Google Maps link for coordinates (static location)
+    generateCoordinatesLink: (lat, lng, zoom = 15) => {
+        if (!lat || !lng) return null;
+
+        // Use the proper Google Maps coordinates format
+        return `https://www.google.com/maps/@${lat},${lng},${zoom}z`;
+    },
+
+    // Generate Google Maps directions from current location to coordinates
+    generateDirectionsToCoordinates: (lat, lng, destinationName = '') => {
+        if (!lat || !lng) return null;
+
+        // Use Google Maps directions with "My Location" as origin
+        const destination = destinationName ? `${destinationName}/${lat},${lng}` : `${lat},${lng}`;
+        return `https://www.google.com/maps/dir/My+Location/${destination}`;
+    },
+
+    // Generate Google Maps directions from current location to coordinates with search query
+    generateDirectionsToCoordinatesWithSearch: (lat, lng, searchQuery = '', zoom = 15) => {
+        if (!lat || !lng) return null;
+
+        if (searchQuery) {
+            const encodedQuery = encodeURIComponent(searchQuery);
+            // Use directions format: My Location to search query at coordinates
+            return `https://www.google.com/maps/dir/My+Location/${encodedQuery}/${lat},${lng}`;
+        } else {
+            // Simple directions to coordinates
+            return `https://www.google.com/maps/dir/My+Location/${lat},${lng}`;
+        }
+    },
+
+    // Generate Google Maps coordinates with search query
+    generateCoordinatesSearchLink: (lat, lng, searchQuery = '', zoom = 15) => {
+        if (!lat || !lng) return null;
+
+        if (searchQuery) {
+            const encodedQuery = encodeURIComponent(searchQuery);
+            return `https://www.google.com/maps/search/${encodedQuery}/@${lat},${lng},${zoom}z`;
+        } else {
+            return `https://www.google.com/maps/@${lat},${lng},${zoom}z`;
+        }
+    },
+
+    // Extract coordinates from Google Maps URL
+    extractCoordinatesFromUrl: (url) => {
+        if (!url) return null;
+
+        try {
+            // Handle different Google Maps URL formats
+            const patterns = [
+                // Format: https://www.google.com/maps/@35.196171,33.370403,15z
+                /@(-?\d+\.\d+),(-?\d+\.\d+),(\d+)z/,
+                // Format: https://www.google.com/maps/place/.../@35.196171,33.370403,15z
+                /@(-?\d+\.\d+),(-?\d+\.\d+),(\d+)z/,
+                // Format: https://maps.google.com/?q=35.196171,33.370403
+                /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
+                // Format: https://www.google.com/maps/search/.../@35.196171,33.370403,15z
+                /@(-?\d+\.\d+),(-?\d+\.\d+),(\d+)z/
+            ];
+
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    return {
+                        lat: parseFloat(match[1]),
+                        lng: parseFloat(match[2]),
+                        zoom: match[3] ? parseInt(match[3]) : 15
+                    };
+                }
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Error extracting coordinates from URL:', error);
+            return null;
+        }
     }
 }; 

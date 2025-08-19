@@ -21,6 +21,7 @@ import {
     BellIcon,
     Bars3Icon
 } from '@heroicons/react/24/outline';
+import socketService from '../../services/socketService';
 
 // Create context for driver status
 const DriverStatusContext = createContext();
@@ -39,6 +40,8 @@ const DriverLayout = ({ children }) => {
     const [userMenuOpen, setUserMenuOpen] = useState(false);
     const [isOnline, setIsOnline] = useState(true);
     const [showSoundPermission, setShowSoundPermission] = useState(false);
+    const [socketConnected, setSocketConnected] = useState(false);
+    const [socketAuthenticated, setSocketAuthenticated] = useState(false);
     const location = useLocation();
     const navigate = useNavigate();
     const { user, profile, logout, updateProfile } = useAuth();
@@ -117,6 +120,25 @@ const DriverLayout = ({ children }) => {
         loadDriverProfile();
         loadDriverStatus();
     }, [loadDriverProfile, loadDriverStatus]);
+
+    // Monitor socket connection status
+    useEffect(() => {
+        const checkSocketStatus = () => {
+            const connected = socketService.isConnected();
+            const authenticated = socketService.isAuthenticated();
+            setSocketConnected(connected);
+            setSocketAuthenticated(authenticated);
+            console.log('🔌 Socket status:', { connected, authenticated });
+        };
+
+        // Check immediately
+        checkSocketStatus();
+
+        // Check every 5 seconds
+        const interval = setInterval(checkSocketStatus, 5000);
+
+        return () => clearInterval(interval);
+    }, []);
 
     const navigation = [
         { name: 'Dashboard', href: '/driver', icon: HomeIcon },
@@ -206,13 +228,40 @@ const DriverLayout = ({ children }) => {
                                 <Bars3Icon className="h-6 w-6" />
                             </button>
 
-                            {/* Search bar - hidden on mobile */}
+                            {/* Search bar - visible on all devices */}
                             <div className="hidden sm:flex flex-1 max-w-lg mx-4">
                                 <GlobalSearch />
                             </div>
 
+                            {/* Mobile search button */}
+                            <button
+                                onClick={() => {
+                                    // Trigger CMD+K search on mobile
+                                    const event = new KeyboardEvent('keydown', {
+                                        key: 'k',
+                                        metaKey: true,
+                                        bubbles: true
+                                    });
+                                    document.dispatchEvent(event);
+                                }}
+                                className="sm:hidden flex items-center space-x-1 px-3 py-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                                <span className="text-xs font-medium">⌘K</span>
+                            </button>
+
                             {/* Right side */}
                             <div className="flex items-center space-x-2 sm:space-x-4">
+                                {/* Socket Connection Status */}
+                                <div className="flex items-center space-x-1">
+                                    <div className={`w-2 h-2 rounded-full ${socketAuthenticated ? 'bg-green-500' : socketConnected ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                                    <span className="text-xs text-gray-500 hidden sm:inline">
+                                        {socketAuthenticated ? 'Authenticated' : socketConnected ? 'Connected' : 'Disconnected'}
+                                    </span>
+                                </div>
+
                                 {/* Notifications */}
                                 <NotificationsDropdown />
 
@@ -222,13 +271,20 @@ const DriverLayout = ({ children }) => {
                                         onClick={() => setUserMenuOpen(!userMenuOpen)}
                                         className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                                     >
-                                        <Avatar user={user} size="sm" />
+                                        <Avatar
+                                            user={{
+                                                name: profile?.fullName || profile?.name || user?.name || 'Driver',
+                                                profileImage: profile?.profileImage || profile?.profilePicture || user?.profileImage,
+                                                email: user?.email
+                                            }}
+                                            size="sm"
+                                        />
                                         <div className="hidden sm:block text-left">
                                             <div className="text-sm font-medium text-gray-900">
-                                                {user?.name || profile?.personalDetails?.fullName || 'Driver'}
+                                                {profile?.fullName || profile?.name || user?.name || 'Driver'}
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                {user?.email || 'driver@example.com'}
+                                                {user?.email || 'aguntawisdom@gmail.com'}
                                             </div>
                                         </div>
                                         <ChevronDownIcon className="h-4 w-4 text-gray-400" />
@@ -237,14 +293,16 @@ const DriverLayout = ({ children }) => {
                                     {/* User dropdown */}
                                     {userMenuOpen && (
                                         <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                                            <Link
-                                                to="/driver/profile"
-                                                onClick={() => setUserMenuOpen(false)}
-                                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                                            <button
+                                                onClick={() => {
+                                                    navigate('/driver/profile');
+                                                    setUserMenuOpen(false);
+                                                }}
+                                                className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                                             >
                                                 <UserCircleIcon className="mr-3 h-4 w-4" />
-                                                Profile
-                                            </Link>
+                                                Profile Settings
+                                            </button>
                                             <hr className="my-1" />
                                             <button
                                                 onClick={handleLogout}

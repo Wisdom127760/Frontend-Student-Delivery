@@ -1,11 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     BellIcon,
     CheckIcon,
     XMarkIcon,
-    ExclamationTriangleIcon,
     InformationCircleIcon,
-    CheckCircleIcon,
     ClockIcon,
     UserGroupIcon,
     TruckIcon,
@@ -144,7 +142,7 @@ const NotificationsPage = () => {
         return () => clearInterval(refreshInterval);
     }, [currentPage, filter]);
 
-    const fetchNotifications = async (silent = false) => {
+    const fetchNotifications = useCallback(async (silent = false) => {
         try {
             if (!silent) setLoading(true);
             console.log('🔔 DriverNotificationsPage: Fetching notifications with params:', {
@@ -188,11 +186,11 @@ const NotificationsPage = () => {
         } finally {
             if (!silent) setLoading(false);
         }
-    };
+    }, [currentPage, filter, itemsPerPage]);
 
     // Mock data function removed - using real API data now
 
-    const fetchUnreadCount = async (silent = false) => {
+    const fetchUnreadCount = useCallback(async (silent = false) => {
         try {
             const response = await apiService.getDriverUnreadNotificationsCount();
 
@@ -206,7 +204,7 @@ const NotificationsPage = () => {
             console.error('Error fetching unread count:', error);
             setUnreadCount(notifications.filter(n => !n.isRead).length);
         }
-    };
+    }, [notifications]);
 
     const markAsRead = async (notificationId) => {
         try {
@@ -346,7 +344,42 @@ const NotificationsPage = () => {
     };
 
     const getNotificationIcon = (type) => {
-        switch (type) {
+        // Map backend notification types to icon categories
+        const iconMapping = {
+            // Delivery-related types
+            'delivery_assigned': 'delivery',
+            'delivery_status_changed': 'delivery',
+            'delivery_completed': 'delivery',
+            'delivery_cancelled': 'delivery',
+            'delivery_created': 'delivery',
+            'delivery_broadcast': 'delivery',
+
+            // Payment-related types
+            'payment_received': 'payment',
+            'payment_failed': 'payment',
+            'payment_processed': 'payment',
+            'payment_refunded': 'payment',
+
+            // Earnings-related types
+            'earnings_updated': 'earnings',
+            'earnings_paid': 'earnings',
+            'earnings_calculated': 'earnings',
+
+            // Account-related types
+            'account_updated': 'account',
+            'profile_updated': 'account',
+            'status_changed': 'account',
+
+            // Document-related types
+            'document_uploaded': 'document',
+            'document_approved': 'document',
+            'document_rejected': 'document',
+            'document_expired': 'document'
+        };
+
+        const iconType = iconMapping[type] || type;
+
+        switch (iconType) {
             case 'delivery':
                 return <TruckIcon className="h-6 w-6" />;
             case 'payment':
@@ -378,7 +411,42 @@ const NotificationsPage = () => {
     };
 
     const getTypeColor = (type) => {
-        switch (type) {
+        // Map backend notification types to color categories
+        const colorMapping = {
+            // Delivery-related types
+            'delivery_assigned': 'delivery',
+            'delivery_status_changed': 'delivery',
+            'delivery_completed': 'delivery',
+            'delivery_cancelled': 'delivery',
+            'delivery_created': 'delivery',
+            'delivery_broadcast': 'delivery',
+
+            // Payment-related types
+            'payment_received': 'payment',
+            'payment_failed': 'payment',
+            'payment_processed': 'payment',
+            'payment_refunded': 'payment',
+
+            // Earnings-related types
+            'earnings_updated': 'earnings',
+            'earnings_paid': 'earnings',
+            'earnings_calculated': 'earnings',
+
+            // Account-related types
+            'account_updated': 'account',
+            'profile_updated': 'account',
+            'status_changed': 'account',
+
+            // Document-related types
+            'document_uploaded': 'document',
+            'document_approved': 'document',
+            'document_rejected': 'document',
+            'document_expired': 'document'
+        };
+
+        const colorType = colorMapping[type] || type;
+
+        switch (colorType) {
             case 'delivery':
                 return 'border-l-green-500';
             case 'payment':
@@ -409,13 +477,109 @@ const NotificationsPage = () => {
         }
     };
 
+    const formatNotificationMessage = (message, notification) => {
+        if (!message) return '';
+
+        // Fix malformed Google Maps URLs in the message
+        let formattedMessage = message;
+
+        // Replace malformed URLs with proper Google Maps routing URLs
+        formattedMessage = formattedMessage.replace(
+            /https:\/\/maps\.google\.com\/\?q=([^,\s]+),([^,\s]+)/g,
+            (match, lat, lng) => {
+                return `https://www.google.com/maps/dir/My+Location/${lat},${lng}`;
+            }
+        );
+
+        // Also replace static coordinate URLs with routing URLs
+        formattedMessage = formattedMessage.replace(
+            /https:\/\/www\.google\.com\/maps\/@([^,\s]+),([^,\s]+),(\d+)z/g,
+            (match, lat, lng, zoom) => {
+                return `https://www.google.com/maps/dir/My+Location/${lat},${lng}`;
+            }
+        );
+
+        // If this is a delivery notification with data, enhance the message
+        if (notification.data && notification.type === 'delivery_assigned') {
+            const data = notification.data;
+            if (data.pickupLocationDescription && data.deliveryLocationDescription) {
+                return `New delivery from ${data.pickupLocationDescription} to ${data.deliveryLocationDescription}`;
+            }
+        }
+
+        return formattedMessage;
+    };
+
+    const renderNotificationMessage = (message, notification) => {
+        if (!message) return '';
+
+        const formattedMessage = formatNotificationMessage(message, notification);
+
+        // Make URLs clickable
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const parts = formattedMessage.split(urlRegex);
+
+        return parts.map((part, index) => {
+            if (part.match(urlRegex)) {
+                return (
+                    <a
+                        key={index}
+                        href={part}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline break-all"
+                    >
+                        {part}
+                    </a>
+                );
+            }
+            return part;
+        });
+    };
+
     const handlePageChange = (page) => {
         setCurrentPage(page);
     };
 
     const filteredNotifications = notifications.filter(notification => {
         if (filter === 'all') return true;
-        return notification.type === filter;
+
+        // Map backend notification types to frontend filter categories
+        const typeMapping = {
+            // Delivery-related types
+            'delivery_assigned': 'delivery',
+            'delivery_status_changed': 'delivery',
+            'delivery_completed': 'delivery',
+            'delivery_cancelled': 'delivery',
+            'delivery_created': 'delivery',
+            'delivery_broadcast': 'delivery',
+
+            // Payment-related types
+            'payment_received': 'payment',
+            'payment_failed': 'payment',
+            'payment_processed': 'payment',
+            'payment_refunded': 'payment',
+
+            // Earnings-related types
+            'earnings_updated': 'earnings',
+            'earnings_paid': 'earnings',
+            'earnings_calculated': 'earnings',
+
+            // Account-related types
+            'account_updated': 'account',
+            'profile_updated': 'account',
+            'status_changed': 'account',
+
+            // Document-related types
+            'document_uploaded': 'document',
+            'document_approved': 'document',
+            'document_rejected': 'document',
+            'document_expired': 'document'
+        };
+
+        // Check if the notification type maps to the current filter
+        const mappedType = typeMapping[notification.type] || notification.type;
+        return mappedType === filter;
     });
 
     const paginatedNotifications = filteredNotifications.slice(
@@ -534,7 +698,7 @@ const NotificationsPage = () => {
                                             </div>
                                             <p className={`text-sm mb-3 ${notification.isRead ? 'text-gray-600' : 'text-gray-800'
                                                 }`}>
-                                                {notification.message}
+                                                {renderNotificationMessage(notification.message, notification)}
                                             </p>
                                             <div className="flex items-center justify-between w-full">
                                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
@@ -621,7 +785,7 @@ const NotificationsPage = () => {
                             <div className="space-y-4">
                                 <div>
                                     <h3 className="text-sm font-medium text-gray-500 mb-1">Message</h3>
-                                    <p className="text-gray-900">{selectedNotification.message}</p>
+                                    <p className="text-gray-900">{renderNotificationMessage(selectedNotification.message, selectedNotification)}</p>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">

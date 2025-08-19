@@ -23,7 +23,7 @@ import {
 import { useToast } from '../../components/common/ToastProvider';
 import apiService from '../../services/api';
 import socketService from '../../services/socketService';
-import LocationInput from '../../components/common/LocationInput';
+import GoogleMapsLocationInput from '../../components/common/GoogleMapsLocationInput';
 
 const DeliveriesPage = () => {
     const location = useLocation();
@@ -34,8 +34,6 @@ const DeliveriesPage = () => {
 
     const [statusFilter, setStatusFilter] = useState('all');
     const [paymentFilter, setPaymentFilter] = useState('all');
-    // const [priorityFilter, setPriorityFilter] = useState('all'); // Unused state
-    // const [driverFilter, setDriverFilter] = useState('all'); // Unused state
     const [broadcastFilter, setBroadcastFilter] = useState('all');
     const [lastRefresh, setLastRefresh] = useState(null);
 
@@ -63,8 +61,10 @@ const DeliveriesPage = () => {
     const [formData, setFormData] = useState({
         pickupLocation: '',
         pickupLocationLink: '',
+        pickupLocationDescription: '',
         deliveryLocation: '',
         deliveryLocationLink: '',
+        deliveryLocationDescription: '',
         customerName: '',
         customerPhone: '',
         fee: 150,
@@ -180,7 +180,9 @@ const DeliveriesPage = () => {
         // Listen for new delivery broadcasts
         const handleNewBroadcast = (data) => {
             console.log('📡 DeliveriesPage: New broadcast received:', data);
-            showSuccess(`New delivery broadcast: ${data.pickupLocation} → ${data.deliveryLocation}`);
+            const pickupDesc = data.pickupLocationDescription ? ` (${data.pickupLocationDescription})` : '';
+            const deliveryDesc = data.deliveryLocationDescription ? ` (${data.deliveryLocationDescription})` : '';
+            showSuccess(`New delivery broadcast: ${data.pickupLocation}${pickupDesc} → ${data.deliveryLocation}${deliveryDesc}`);
             fetchDeliveries(); // Refresh the list
         };
 
@@ -241,18 +243,8 @@ const DeliveriesPage = () => {
         e.preventDefault();
 
         // Validate required fields
-        if (!formData.pickupLocation || !formData.deliveryLocation) {
-            showError('Please fill in pickup and delivery locations');
-            return;
-        }
-
-        if (formData.pickupLocation.length < 5) {
-            showError('Pickup location must be at least 5 characters long');
-            return;
-        }
-
-        if (formData.deliveryLocation.length < 5) {
-            showError('Delivery location must be at least 5 characters long');
+        if (!formData.pickupLocationLink || !formData.deliveryLocationLink) {
+            showError('Please enter Google Maps links for pickup and delivery locations');
             return;
         }
 
@@ -295,6 +287,10 @@ const DeliveriesPage = () => {
             const payload = {
                 pickupLocation: formData.pickupLocation,
                 deliveryLocation: formData.deliveryLocation,
+                pickupLocationLink: formData.pickupLocationLink,
+                deliveryLocationLink: formData.deliveryLocationLink,
+                pickupLocationDescription: formData.pickupLocationDescription || '',
+                deliveryLocationDescription: formData.deliveryLocationDescription || '',
                 customerName: formData.customerName.trim(),
                 customerPhone: formData.customerPhone.trim(),
                 fee: Number(formData.fee),
@@ -341,9 +337,7 @@ const DeliveriesPage = () => {
                 return;
             }
 
-            console.log('🚚 DeliveriesPage: Creating delivery with payload:', payload);
             const result = await apiService.createDeliveryWithBroadcast(payload);
-            console.log('🚚 DeliveriesPage: Delivery creation result:', result);
 
             if (result.success) {
                 const successMessage = formData.useAutoBroadcast
@@ -357,17 +351,8 @@ const DeliveriesPage = () => {
                 fetchDeliveries();
 
                 // Show customer message modal
-                console.log('🚚 DeliveriesPage: Checking if should show customer message modal:', result.data);
                 if (result.data && result.data.deliveryCode) {
-                    console.log('🚚 DeliveriesPage: Showing customer message modal for delivery:', result.data.deliveryCode);
                     showCustomerMessage(result.data);
-
-                    // Show a delightful success notification
-                    setTimeout(() => {
-                        showSuccess('🎉 Customer notification ready! Use the modal to send messages.');
-                    }, 500);
-                } else {
-                    console.log('🚚 DeliveriesPage: No delivery code found, not showing modal');
                 }
 
                 // Show additional info for auto-broadcast
@@ -427,8 +412,8 @@ const DeliveriesPage = () => {
             return;
         }
 
-        if (!formData.pickupLocation || !formData.deliveryLocation) {
-            showError('Please fill in pickup and delivery locations');
+        if (!formData.pickupLocationLink || !formData.deliveryLocationLink) {
+            showError('Please enter Google Maps links for pickup and delivery locations');
             return;
         }
 
@@ -438,8 +423,10 @@ const DeliveriesPage = () => {
             const payload = {
                 pickupLocation: formData.pickupLocation,
                 pickupLocationLink: formData.pickupLocationLink,
+                pickupLocationDescription: formData.pickupLocationDescription || '',
                 deliveryLocation: formData.deliveryLocation,
                 deliveryLocationLink: formData.deliveryLocationLink,
+                deliveryLocationDescription: formData.deliveryLocationDescription || '',
                 customerName: formData.customerName,
                 customerPhone: formData.customerPhone,
                 fee: Number(formData.fee),
@@ -462,17 +449,10 @@ const DeliveriesPage = () => {
             const result = await response.json();
 
             if (response.ok) {
-                const result = await response.json();
                 showSuccess('Delivery updated successfully!');
                 setShowEditPanel(false);
                 resetForm();
                 fetchDeliveries();
-
-                // Show customer message modal for manual assignments
-                if (result && result.deliveryCode) {
-                    console.log('🚚 DeliveriesPage: Showing customer message modal for updated delivery:', result.deliveryCode);
-                    showCustomerMessage(result);
-                }
             } else {
                 console.error('Failed to update delivery:', result);
                 if (result.details) {
@@ -531,7 +511,11 @@ const DeliveriesPage = () => {
     const resetForm = () => {
         setFormData({
             pickupLocation: '',
+            pickupLocationLink: '',
+            pickupLocationDescription: '',
             deliveryLocation: '',
+            deliveryLocationLink: '',
+            deliveryLocationDescription: '',
             customerName: '',
             customerPhone: '',
             fee: 150,
@@ -684,8 +668,10 @@ Student Delivery Team`;
         setFormData({
             pickupLocation: delivery.pickupLocation || '',
             pickupLocationLink: delivery.pickupLocationLink || '',
+            pickupLocationDescription: delivery.pickupLocationDescription || '',
             deliveryLocation: delivery.deliveryLocation || '',
             deliveryLocationLink: delivery.deliveryLocationLink || '',
+            deliveryLocationDescription: delivery.deliveryLocationDescription || '',
             customerName: delivery.customerName || '',
             customerPhone: delivery.customerPhone || '',
             fee: delivery.fee || 150,
@@ -704,11 +690,9 @@ Student Delivery Team`;
 
         const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
         const matchesPayment = paymentFilter === 'all' || delivery.paymentMethod === paymentFilter;
-        const matchesPriority = 'all' === 'all' || delivery.priority === 'all'; // priorityFilter commented out
-        const matchesDriver = 'all' === 'all' || delivery.assignedTo === 'all'; // driverFilter commented out
         const matchesBroadcast = broadcastFilter === 'all' || delivery.broadcastStatus === broadcastFilter;
 
-        return matchesSearch && matchesStatus && matchesPayment && matchesPriority && matchesDriver && matchesBroadcast;
+        return matchesSearch && matchesStatus && matchesPayment && matchesBroadcast;
     }) : [];
 
     // Calculate totals for accounting
@@ -1204,33 +1188,72 @@ Student Delivery Team`;
                                     <div>
                                         <h4 className="text-lg font-medium text-gray-900 mb-4">Route Information</h4>
                                         <div className="space-y-4">
-                                            <LocationInput
-                                                value={formData.pickupLocation}
-                                                onChange={(value) => setFormData({ ...formData, pickupLocation: value })}
-                                                placeholder="Enter pickup address"
+                                            <GoogleMapsLocationInput
+                                                value={formData.pickupLocationLink}
+                                                onChange={(value) => setFormData({ ...formData, pickupLocationLink: value })}
+                                                placeholder="Paste Google Maps link for pickup location"
                                                 label="Pickup Location"
+                                                required={true}
                                                 onLocationSelect={(location) => {
                                                     setFormData({
                                                         ...formData,
                                                         pickupLocation: location.address,
+                                                        pickupLocationLink: formData.pickupLocationLink,
                                                         pickupCoordinates: { lat: location.lat, lng: location.lng }
                                                     });
                                                 }}
                                             />
 
-                                            <LocationInput
-                                                value={formData.deliveryLocation}
-                                                onChange={(value) => setFormData({ ...formData, deliveryLocation: value })}
-                                                placeholder="Enter delivery address"
+                                            <GoogleMapsLocationInput
+                                                value={formData.deliveryLocationLink}
+                                                onChange={(value) => setFormData({ ...formData, deliveryLocationLink: value })}
+                                                placeholder="Paste Google Maps link for delivery location"
                                                 label="Delivery Location"
+                                                required={true}
                                                 onLocationSelect={(location) => {
                                                     setFormData({
                                                         ...formData,
                                                         deliveryLocation: location.address,
+                                                        deliveryLocationLink: formData.deliveryLocationLink,
                                                         deliveryCoordinates: { lat: location.lat, lng: location.lng }
                                                     });
                                                 }}
                                             />
+                                        </div>
+
+                                        {/* Location Descriptions */}
+                                        <div className="space-y-4 mt-4">
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Pickup Location Description
+                                                </label>
+                                                <textarea
+                                                    placeholder="Describe the pickup location (e.g., 'EMU Main Campus, near the library entrance', 'Apartment building with red door', 'Meet at the security gate')"
+                                                    value={formData.pickupLocationDescription || ''}
+                                                    onChange={(e) => setFormData({ ...formData, pickupLocationDescription: e.target.value })}
+                                                    rows="2"
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    💡 Add specific details to help drivers find the exact pickup point
+                                                </p>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Delivery Location Description
+                                                </label>
+                                                <textarea
+                                                    placeholder="Describe the delivery location (e.g., 'Kucuk Center, 3rd floor office', 'House with blue gate', 'Leave with receptionist')"
+                                                    value={formData.deliveryLocationDescription || ''}
+                                                    onChange={(e) => setFormData({ ...formData, deliveryLocationDescription: e.target.value })}
+                                                    rows="2"
+                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
+                                                />
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    💡 Add specific details to help drivers complete the delivery
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -1445,7 +1468,7 @@ Student Delivery Team`;
                     />
 
                     {/* Panel */}
-                    <div className={`absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                    <div className={`absolute inset-0 h-full w-full bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
                         {/* Header */}
                         <div className="flex items-center justify-between p-6 border-b border-gray-200">
                             <div className="flex items-center space-x-3">
@@ -1620,157 +1643,6 @@ Student Delivery Team`;
                                     className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
                                 >
                                     Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Customer Message Modal */}
-            {showCustomerMessageModal && customerMessageData && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
-                        {/* Header */}
-                        <div className="bg-gradient-to-r from-green-500 to-green-600 px-8 py-6 rounded-t-2xl">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-3">
-                                    <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                                        <TruckIcon className="w-6 h-6 text-white" />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-xl font-bold text-white">Delivery Created Successfully!</h3>
-                                        <p className="text-green-100 text-sm">Ready to notify your customer</p>
-                                    </div>
-                                </div>
-                                <button
-                                    onClick={() => setShowCustomerMessageModal(false)}
-                                    className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
-                                >
-                                    <XMarkIcon className="w-6 h-6" />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-8 space-y-6">
-                            {/* Delivery Summary Card */}
-                            <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl p-6">
-                                <div className="flex items-center mb-4">
-                                    <div className="p-2 bg-green-100 rounded-lg">
-                                        <TruckIcon className="w-5 h-5 text-green-600" />
-                                    </div>
-                                    <h4 className="text-lg font-semibold text-gray-900 ml-3">Delivery Summary</h4>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                        <span className="text-gray-600 font-medium">Delivery Code</span>
-                                        <span className="font-bold text-gray-900 text-lg">{customerMessageData.deliveryCode}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                        <span className="text-gray-600 font-medium">Fee</span>
-                                        <span className="font-bold text-green-600 text-lg">₺{customerMessageData.fee}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                        <span className="text-gray-600 font-medium">Customer</span>
-                                        <span className="font-semibold text-gray-900">{customerMessageData.customerName}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
-                                        <span className="text-gray-600 font-medium">Payment</span>
-                                        <span className="font-semibold text-gray-900">{customerMessageData.paymentMethod}</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Message Templates */}
-                            <div className="space-y-4">
-                                <div className="flex items-center space-x-2">
-                                    <div className="p-2 bg-blue-100 rounded-lg">
-                                        <PhoneIcon className="w-5 h-5 text-blue-600" />
-                                    </div>
-                                    <h4 className="text-lg font-semibold text-gray-900">Send Message to Customer</h4>
-                                </div>
-
-                                {/* WhatsApp Message */}
-                                <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-5">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center space-x-2">
-                                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                            <h5 className="text-sm font-semibold text-green-900">WhatsApp Message</h5>
-                                        </div>
-                                        <button
-                                            onClick={() => copyToClipboard(generateWhatsAppMessage(customerMessageData))}
-                                            className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-all duration-200"
-                                        >
-                                            <ClipboardDocumentIcon className="w-3 h-3" />
-                                            <span>Copy</span>
-                                        </button>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-green-200">
-                                        {generateWhatsAppMessage(customerMessageData)}
-                                    </div>
-                                </div>
-
-                                {/* SMS Message */}
-                                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-5">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center space-x-2">
-                                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                            <h5 className="text-sm font-semibold text-blue-900">SMS Message</h5>
-                                        </div>
-                                        <button
-                                            onClick={() => copyToClipboard(generateSMSMessage(customerMessageData))}
-                                            className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-all duration-200"
-                                        >
-                                            <ClipboardDocumentIcon className="w-3 h-3" />
-                                            <span>Copy</span>
-                                        </button>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-blue-200">
-                                        {generateSMSMessage(customerMessageData)}
-                                    </div>
-                                </div>
-
-                                {/* Email Message */}
-                                <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-5">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <div className="flex items-center space-x-2">
-                                            <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                                            <h5 className="text-sm font-semibold text-purple-900">Email Message</h5>
-                                        </div>
-                                        <button
-                                            onClick={() => copyToClipboard(generateEmailMessage(customerMessageData))}
-                                            className="flex items-center space-x-2 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 transition-all duration-200"
-                                        >
-                                            <ClipboardDocumentIcon className="w-3 h-3" />
-                                            <span>Copy</span>
-                                        </button>
-                                    </div>
-                                    <div className="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-purple-200">
-                                        {generateEmailMessage(customerMessageData)}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="bg-gray-50 px-8 py-6 rounded-b-2xl border-t border-gray-200">
-                            <div className="flex space-x-4">
-                                <button
-                                    onClick={() => {
-                                        const whatsappUrl = `https://wa.me/${customerMessageData.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(generateWhatsAppMessage(customerMessageData))}`;
-                                        window.open(whatsappUrl, '_blank');
-                                    }}
-                                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-xl text-sm font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                                >
-                                    <PhoneIcon className="w-4 h-4" />
-                                    <span>Send WhatsApp</span>
-                                </button>
-                                <button
-                                    onClick={() => setShowCustomerMessageModal(false)}
-                                    className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 px-6 rounded-xl text-sm font-semibold hover:from-gray-600 hover:to-gray-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
-                                >
-                                    Close
                                 </button>
                             </div>
                         </div>

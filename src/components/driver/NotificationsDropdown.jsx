@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { BellIcon, CheckIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect, useRef } from 'react';
+import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '../../context/AuthContext';
+import socketService from '../../services/socketService';
 import apiService from '../../services/api';
-import toast from 'react-hot-toast';
 import NotificationsDropdownSkeleton from '../common/NotificationsDropdownSkeleton';
 
 const NotificationsDropdown = () => {
@@ -214,7 +215,7 @@ const NotificationsDropdown = () => {
                                                     {markingAsRead.has(notification._id) ? (
                                                         <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
                                                     ) : (
-                                                        <CheckIcon className="w-4 h-4" />
+                                                        <XMarkIcon className="w-4 h-4" />
                                                     )}
                                                 </button>
                                             )}

@@ -115,6 +115,12 @@ export const DeliveryBroadcastProvider = ({ children }) => {
         addBroadcastToState(testDelivery);
     }, [addBroadcastToState]);
 
+    // Debug function to manually trigger modal with custom data
+    const triggerModal = useCallback((deliveryData) => {
+        console.log('🧪 Manually triggering modal with data:', deliveryData);
+        addBroadcastToState(deliveryData);
+    }, [addBroadcastToState]);
+
     // Handle new delivery broadcast
     const handleNewBroadcast = useCallback((deliveryData) => {
         console.log('🚚 New delivery broadcast received:', deliveryData);
@@ -132,48 +138,57 @@ export const DeliveryBroadcastProvider = ({ children }) => {
             return;
         }
 
-        // Check if driver is online/active before showing broadcast
-        const checkDriverStatus = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/driver/profile`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+        // Simplified driver status check - show broadcast regardless of API status
+        console.log('✅ Showing broadcast regardless of driver status (for testing)');
 
-                if (response.ok) {
-                    const data = await response.json();
-                    const isActive = data.data?.isActive || false;
+        // Play delivery sound IMMEDIATELY
+        soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
 
-                    console.log('🔍 Driver status check:', { isActive });
+        addBroadcastToState(deliveryData);
+    }, [addBroadcastToState]);
 
-                    // Only show broadcast if driver is active
-                    if (isActive) {
-                        console.log('✅ Driver is online and active, showing broadcast');
+    // Handle notification-based delivery events
+    const handleNotificationDelivery = useCallback((notificationData) => {
+        console.log('📱 Notification delivery received:', notificationData);
 
-                        // Play delivery sound IMMEDIATELY
-                        soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
+        // Extract delivery data from notification format
+        let deliveryData = notificationData;
 
-                        addBroadcastToState(deliveryData);
-                    } else {
-                        console.log('❌ Driver is not active, ignoring broadcast');
-                    }
-                } else {
-                    console.log('⚠️ Could not check driver status, showing broadcast anyway');
-                    // Fallback: show broadcast if we can't check status
-                    soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
-                    addBroadcastToState(deliveryData);
-                }
-            } catch (error) {
-                console.error('❌ Error checking driver status:', error);
-                // Fallback: show broadcast if status check fails
-                soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
-                addBroadcastToState(deliveryData);
-            }
-        };
+        // If it's a notification object, extract the delivery data
+        if (notificationData.notification) {
+            deliveryData = notificationData.notification;
+        }
 
-        checkDriverStatus();
+        // If it's a message string, try to parse it
+        if (typeof notificationData === 'string') {
+            console.log('📱 Parsing notification message:', notificationData);
+            // Try to extract delivery info from the message
+            // This is a fallback for text-based notifications
+            const testDelivery = {
+                deliveryId: 'notification-' + Date.now(),
+                deliveryCode: 'NOTIF-' + Math.random().toString(36).substr(2, 6).toUpperCase(),
+                pickupLocation: 'Location from notification',
+                deliveryLocation: 'Location from notification',
+                customerName: 'Customer from notification',
+                customerPhone: 'N/A',
+                fee: 0,
+                driverEarning: 0,
+                companyEarning: 0,
+                paymentMethod: 'cash',
+                priority: 'normal',
+                notes: notificationData,
+                estimatedTime: new Date(Date.now() + 3600000).toISOString(),
+                broadcastDuration: 60,
+                createdAt: new Date().toISOString()
+            };
+            deliveryData = testDelivery;
+        }
+
+        // Play delivery sound
+        soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
+
+        // Add to broadcast state
+        addBroadcastToState(deliveryData);
     }, [addBroadcastToState]);
 
     // Set up socket listeners
@@ -196,6 +211,16 @@ export const DeliveryBroadcastProvider = ({ children }) => {
         // Listen for new delivery broadcasts
         socketService.on('delivery-broadcast', handleNewBroadcast);
 
+        // Listen for test broadcast events
+        socketService.on('test-delivery-broadcast', handleNewBroadcast);
+
+        // Listen for notification-based delivery events
+        socketService.on('new-delivery', handleNewBroadcast);
+        socketService.on('delivery-notification', handleNewBroadcast);
+        socketService.on('delivery-created', handleNewBroadcast);
+        socketService.on('broadcast-delivery', handleNewBroadcast);
+        socketService.on('notification-delivery', handleNotificationDelivery); // New listener for notification-based delivery
+
         // Listen for delivery status changes
         const handleDeliveryStatusChange = (data) => {
             console.log('📡 Delivery status changed:', data);
@@ -210,9 +235,15 @@ export const DeliveryBroadcastProvider = ({ children }) => {
         return () => {
             console.log('🧹 DeliveryBroadcastProvider: Cleaning up socket listeners');
             socketService.off('delivery-broadcast', handleNewBroadcast);
+            socketService.off('test-delivery-broadcast', handleNewBroadcast);
+            socketService.off('new-delivery', handleNewBroadcast);
+            socketService.off('delivery-notification', handleNewBroadcast);
+            socketService.off('delivery-created', handleNewBroadcast);
+            socketService.off('broadcast-delivery', handleNewBroadcast);
+            socketService.off('notification-delivery', handleNotificationDelivery); // Clean up new listener
             socketService.off('delivery-status-changed', handleDeliveryStatusChange);
         };
-    }, [user, handleNewBroadcast]);
+    }, [user, handleNewBroadcast, handleNotificationDelivery]);
 
     // Clean up expired broadcasts periodically
     useEffect(() => {
@@ -237,7 +268,8 @@ export const DeliveryBroadcastProvider = ({ children }) => {
             handleBroadcastAccepted,
             handleBroadcastClosed,
             handleBroadcastExpired,
-            testModal
+            testModal,
+            triggerModal
         }}>
             {children}
 

@@ -2,7 +2,7 @@
 class RateLimiter {
     constructor() {
         this.requestTimestamps = new Map();
-        this.minInterval = 5000; // Minimum 5 seconds between requests for the same endpoint (reduced for testing)
+        this.minInterval = 1000; // Minimum 1 second between requests for the same endpoint (reduced for testing)
     }
 
     // Check if we can make a request to a specific endpoint

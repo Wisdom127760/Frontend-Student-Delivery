@@ -25,13 +25,47 @@ const BroadcastPage = () => {
     const { formatCurrency } = useSystemSettings();
     const { user } = useAuth();
     const { showSuccess, showError } = useToast();
-    const { testModal } = useDeliveryBroadcast();
-    const { broadcasts, loading, userLocation, updateLocation, refreshBroadcasts, fetchBroadcasts } = useBroadcasts();
-    const [accepting, setAccepting] = useState(null);
-    const [isOnline, setIsOnline] = useState(true);
-    const [locationError, setLocationError] = useState(null);
+    const { broadcasts, loading, fetchBroadcasts, addNewBroadcast } = useBroadcasts();
+    const [userLocation, setUserLocation] = useState(null);
     const [locationPermission, setLocationPermission] = useState('prompt');
+    const [locationError, setLocationError] = useState(null);
     const [locationResolved, setLocationResolved] = useState(false);
+    const [isOnline, setIsOnline] = useState(false);
+    const [showManualLocation, setShowManualLocation] = useState(false);
+    const [manualLocation, setManualLocation] = useState({ lat: 35.1255, lng: 33.3095 });
+
+    // Test modal function
+    const testModal = () => {
+        console.log('🧪 Testing notification-based delivery modal');
+        // Test with the notification format you're receiving
+        const notificationMessage = "New delivery from https://www.google.com/maps/dir/My+Location/35.196171,33.370403 to https://www.google.com/maps/dir/My+Location/35.212753,33.306545";
+
+        const socket = socketService.getSocket();
+        if (socket) {
+            socket.emit('test-delivery-broadcast', {
+                deliveryId: 'test-delivery-' + Date.now(),
+                deliveryCode: 'TEST-' + Math.random().toString(36).substr(2, 9),
+                pickupLocation: 'Test Pickup Location',
+                deliveryLocation: 'Test Delivery Location',
+                customerName: 'Test Customer',
+                customerPhone: '+905551234567',
+                fee: 150,
+                paymentMethod: 'cash',
+                priority: 'normal',
+                notes: 'Test delivery for modal testing',
+                estimatedTime: new Date(Date.now() + 3600000).toISOString(),
+                pickupCoordinates: { lat: 35.196171, lng: 33.370403 },
+                deliveryCoordinates: { lat: 35.212753, lng: 33.306545 },
+                broadcastRadius: 10,
+                broadcastDuration: 60,
+                createdAt: new Date().toISOString(),
+                broadcastEndTime: new Date(Date.now() + 60000).toISOString()
+            });
+            showSuccess('Test delivery broadcast sent!');
+        } else {
+            showError('Socket not connected');
+        }
+    };
 
     // Location handling with retry limits - COMPLETELY REWRITTEN
     const getLocation = useCallback(() => {
@@ -59,6 +93,14 @@ const BroadcastPage = () => {
                 return;
             }
 
+            // Check for macOS/iOS specific issues
+            const isMacOS = navigator.platform.indexOf('Mac') !== -1;
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+
+            if (isMacOS || isIOS) {
+                console.log('📍 Detected macOS/iOS platform - using optimized location settings');
+            }
+
             // Single location attempt with immediate fallback
             navigator.geolocation.getCurrentPosition(
                 (position) => {
@@ -81,12 +123,12 @@ const BroadcastPage = () => {
                     let errorMessage = 'Using default location. Enable location services for better results.';
 
                     if (error.message.includes('CoreLocationProvider') || error.message.includes('kCLErrorLocationUnknown')) {
-                        errorMessage = 'Location services unavailable. Using default coordinates.';
-                        console.log('📍 CoreLocationProvider error detected - using default coordinates');
+                        errorMessage = 'macOS/iOS Location Issue: Please enable Location Services in System Preferences > Security & Privacy > Privacy > Location Services and grant permission to your browser.';
+                        console.log('📍 CoreLocationProvider error detected - providing macOS/iOS specific guidance');
                     } else {
                         switch (error.code) {
                             case error.PERMISSION_DENIED:
-                                errorMessage = 'Location permission denied. Please enable location services.';
+                                errorMessage = 'Location permission denied. Please enable location services in your browser settings.';
                                 break;
                             case error.POSITION_UNAVAILABLE:
                                 errorMessage = 'Location unavailable. Using default coordinates.';
@@ -103,8 +145,8 @@ const BroadcastPage = () => {
                     resolve({ lat: 35.1255, lng: 33.3095 }); // Use default immediately
                 },
                 {
-                    enableHighAccuracy: false,
-                    timeout: 3000, // Reduced timeout to 3 seconds
+                    enableHighAccuracy: false, // Set to false for better compatibility
+                    timeout: 5000, // Increased timeout for macOS/iOS
                     maximumAge: 600000 // 10 minutes cache
                 }
             );
@@ -115,17 +157,40 @@ const BroadcastPage = () => {
     const updateLocationInContext = useCallback(async () => {
         try {
             const location = await getLocation();
-            updateLocation(location);
+            setUserLocation(location);
             console.log('📍 Updated location in broadcast context:', location);
         } catch (error) {
             console.error('Error updating location in context:', error);
         }
-    }, [getLocation, updateLocation]);
+    }, [getLocation]);
+
+    // Handle manual location update
+    const handleManualLocationUpdate = useCallback(() => {
+        console.log('📍 Updating manual location:', manualLocation);
+        setUserLocation(manualLocation);
+        setLocationResolved(true);
+        setLocationError(null);
+        setShowManualLocation(false);
+        showSuccess('Location updated manually!');
+    }, [manualLocation, setUserLocation, showSuccess]);
+
+    // Request location permission with better error handling
+    const requestLocationPermission = useCallback(() => {
+        setLocationPermission('requesting');
+        setLocationResolved(false);
+        setLocationError(null);
+
+        getLocation().then(() => {
+            setLocationPermission('granted');
+        }).catch(() => {
+            setLocationPermission('denied');
+        });
+    }, [getLocation]);
 
     // Accept a delivery broadcast
     const acceptBroadcast = async (deliveryId) => {
         try {
-            setAccepting(deliveryId);
+            // setAccepting(deliveryId); // This state variable was removed
 
             const response = await apiService.acceptBroadcastDelivery(deliveryId);
 
@@ -133,7 +198,7 @@ const BroadcastPage = () => {
                 showSuccess('Delivery accepted successfully!');
 
                 // Remove the accepted delivery from the list
-                refreshBroadcasts();
+                fetchBroadcasts();
 
                 // Play success sound
                 soundService.playSound('success');
@@ -149,7 +214,7 @@ const BroadcastPage = () => {
             console.error('Error accepting broadcast:', error);
             showError('Failed to accept delivery');
         } finally {
-            setAccepting(null);
+            // setAccepting(null); // This state variable was removed
         }
     };
 
@@ -190,13 +255,16 @@ const BroadcastPage = () => {
             console.log('📡 BroadcastPage: New broadcast received:', data);
 
             // Refresh broadcasts to get updated list
-            refreshBroadcasts();
+            fetchBroadcasts();
 
             // Play notification sound
             soundService.playSound('notification');
 
-            // Show snackbar notification
-            showSuccess(`New delivery available: ${data.pickupLocation} → ${data.deliveryLocation}`);
+            // Show snackbar notification with better description
+            const pickupDesc = data.pickupLocationDescription ? ` (${data.pickupLocationDescription})` : '';
+            const deliveryDesc = data.deliveryLocationDescription ? ` (${data.deliveryLocationDescription})` : '';
+            const message = `New delivery available: ${data.pickupLocation}${pickupDesc} → ${data.deliveryLocation}${deliveryDesc}`;
+            showSuccess(message);
         };
 
         // Listen for broadcast removal (when accepted by another driver)
@@ -204,7 +272,7 @@ const BroadcastPage = () => {
             console.log('📡 BroadcastPage: Broadcast removed:', data);
 
             // Refresh broadcasts to get updated list
-            refreshBroadcasts();
+            fetchBroadcasts();
 
             // Show snackbar notification
             showSuccess('A delivery was accepted by another driver');
@@ -215,7 +283,7 @@ const BroadcastPage = () => {
             console.log('📡 BroadcastPage: Broadcast expired:', data);
 
             // Refresh broadcasts to get updated list
-            refreshBroadcasts();
+            fetchBroadcasts();
 
             // Show snackbar notification
             showSuccess('A delivery broadcast has expired');
@@ -236,7 +304,7 @@ const BroadcastPage = () => {
                 socket.off('broadcast-expired', handleBroadcastExpired);
             }
         };
-    }, [user, showSuccess]);
+    }, [user, showSuccess, fetchBroadcasts]);
 
     // Load initial data and set up auto-refresh
     useEffect(() => {
@@ -254,24 +322,7 @@ const BroadcastPage = () => {
         };
     }, [updateLocationInContext, loading]);
 
-    // Request location permission
-    const requestLocationPermission = async () => {
-        try {
-            setLocationError(null);
-            setLocationPermission('requesting');
-            setLocationResolved(false); // Reset location resolution
 
-            const location = await getLocation();
-            updateLocation(location);
-            setLocationPermission('granted');
-            setLocationError(null);
-            console.log('📍 Location permission granted:', location);
-        } catch (error) {
-            console.log('📍 Location permission denied:', error.message);
-            setLocationPermission('denied');
-            setLocationError('Location permission denied. Please enable location services.');
-        }
-    };
 
     // Check if driver is online and ensure socket connection
     useEffect(() => {
@@ -283,33 +334,14 @@ const BroadcastPage = () => {
                     socketService.ensureInitialized(user._id || user.id, user.userType || user.role);
                 }
 
-                // Check API status
-                const token = localStorage.getItem('token');
-                const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/driver/status`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
+                // Use socket connection status instead of API polling
+                const socketOnline = socketService.isConnected();
+                setIsOnline(socketOnline);
+
+                console.log('🔍 Online status check (WebSocket-based):', {
+                    socketOnline,
+                    finalStatus: socketOnline
                 });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    const apiOnline = data.data?.isOnline || false;
-                    const socketOnline = socketService.isConnected();
-
-                    // Consider online if either API or socket is working
-                    setIsOnline(apiOnline || socketOnline);
-
-                    console.log('🔍 Online status check:', {
-                        apiOnline,
-                        socketOnline,
-                        finalStatus: apiOnline || socketOnline
-                    });
-                } else {
-                    // If API fails, check socket connection
-                    const socketOnline = socketService.isConnected();
-                    setIsOnline(socketOnline);
-                    console.log('🔍 API failed, using socket status:', socketOnline);
-                }
             } catch (error) {
                 console.error('Error checking online status:', error);
                 // Fallback to socket connection status
@@ -322,8 +354,8 @@ const BroadcastPage = () => {
         // Initial check
         checkOnlineStatus();
 
-        // Check every 30 seconds (reduced from 10)
-        const interval = setInterval(checkOnlineStatus, 30000);
+        // Check every 60 seconds (reduced frequency since WebSocket is real-time)
+        const interval = setInterval(checkOnlineStatus, 60000);
 
         return () => clearInterval(interval);
     }, [user]);
@@ -359,7 +391,7 @@ const BroadcastPage = () => {
                                 </div>
 
                                 <button
-                                    onClick={refreshBroadcasts}
+                                    onClick={fetchBroadcasts}
                                     disabled={loading}
                                     className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                                 >
@@ -367,34 +399,377 @@ const BroadcastPage = () => {
                                     {loading ? 'Refreshing...' : 'Refresh'}
                                 </button>
 
-                                {/* Debug Force Refresh Button */}
-                                <button
-                                    onClick={async () => {
-                                        console.log('🔧 Debug: Force refreshing broadcasts');
-                                        if (userLocation) {
-                                            // Clear rate limiter for this endpoint
-                                            rateLimiter.clearEndpoint('/delivery/broadcast/active');
-                                            // Force refresh
-                                            await fetchBroadcasts(userLocation, true);
-                                        }
-                                    }}
-                                    className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                                >
-                                    🔧 Debug Refresh
-                                </button>
-
                                 {/* Test Modal Button */}
-                                <button
+                                {/* <button
                                     onClick={testModal}
                                     className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-green-300 rounded-md shadow-sm text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                                 >
-                                    🧪 Test Modal
-                                </button>
+                                    Test Modal
+                                </button> */}
                             </div>
                         </div>
                     </div>
                 </div>
 
+                {/* Debug Information */}
+                {/* <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                    <h3 className="text-sm font-medium text-yellow-800 mb-2">🔍 Debug Information</h3>
+                    <div className="text-xs text-yellow-700 space-y-1">
+                        <div>📍 Location: {userLocation ? `${userLocation.lat}, ${userLocation.lng}` : 'None'}</div>
+                        <div>📡 Broadcasts Count: {broadcasts.length}</div>
+                        <div>⏳ Loading: {loading.toString()}</div>
+                        <div>🔌 Socket Connected: {socketService.isConnected().toString()}</div>
+                        <div>🔐 Socket Authenticated: {socketService.isAuthenticated().toString()}</div>
+                        <div>👤 User: {user?.name || user?.email || 'Unknown'}</div>
+                        <div>🆔 User ID: {user?._id || user?.id || 'None'}</div>
+                        <div>🔌 Socket URL: {process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001'}</div>
+                        <div>🔄 Real-time Updates: Enabled (WebSocket)</div>
+                    </div>
+                    <div className="mt-3 space-x-2">
+                        <button
+                            onClick={() => {
+                                console.log('🧪 Manual refresh triggered');
+                                fetchBroadcasts();
+                            }}
+                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                            Manual Refresh
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🧪 Test modal triggered');
+                                testModal();
+                            }}
+                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                            Test Modal
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🧪 Test broadcast triggered');
+                                // Manually trigger a broadcast event
+                                const testBroadcast = {
+                                    deliveryId: 'test-' + Date.now(),
+                                    deliveryCode: 'TEST-123456',
+                                    pickupLocation: 'Test Pickup Location',
+                                    deliveryLocation: 'Test Delivery Location',
+                                    customerName: 'Test Customer',
+                                    customerPhone: '+9056789766',
+                                    fee: 250,
+                                    paymentMethod: 'cash',
+                                    priority: 'urgent',
+                                    notes: 'This is a test broadcast',
+                                    broadcastDuration: 60,
+                                    broadcastEndTime: new Date(Date.now() + 60000).toISOString()
+                                };
+
+                                // Emit the event to test the system
+                                const socket = socketService.getSocket();
+                                if (socket) {
+                                    socket.emit('test-delivery-broadcast', testBroadcast);
+                                }
+
+                                // Also add directly to context
+                                addNewBroadcast(testBroadcast);
+                            }}
+                            className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                        >
+                            Test Broadcast
+                        </button>
+                        <button
+                            onClick={async () => {
+                                console.log('🧪 Manual API fetch triggered');
+                                try {
+                                    // Direct API call to see what's returned
+                                    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/delivery/broadcast/active?lat=${userLocation?.lat}&lng=${userLocation?.lng}`, {
+                                        headers: {
+                                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                            'Content-Type': 'application/json'
+                                        }
+                                    });
+
+                                    const data = await response.json();
+                                    console.log('🧪 Direct API response:', data);
+                                    console.log('🧪 Response status:', response.status);
+                                    console.log('🧪 Response headers:', response.headers);
+
+                                    if (data.success && data.data?.broadcasts) {
+                                        console.log('🧪 Found broadcasts:', data.data.broadcasts);
+                                        // Add them to the context
+                                        data.data.broadcasts.forEach(broadcast => {
+                                            addNewBroadcast(broadcast);
+                                        });
+                                    } else {
+                                        console.log('🧪 No broadcasts found or API error');
+                                    }
+                                } catch (error) {
+                                    console.error('🧪 API fetch error:', error);
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                        >
+                            Fetch API
+                        </button>
+                        <button
+                            onClick={async () => {
+                                console.log('🧪 Creating real delivery broadcast');
+                                try {
+                                    // Create a real delivery that will be broadcast
+                                    const deliveryData = {
+                                        pickupLocation: 'EMU Campus',
+                                        deliveryLocation: 'Kucuk Center',
+                                        pickupLocationDescription: 'Main entrance near the library',
+                                        deliveryLocationDescription: 'Near the mosque, red building',
+                                        customerName: 'Real Customer',
+                                        customerPhone: '+905338481175',
+                                        fee: 300,
+                                        paymentMethod: 'cash',
+                                        priority: 'normal',
+                                        notes: 'This is a real delivery for testing broadcasts',
+                                        estimatedTime: new Date(Date.now() + 3600000).toISOString(),
+                                        useAutoBroadcast: true,
+                                        broadcastRadius: 10,
+                                        broadcastDuration: 120,
+                                        pickupLocationLink: 'https://www.google.com/maps/place/EMU/@35.1255,33.3095,15z/',
+                                        deliveryLocationLink: 'https://www.google.com/maps/place/Kucuk/@35.1833,33.3667,15z/'
+                                    };
+
+                                    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/admin/deliveries`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                            'Content-Type': 'application/json'
+                                        },
+                                        body: JSON.stringify(deliveryData)
+                                    });
+
+                                    const result = await response.json();
+                                    console.log('🧪 Create delivery response:', result);
+
+                                    if (result.success) {
+                                        console.log('🧪 Real delivery created successfully:', result.data);
+                                        // Wait a moment then fetch broadcasts
+                                        setTimeout(() => {
+                                            fetchBroadcasts();
+                                        }, 2000);
+                                    } else {
+                                        console.error('🧪 Failed to create delivery:', result);
+                                    }
+                                } catch (error) {
+                                    console.error('🧪 Create delivery error:', error);
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                        >
+                            Create Real Delivery
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                console.log('🧪 Clear rate limiter');
+                                rateLimiter.clearEndpoint('/delivery/broadcast/active');
+                                fetchBroadcasts();
+                            }}
+                            className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                            Clear Rate Limit
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🧪 Testing delivery broadcast modal');
+                                // Import and use the delivery broadcast context
+                                const { useDeliveryBroadcast } = require('../../components/driver/DeliveryBroadcastProvider');
+                                // This will be handled by the context provider
+                                const socket = socketService.getSocket();
+                                if (socket) {
+                                    const testDelivery = {
+                                        deliveryId: 'test-modal-' + Date.now(),
+                                        deliveryCode: 'TEST-MODAL-123',
+                                        pickupLocation: 'Test Pickup Location',
+                                        deliveryLocation: 'Test Delivery Location',
+                                        customerName: 'Test Customer',
+                                        customerPhone: '+9056789766',
+                                        fee: 250,
+                                        driverEarning: 200,
+                                        companyEarning: 50,
+                                        paymentMethod: 'cash',
+                                        priority: 'urgent',
+                                        notes: 'Testing delivery modal system',
+                                        estimatedTime: new Date(Date.now() + 3600000).toISOString(),
+                                        broadcastDuration: 60,
+                                        pickupLocationDescription: 'Test pickup description',
+                                        deliveryLocationDescription: 'Test delivery description'
+                                    };
+                                    socket.emit('test-delivery-broadcast', testDelivery);
+                                    console.log('🧪 Emitted test delivery broadcast:', testDelivery);
+                                } else {
+                                    console.error('🧪 Socket not connected');
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-pink-600 text-white rounded hover:bg-pink-700"
+                        >
+                            Test Modal
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🧪 Testing notification-based delivery modal');
+                                // Test with the notification format you're receiving
+                                const notificationMessage = "New delivery from https://www.google.com/maps/@35.196171,33.370403,15z to https://www.google.com/maps/@35.212753,33.306545,15z";
+
+                                const socket = socketService.getSocket();
+                                if (socket) {
+                                    // Emit the notification event
+                                    socket.emit('notification-delivery', notificationMessage);
+                                    console.log('🧪 Emitted notification delivery:', notificationMessage);
+                                } else {
+                                    console.error('🧪 Socket not connected');
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                        >
+                            Test Notification
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🔌 Manual socket connection attempt');
+                                if (user) {
+                                    console.log('🔌 Connecting socket for user:', user._id || user.id, 'type:', user.userType || user.role);
+                                    socketService.connect(user._id || user.id, user.userType || user.role);
+
+                                    // Check connection after 2 seconds
+                                    setTimeout(() => {
+                                        const connected = socketService.isConnected();
+                                        console.log('🔌 Socket connection result:', connected);
+                                        if (connected) {
+                                            showSuccess('Socket connected successfully!');
+                                        } else {
+                                            showError('Socket connection failed!');
+                                        }
+                                    }, 2000);
+                                } else {
+                                    console.error('🔌 No user available for socket connection');
+                                    showError('No user available for socket connection');
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                        >
+                            Connect Socket
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🔌 Manual socket authentication attempt');
+                                if (user && socketService.isConnected()) {
+                                    console.log('🔌 Authenticating socket for user:', user._id || user.id, 'type:', user.userType || user.role);
+                                    const success = socketService.authenticate(user._id || user.id, user.userType || user.role);
+
+                                    if (success) {
+                                        showSuccess('Authentication sent! Check backend for connection.');
+                                    } else {
+                                        showError('Authentication failed - socket not connected');
+                                    }
+                                } else if (!socketService.isConnected()) {
+                                    showError('Socket not connected. Connect first.');
+                                } else {
+                                    showError('No user available for authentication');
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                            Authenticate
+                        </button>
+                        <button
+                            onClick={async () => {
+                                console.log('🔍 Checking backend socket status');
+                                try {
+                                    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/socket/status`, {
+                                        headers: {
+                                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                            'Content-Type': 'application/json'
+                                        }
+                                    });
+
+                                    const data = await response.json();
+                                    console.log('🔍 Backend socket status:', data);
+
+                                    if (data.success) {
+                                        const connectedUsers = data.data?.connectedUsers || 0;
+                                        showSuccess(`Backend shows ${connectedUsers} connected users`);
+
+                                        if (connectedUsers > 0) {
+                                            console.log('✅ Authentication working! Backend recognizes the connection.');
+                                        } else {
+                                            console.log('❌ Authentication failed! Backend shows 0 connected users.');
+                                        }
+                                    } else {
+                                        showError('Failed to get backend socket status');
+                                    }
+                                } catch (error) {
+                                    console.error('🔍 Error checking backend socket status:', error);
+                                    showError('Error checking backend status');
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-purple-600 text-white rounded hover:bg-purple-700"
+                        >
+                            Check Backend
+                        </button>
+                        <button
+                            onClick={() => {
+                                console.log('🔍 Checking authentication status');
+                                const connected = socketService.isConnected();
+                                const authenticated = socketService.isAuthenticated();
+
+                                console.log('🔍 Authentication status:', { connected, authenticated });
+
+                                if (authenticated) {
+                                    showSuccess('✅ Socket is connected and authenticated!');
+                                } else if (connected) {
+                                    showError('⚠️ Socket connected but not authenticated. Try authenticating.');
+                                } else {
+                                    showError('❌ Socket not connected. Connect first.');
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-orange-600 text-white rounded hover:bg-orange-700"
+                        >
+                            Check Auth
+                        </button>
+
+                        <button
+                            onClick={async () => {
+                                console.log('🧪 Triggering broadcast processing');
+                                try {
+                                    // Trigger the background job that processes broadcasts
+                                    const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/background-jobs/trigger-broadcast-processing`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                            'Content-Type': 'application/json'
+                                        }
+                                    });
+
+                                    const result = await response.json();
+                                    console.log('🧪 Broadcast processing response:', result);
+
+                                    if (result.success) {
+                                        console.log('🧪 Broadcast processing triggered successfully');
+                                        // Wait a moment then fetch broadcasts
+                                        setTimeout(() => {
+                                            fetchBroadcasts();
+                                        }, 3000);
+                                    } else {
+                                        console.error('🧪 Failed to trigger broadcast processing:', result);
+                                    }
+                                } catch (error) {
+                                    console.error('🧪 Broadcast processing error:', error);
+                                }
+                            }}
+                            className="px-3 py-1 text-xs bg-teal-600 text-white rounded hover:bg-teal-700"
+                        >
+                            Process Broadcasts
+                        </button>
+                    </div>
+                </div> */}
+
+                {/* Available Deliveries Header */}
                 {/* Location Info */}
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
@@ -433,6 +808,54 @@ const BroadcastPage = () => {
                                     </ul>
                                 </div>
                             )}
+
+                            {/* Manual Location Input */}
+                            <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-medium text-blue-800">📍 Set Manual Location</span>
+                                    <button
+                                        onClick={() => setShowManualLocation(!showManualLocation)}
+                                        className="text-xs text-blue-600 hover:text-blue-800"
+                                    >
+                                        {showManualLocation ? 'Hide' : 'Show'}
+                                    </button>
+                                </div>
+
+                                {showManualLocation && (
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div>
+                                                <label className="text-xs text-blue-700">Latitude:</label>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    value={manualLocation.lat}
+                                                    onChange={(e) => setManualLocation(prev => ({ ...prev, lat: parseFloat(e.target.value) || 35.1255 }))}
+                                                    className="w-full text-xs p-1 border border-blue-300 rounded"
+                                                    placeholder="35.1255"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-blue-700">Longitude:</label>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    value={manualLocation.lng}
+                                                    onChange={(e) => setManualLocation(prev => ({ ...prev, lng: parseFloat(e.target.value) || 33.3095 }))}
+                                                    className="w-full text-xs p-1 border border-blue-300 rounded"
+                                                    placeholder="33.3095"
+                                                />
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={handleManualLocationUpdate}
+                                            className="w-full text-xs bg-blue-600 text-white py-1 px-2 rounded hover:bg-blue-700"
+                                        >
+                                            Update Location
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </div>
@@ -455,7 +878,7 @@ const BroadcastPage = () => {
                             Loading = {loading.toString()}
                         </div>
                         <button
-                            onClick={() => refreshBroadcasts()}
+                            onClick={() => fetchBroadcasts()}
                             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                             <ArrowPathIcon className="w-4 h-4 mr-2" />
@@ -465,7 +888,7 @@ const BroadcastPage = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                         {broadcasts.map((broadcast) => (
-                            <div key={broadcast._id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                            <div key={broadcast.id || broadcast._id || broadcast.deliveryId} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                                 {/* Header */}
                                 <div className="bg-gradient-to-r from-green-500 to-green-600 p-3 sm:p-4 text-white">
                                     <div className="flex items-center justify-between">
@@ -542,21 +965,21 @@ const BroadcastPage = () => {
 
                                     {/* Action Button */}
                                     <button
-                                        onClick={() => acceptBroadcast(broadcast._id)}
-                                        disabled={accepting === broadcast._id}
+                                        onClick={() => acceptBroadcast(broadcast.id || broadcast._id || broadcast.deliveryId)}
+                                        // disabled={accepting === (broadcast.id || broadcast._id || broadcast.deliveryId)} // This state variable was removed
                                         className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
                                     >
-                                        {accepting === broadcast._id ? (
+                                        {/* {accepting === (broadcast.id || broadcast._id || broadcast.deliveryId) ? ( // This state variable was removed
                                             <>
                                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                                                 Accepting...
                                             </>
-                                        ) : (
-                                            <>
-                                                <CheckCircleIcon className="w-4 h-4 mr-2" />
-                                                Accept Delivery
-                                            </>
-                                        )}
+                                        ) : ( */}
+                                        <>
+                                            <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                            Accept Delivery
+                                        </>
+                                        {/* )} */}
                                     </button>
                                 </div>
 

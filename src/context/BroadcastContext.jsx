@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import apiService from '../services/api';
 import rateLimiter from '../utils/rateLimiter';
 import requestDeduplicator from '../utils/requestDeduplicator';
+import socketService from '../services/socketService';
+import { useAuth } from './AuthContext';
 
 const BroadcastContext = createContext();
 
@@ -14,6 +16,7 @@ export const useBroadcasts = () => {
 };
 
 export const BroadcastProvider = ({ children }) => {
+    const { user } = useAuth();
     const [broadcasts, setBroadcasts] = useState([]);
     const [loading, setLoading] = useState(false);
     const [lastFetchTime, setLastFetchTime] = useState(null);
@@ -30,11 +33,11 @@ export const BroadcastProvider = ({ children }) => {
 
         const now = Date.now();
         const timeSinceLastFetch = lastFetchTime ? now - lastFetchTime : Infinity;
-        const minInterval = 5000; // 5 seconds minimum between fetches (reduced for testing)
+        const minInterval = 30000; // 30 seconds minimum between API fetches (increased since WebSocket handles real-time)
 
         // Don't fetch if we recently fetched and this isn't a forced refresh
         if (!force && timeSinceLastFetch < minInterval) {
-            console.log(`📍 BroadcastContext: Skipping fetch, last fetch was ${Math.round(timeSinceLastFetch / 1000)}s ago`);
+            console.log(`📍 BroadcastContext: Skipping API fetch, last fetch was ${Math.round(timeSinceLastFetch / 1000)}s ago. WebSocket handles real-time updates.`);
             return;
         }
 
@@ -57,22 +60,23 @@ export const BroadcastProvider = ({ children }) => {
 
                 if (response && response.success) {
                     const broadcastsData = response.data?.broadcasts || response.data || [];
-                    console.log('📡 BroadcastContext: Received broadcasts:', broadcastsData);
+                    console.log('📡 BroadcastContext: Received broadcasts from API:', broadcastsData);
                     setBroadcasts(broadcastsData);
                     setLastFetchTime(now);
                 } else {
-                    console.warn('📡 BroadcastContext: No broadcasts data in response:', response);
-                    setBroadcasts([]);
+                    console.warn('📡 BroadcastContext: No broadcasts data in API response:', response);
+                    // Don't clear broadcasts on API failure, keep existing ones from WebSocket
                 }
             } catch (error) {
-                console.error('❌ BroadcastContext: Error fetching broadcasts:', error);
+                console.error('❌ BroadcastContext: Error fetching broadcasts from API:', error);
 
                 // Handle rate limiting specifically
                 if (error.response?.status === 429 || error.message.includes('Rate limited')) {
                     console.warn('⚠️ BroadcastContext: Rate limited, will retry later');
                     // Don't clear broadcasts on rate limit to maintain UI
                 } else {
-                    setBroadcasts([]);
+                    console.warn('⚠️ BroadcastContext: API fetch failed, keeping existing broadcasts from WebSocket');
+                    // Don't clear broadcasts on API failure, keep existing ones from WebSocket
                 }
             } finally {
                 setLoading(false);
@@ -95,6 +99,106 @@ export const BroadcastProvider = ({ children }) => {
         }
     }, [userLocation, fetchBroadcasts]);
 
+    // Add new broadcast to the list (for real-time updates)
+    const addNewBroadcast = useCallback((newBroadcast) => {
+        console.log('🚚 BroadcastContext: Adding new broadcast via socket:', newBroadcast);
+        console.log('🚚 BroadcastContext: Current broadcasts before adding:', broadcasts);
+
+        setBroadcasts(prev => {
+            // Check if broadcast already exists
+            const exists = prev.find(b => b.id === newBroadcast.id || b.deliveryId === newBroadcast.deliveryId);
+            if (exists) {
+                console.log('🚚 BroadcastContext: Broadcast already exists, skipping');
+                return prev;
+            }
+
+            // Add new broadcast to the beginning of the list
+            const updatedBroadcasts = [newBroadcast, ...prev];
+            console.log('🚚 BroadcastContext: Updated broadcasts after adding:', updatedBroadcasts);
+            return updatedBroadcasts;
+        });
+    }, [broadcasts]);
+
+    // Remove broadcast from the list (when accepted by another driver)
+    const removeBroadcast = useCallback((deliveryId) => {
+        console.log('🚚 BroadcastContext: Removing broadcast:', deliveryId);
+        console.log('🚚 BroadcastContext: Current broadcasts before removing:', broadcasts);
+
+        setBroadcasts(prev => {
+            const updatedBroadcasts = prev.filter(b => b.id !== deliveryId && b.deliveryId !== deliveryId);
+            console.log('🚚 BroadcastContext: Updated broadcasts after removing:', updatedBroadcasts);
+            return updatedBroadcasts;
+        });
+    }, [broadcasts]);
+
+    // Set up socket listeners for real-time updates
+    useEffect(() => {
+        if (!user) return;
+
+        console.log('🔌 BroadcastContext: Setting up socket listeners for real-time updates');
+
+        // Ensure socket is connected
+        if (!socketService.isConnected()) {
+            socketService.connect(user._id || user.id, user.userType || user.role);
+        }
+
+        // Listen for new delivery broadcasts
+        const handleNewBroadcast = (data) => {
+            console.log('🚚 BroadcastContext: Received new broadcast via socket:', data);
+            console.log('🚚 BroadcastContext: Socket data type:', typeof data);
+            console.log('🚚 BroadcastContext: Socket data keys:', Object.keys(data || {}));
+
+            // Transform socket data to match broadcast format
+            const broadcastData = {
+                id: data.deliveryId || data.id,
+                deliveryId: data.deliveryId || data.id,
+                deliveryCode: data.deliveryCode,
+                pickupLocation: data.pickupLocation,
+                deliveryLocation: data.deliveryLocation,
+                customerName: data.customerName,
+                customerPhone: data.customerPhone,
+                fee: data.fee,
+                paymentMethod: data.paymentMethod,
+                priority: data.priority,
+                notes: data.notes,
+                estimatedTime: data.estimatedTime,
+                broadcastEndTime: data.broadcastEndTime,
+                broadcastDuration: data.broadcastDuration,
+                distance: data.distance,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+
+            console.log('🚚 BroadcastContext: Transformed broadcast data:', broadcastData);
+            addNewBroadcast(broadcastData);
+        };
+
+        // Listen for broadcast removal (when accepted by another driver)
+        const handleBroadcastRemoved = (data) => {
+            console.log('🚚 BroadcastContext: Broadcast removed via socket:', data);
+            removeBroadcast(data.deliveryId || data.id);
+        };
+
+        // Listen for broadcast expiration
+        const handleBroadcastExpired = (data) => {
+            console.log('🚚 BroadcastContext: Broadcast expired via socket:', data);
+            removeBroadcast(data.deliveryId || data.id);
+        };
+
+        // Set up event listeners
+        socketService.on('delivery-broadcast', handleNewBroadcast);
+        socketService.on('test-delivery-broadcast', handleNewBroadcast);
+        socketService.on('delivery-accepted-by-other', handleBroadcastRemoved);
+        socketService.on('broadcast-expired', handleBroadcastExpired);
+
+        return () => {
+            console.log('🧹 BroadcastContext: Cleaning up socket listeners');
+            socketService.off('delivery-broadcast', handleNewBroadcast);
+            socketService.off('test-delivery-broadcast', handleNewBroadcast);
+            socketService.off('delivery-accepted-by-other', handleBroadcastRemoved);
+            socketService.off('broadcast-expired', handleBroadcastExpired);
+        };
+    }, [user, addNewBroadcast, removeBroadcast]);
+
     // Auto-refresh every 2 minutes (reduced frequency)
     useEffect(() => {
         if (!userLocation) return;
@@ -112,7 +216,9 @@ export const BroadcastProvider = ({ children }) => {
         userLocation,
         updateLocation,
         refreshBroadcasts,
-        fetchBroadcasts
+        fetchBroadcasts,
+        addNewBroadcast,
+        removeBroadcast
     };
 
     return (

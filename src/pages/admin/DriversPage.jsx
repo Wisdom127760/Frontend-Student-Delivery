@@ -7,72 +7,12 @@ import PendingInvitationsModal from '../../components/admin/PendingInvitationsMo
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import Pagination from '../../components/common/Pagination';
 import driverService from '../../services/driverService';
-import { formatDateTime } from '../../services/systemSettings';
+import { getStatusColor, getStatusText, formatDateTime } from '../../services/systemSettings';
 import { useSystemSettings } from '../../context/SystemSettingsContext';
 import toast from 'react-hot-toast';
 
 const DriversPage = () => {
   const { formatCurrency } = useSystemSettings();
-
-  // Driver status helper functions
-  const getDriverStatusText = (driver) => {
-    if (!driver) return 'Unknown';
-
-    // Debug logging
-    console.log('🔍 Driver status check for:', driver.name, {
-      isSuspended: driver.isSuspended,
-      isOnline: driver.isOnline,
-      isActive: driver.isActive,
-      verificationStatus: driver.verificationStatus?.status,
-      accountStatus: driver.accountStatus?.verification?.activeDeliveryPartner
-    });
-
-    // Check suspension first
-    if (driver.isSuspended) return 'Suspended';
-
-    // Check online status
-    if (driver.isOnline) return 'Online';
-
-    // Check active status
-    if (driver.isActive) return 'Active';
-
-    // Check verification status
-    if (driver.verificationStatus?.status) {
-      return driver.verificationStatus.status === 'verified' ? 'Verified' : 'Partially Verified';
-    }
-
-    // Check account status
-    if (driver.accountStatus?.verification?.activeDeliveryPartner) return 'Active Partner';
-
-    // Default fallback
-    return 'Inactive';
-  };
-
-  const getDriverStatusColor = (driver) => {
-    if (!driver) return 'bg-gray-100 text-gray-800';
-
-    // Check suspension first
-    if (driver.isSuspended) return 'bg-red-100 text-red-800';
-
-    // Check online status
-    if (driver.isOnline) return 'bg-green-100 text-green-800';
-
-    // Check active status
-    if (driver.isActive) return 'bg-blue-100 text-blue-800';
-
-    // Check verification status
-    if (driver.verificationStatus?.status) {
-      return driver.verificationStatus.status === 'verified'
-        ? 'bg-green-100 text-green-800'
-        : 'bg-yellow-100 text-yellow-800';
-    }
-
-    // Check account status
-    if (driver.accountStatus?.verification?.activeDeliveryPartner) return 'bg-green-100 text-green-800';
-
-    // Default fallback
-    return 'bg-gray-100 text-gray-800';
-  };
   const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -391,33 +331,29 @@ const DriversPage = () => {
         {/* Bulk Actions */}
         {selectedDrivers.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-              <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
                 <span className="text-xs font-medium text-blue-900">
                   {selectedDrivers.length} driver{selectedDrivers.length !== 1 ? 's' : ''} selected
                 </span>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={handleBulkSuspend}
-                    disabled={isBulkActionLoading}
-                    className="flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
-                  >
-                    <span className="hidden sm:inline">Suspend Selected</span>
-                    <span className="sm:hidden">Suspend</span>
-                  </button>
-                  <button
-                    onClick={handleBulkUnsuspend}
-                    disabled={isBulkActionLoading}
-                    className="flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
-                  >
-                    <span className="hidden sm:inline">Unsuspend Selected</span>
-                    <span className="sm:hidden">Unsuspend</span>
-                  </button>
-                </div>
+                <button
+                  onClick={handleBulkSuspend}
+                  disabled={isBulkActionLoading}
+                  className="flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+                >
+                  Suspend Selected
+                </button>
+                <button
+                  onClick={handleBulkUnsuspend}
+                  disabled={isBulkActionLoading}
+                  className="flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                >
+                  Unsuspend Selected
+                </button>
               </div>
               <button
                 onClick={() => setSelectedDrivers([])}
-                className="text-xs text-blue-600 hover:text-blue-800 self-start sm:self-auto"
+                className="text-xs text-blue-600 hover:text-blue-800"
               >
                 Clear Selection
               </button>
@@ -509,8 +445,8 @@ const DriversPage = () => {
                         <div className="text-xs text-gray-500">{driver.phone}</div>
                       </td>
                       <td className="px-4 py-2">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDriverStatusColor(driver)}`}>
-                          {getDriverStatusText(driver)}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
+                          {getStatusText(driver.status)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
@@ -635,8 +571,8 @@ const DriversPage = () => {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div className="flex items-center justify-between">
                     <span className="text-xs text-gray-500">Status</span>
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDriverStatusColor(driver)}`}>
-                      {getDriverStatusText(driver)}
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
+                      {getStatusText(driver.status)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">

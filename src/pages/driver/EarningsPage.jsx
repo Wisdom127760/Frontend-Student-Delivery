@@ -19,7 +19,48 @@ const EarningsPage = () => {
     const [earningsData, setEarningsData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [selectedPeriod, setSelectedPeriod] = useState('month');
+    const [selectedPeriod, setSelectedPeriod] = useState('today'); // Changed default to 'today'
+
+    // Add CSS for smooth line chart animations
+    useEffect(() => {
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes drawLine {
+                from {
+                    stroke-dasharray: 0 1000;
+                }
+                to {
+                    stroke-dasharray: 1000 0;
+                }
+            }
+            
+            .animate-draw {
+                stroke-dasharray: 1000;
+                stroke-dashoffset: 1000;
+                animation: drawLine 2s ease-in-out forwards;
+            }
+            
+            @keyframes fadeInUp {
+                from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                }
+                to {
+                    opacity: 1;
+                    transform: translateY(0);
+                }
+            }
+            
+            .animate-fade-in-up {
+                animation: fadeInUp 0.6s ease-out forwards;
+            }
+        `;
+        document.head.appendChild(style);
+
+        return () => {
+            document.head.removeChild(style);
+        };
+    }, []);
 
     // Load earnings data
     const loadEarningsData = useCallback(async () => {
@@ -32,6 +73,25 @@ const EarningsPage = () => {
 
             if (response.success) {
                 setEarningsData(response.data);
+                console.log('📊 Earnings data loaded:', response.data);
+                console.log('📊 Raw earnings array:', response.data.earnings);
+                console.log('📊 Summary data:', response.data.summary);
+
+                // Debug each earnings entry
+                if (response.data.earnings && response.data.earnings.length > 0) {
+                    response.data.earnings.forEach((entry, index) => {
+                        console.log(`📊 Earnings entry ${index}:`, {
+                            week: entry.week,
+                            year: entry.year,
+                            deliveries: entry.deliveries,
+                            earnings: entry.earnings,
+                            revenue: entry.revenue,
+                            remissionOwed: entry.remissionOwed,
+                            date: entry.date,
+                            period: selectedPeriod
+                        });
+                    });
+                }
             } else {
                 // No fallback - if API fails, show error
                 console.error('Earnings API response invalid:', response);
@@ -63,14 +123,165 @@ const EarningsPage = () => {
         setSelectedPeriod(period);
     };
 
+    // Calculate average per delivery
+    const calculateAveragePerDelivery = () => {
+        if (!earningsData?.summary) return 0;
+        const { totalEarnings, totalDeliveries } = earningsData.summary;
+        if (!totalDeliveries || totalDeliveries === 0) return 0;
+        return totalEarnings / totalDeliveries;
+    };
 
+    // Get section title based on period
+    const getPerformanceSectionTitle = () => {
+        switch (selectedPeriod) {
+            case 'today':
+                return 'Today\'s Performance';
+            case 'week':
+                return 'Weekly Performance';
+            case 'month':
+                return 'Monthly Performance';
+            case 'year':
+                return 'Yearly Performance';
+            case 'all':
+                return 'All Time Performance';
+            default:
+                return 'Performance';
+        }
+    };
 
+    // Get period label for individual earnings entry
+    const getPeriodLabel = (item, index) => {
+        // Special handling for "All Time" view
+        if (selectedPeriod === 'all') {
+            // For all time view, show meaningful period labels based on data
+            if (item?.week && item?.year) {
+                const currentDate = new Date();
+                const currentYear = currentDate.getFullYear();
+                const currentMonth = currentDate.getMonth() + 1;
 
+                // Calculate month from week (approximate)
+                const monthFromWeek = Math.ceil(item.week / 4.33);
+                const monthNames = [
+                    'January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'
+                ];
 
-    // Extract data
+                if (item.year === currentYear) {
+                    return `${monthNames[monthFromWeek - 1]} ${item.year}`;
+                } else {
+                    return `${monthNames[monthFromWeek - 1]} ${item.year}`;
+                }
+            }
+
+            // Fallback for all time
+            return `Period ${index + 1}`;
+        }
+
+        // Simple index-based labeling since backend provides correct data
+        if (selectedPeriod === 'year') {
+            // For year view, show months within the year
+            if (index === 0) return 'This Month';
+            if (index === 1) return 'Last Month';
+            if (index === 2) return '3 months ago';
+            if (index === 3) return '4 months ago';
+            return `${index + 1} months ago`;
+        }
+
+        if (selectedPeriod === 'month') {
+            if (index === 0) return 'This Week';
+            if (index === 1) return 'Last Week';
+            if (index === 2) return '3 weeks ago';
+            if (index === 3) return '4 weeks ago';
+            return `${index + 1} weeks ago`;
+        }
+
+        if (selectedPeriod === 'week') {
+            if (index === 0) return 'Today';
+            if (index === 1) return 'Yesterday';
+            if (index === 2) return '3 days ago';
+            if (index === 3) return '4 days ago';
+            return `${index + 1} days ago`;
+        }
+
+        if (selectedPeriod === 'today') {
+            if (index === 0) return 'Today';
+            if (index === 1) return 'Earlier Today';
+            return `Entry ${index + 1}`;
+        }
+
+        // Default fallback
+        return `Entry ${index + 1}`;
+    };
+
+    // Extract data first
     const summary = earningsData?.summary || null;
-    const weeklyBreakdown = earningsData?.weeklyBreakdown || null;
-    const dailyStats = earningsData?.dailyStats || null;
+    const earnings = earningsData?.earnings || [];
+    const averagePerDelivery = calculateAveragePerDelivery();
+
+    // Calculate all-time analytics
+    const calculateAllTimeAnalytics = () => {
+        if (!earnings || earnings.length === 0) return null;
+
+        const sortedEarnings = [...earnings].sort((a, b) => {
+            // Sort by year and week
+            if (a.year !== b.year) return a.year - b.year;
+            return a.week - b.week;
+        });
+
+        const totalEarnings = sortedEarnings.reduce((sum, item) => sum + (item.earnings || 0), 0);
+        const totalDeliveries = sortedEarnings.reduce((sum, item) => sum + (item.deliveries || 0), 0);
+        const totalRevenue = sortedEarnings.reduce((sum, item) => sum + (item.revenue || 0), 0);
+        const totalCommission = sortedEarnings.reduce((sum, item) => sum + (item.remissionOwed || 0), 0);
+
+        // Calculate progression data for chart
+        const progressionData = sortedEarnings.map((item, index) => {
+            const cumulativeEarnings = sortedEarnings
+                .slice(0, index + 1)
+                .reduce((sum, entry) => sum + (entry.earnings || 0), 0);
+
+            const cumulativeDeliveries = sortedEarnings
+                .slice(0, index + 1)
+                .reduce((sum, entry) => sum + (entry.deliveries || 0), 0);
+
+            return {
+                period: getPeriodLabel(item, index),
+                earnings: item.earnings || 0,
+                deliveries: item.deliveries || 0,
+                cumulativeEarnings,
+                cumulativeDeliveries,
+                week: item.week,
+                year: item.year
+            };
+        });
+
+        // Calculate trends
+        const recentEarnings = sortedEarnings.slice(-3);
+        const olderEarnings = sortedEarnings.slice(0, -3);
+
+        const recentAvg = recentEarnings.length > 0 ?
+            recentEarnings.reduce((sum, item) => sum + (item.earnings || 0), 0) / recentEarnings.length : 0;
+        const olderAvg = olderEarnings.length > 0 ?
+            olderEarnings.reduce((sum, item) => sum + (item.earnings || 0), 0) / olderEarnings.length : 0;
+
+        const growthRate = olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg) * 100 : 0;
+
+        return {
+            totalEarnings,
+            totalDeliveries,
+            totalRevenue,
+            totalCommission,
+            averagePerDelivery: totalDeliveries > 0 ? totalEarnings / totalDeliveries : 0,
+            progressionData,
+            growthRate,
+            recentAvg,
+            olderAvg,
+            totalPeriods: sortedEarnings.length
+        };
+    };
+
+    const allTimeAnalytics = selectedPeriod === 'all' ? calculateAllTimeAnalytics() : null;
+
+    console.log(`📊 Using ${earnings.length} earnings entries from backend`);
 
     if (loading) {
         return <EarningsPageSkeleton />;
@@ -157,7 +368,7 @@ const EarningsPage = () => {
                             <div className="flex-1">
                                 <p className="text-sm text-gray-600 mb-2">Avg Per Delivery</p>
                                 <p className="text-3xl font-bold text-gray-900">
-                                    {summary?.averagePerDelivery ? formatCurrency(summary.averagePerDelivery) : '₺0.00'}
+                                    {averagePerDelivery ? formatCurrency(averagePerDelivery) : '₺0.00'}
                                 </p>
                             </div>
                             <div className="p-3 rounded-lg bg-purple-50">
@@ -184,52 +395,205 @@ const EarningsPage = () => {
 
                 {/* Content Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Weekly Performance */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-                        <div className="p-6 border-b border-gray-100">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-lg font-semibold text-gray-900">Weekly Performance</h2>
-                                <ChartBarIcon className="w-5 h-5 text-gray-400" />
+                    {/* All Time Performance with Chart */}
+                    {selectedPeriod === 'all' && allTimeAnalytics ? (
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                            <div className="p-6 border-b border-gray-100">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-lg font-semibold text-gray-900">All Time Performance</h2>
+                                    <ChartBarIcon className="w-5 h-5 text-gray-400" />
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                {/* Analytics Summary */}
+                                <div className="grid grid-cols-2 gap-4 mb-6">
+                                    <div className="bg-green-50 rounded-lg p-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-green-600 font-medium">Growth Rate</p>
+                                                <p className={`text-2xl font-bold ${allTimeAnalytics.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                    {allTimeAnalytics.growthRate >= 0 ? '+' : ''}{allTimeAnalytics.growthRate.toFixed(1)}%
+                                                </p>
+                                            </div>
+                                            <div className="p-2 bg-green-100 rounded-lg">
+                                                <ChartBarIcon className="h-5 w-5 text-green-600" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-blue-50 rounded-lg p-4 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm text-blue-600 font-medium">Total Periods</p>
+                                                <p className="text-2xl font-bold text-blue-600">{allTimeAnalytics.totalPeriods}</p>
+                                            </div>
+                                            <div className="p-2 bg-blue-100 rounded-lg">
+                                                <CalendarIcon className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Progression Chart */}
+                                <div className="mb-6">
+                                    <h3 className="text-sm font-medium text-gray-700 mb-3">Earnings Progression</h3>
+                                    <div className="relative h-48 bg-gray-50 rounded-lg p-4">
+                                        {/* Line Chart */}
+                                        <svg className="w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
+                                            {/* Grid Lines */}
+                                            <defs>
+                                                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                                                    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#e5e7eb" strokeWidth="1" />
+                                                </pattern>
+                                            </defs>
+                                            <rect width="100%" height="100%" fill="url(#grid)" />
+
+                                            {/* Chart Line */}
+                                            {allTimeAnalytics.progressionData.length > 1 && (
+                                                <g>
+                                                    {/* Smooth line path */}
+                                                    <path
+                                                        d={(() => {
+                                                            const points = allTimeAnalytics.progressionData.map((data, index) => {
+                                                                const x = (index / (allTimeAnalytics.progressionData.length - 1)) * 360 + 20;
+                                                                const maxEarnings = Math.max(...allTimeAnalytics.progressionData.map(d => d.cumulativeEarnings));
+                                                                const y = 180 - ((data.cumulativeEarnings / maxEarnings) * 160) + 20;
+                                                                return `${x},${y}`;
+                                                            });
+                                                            return `M ${points.join(' L ')}`;
+                                                        })()}
+                                                        fill="none"
+                                                        stroke="url(#lineGradient)"
+                                                        strokeWidth="3"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                        className="animate-draw"
+                                                    />
+
+                                                    {/* Data points */}
+                                                    {allTimeAnalytics.progressionData.map((data, index) => {
+                                                        const x = (index / (allTimeAnalytics.progressionData.length - 1)) * 360 + 20;
+                                                        const maxEarnings = Math.max(...allTimeAnalytics.progressionData.map(d => d.cumulativeEarnings));
+                                                        const y = 180 - ((data.cumulativeEarnings / maxEarnings) * 160) + 20;
+
+                                                        return (
+                                                            <g key={index}>
+                                                                <circle
+                                                                    cx={x}
+                                                                    cy={y}
+                                                                    r="6"
+                                                                    fill="white"
+                                                                    stroke="#10b981"
+                                                                    strokeWidth="2"
+                                                                    className="animate-pulse"
+                                                                />
+                                                                <circle
+                                                                    cx={x}
+                                                                    cy={y}
+                                                                    r="3"
+                                                                    fill="#10b981"
+                                                                    className="animate-ping"
+                                                                />
+                                                            </g>
+                                                        );
+                                                    })}
+                                                </g>
+                                            )}
+
+                                            {/* Gradient definition */}
+                                            <defs>
+                                                <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.8" />
+                                                    <stop offset="100%" stopColor="#059669" stopOpacity="1" />
+                                                </linearGradient>
+                                            </defs>
+                                        </svg>
+
+                                        {/* Chart Labels */}
+                                        <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-500 px-4 pb-2">
+                                            {allTimeAnalytics.progressionData.map((data, index) => (
+                                                <div key={index} className="text-center">
+                                                    <div className="font-medium text-gray-700">{data.period}</div>
+                                                    <div className="text-green-600">{formatCurrency(data.cumulativeEarnings)}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Chart Legend */}
+                                    <div className="flex items-center justify-center space-x-4 mt-3 text-xs text-gray-600">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                            <span>Cumulative Earnings</span>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                                            <span>Data Points</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Performance Insights */}
+                                <div className="bg-gray-50 rounded-lg p-4">
+                                    <h3 className="text-sm font-medium text-gray-700 mb-2">Performance Insights</h3>
+                                    <div className="space-y-2 text-sm text-gray-600">
+                                        <p>• Total Revenue: {formatCurrency(allTimeAnalytics.totalRevenue)}</p>
+                                        <p>• Total Commission: {formatCurrency(allTimeAnalytics.totalCommission)}</p>
+                                        <p>• Commission Rate: {((allTimeAnalytics.totalCommission / allTimeAnalytics.totalRevenue) * 100).toFixed(1)}%</p>
+                                        <p>• Average per Period: {formatCurrency(allTimeAnalytics.totalEarnings / allTimeAnalytics.totalPeriods)}</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div className="p-6">
-                            {weeklyBreakdown && weeklyBreakdown.length > 0 ? (
-                                <div className="space-y-4">
-                                    {weeklyBreakdown.map((week, index) => {
-                                        const maxEarnings = Math.max(...weeklyBreakdown.map(w => w?.earnings || 0));
-                                        const earningsPercentage = maxEarnings > 0 ? ((week?.earnings || 0) / maxEarnings) * 100 : 0;
+                    ) : (
+                        /* Regular Performance Section for other periods */
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+                            <div className="p-6 border-b border-gray-100">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-lg font-semibold text-gray-900">{getPerformanceSectionTitle()}</h2>
+                                    <ChartBarIcon className="w-5 h-5 text-gray-400" />
+                                </div>
+                            </div>
+                            <div className="p-6">
+                                {earnings && earnings.length > 0 ? (
+                                    <div className="space-y-4">
+                                        {earnings.map((item, index) => {
+                                            const maxEarnings = Math.max(...earnings.map(e => e?.earnings || 0));
+                                            const earningsPercentage = maxEarnings > 0 ? ((item?.earnings || 0) / maxEarnings) * 100 : 0;
 
-                                        return (
-                                            <div key={index} className="space-y-2">
-                                                <div className="flex items-center justify-between text-sm">
-                                                    <span className="font-medium text-gray-700">Week {week?.week || '0'}</span>
-                                                    <div className="flex items-center space-x-4">
-                                                        <span className="text-green-600 font-medium">
-                                                            {formatCurrency(week?.earnings)}
+                                            return (
+                                                <div key={index} className="space-y-2">
+                                                    <div className="flex items-center justify-between text-sm">
+                                                        <span className="font-medium text-gray-700">
+                                                            {getPeriodLabel(item, index)}
                                                         </span>
-                                                        <span className="text-gray-500">
-                                                            {week?.deliveries || 0} deliveries
-                                                        </span>
+                                                        <div className="flex items-center space-x-4">
+                                                            <span className="text-green-600 font-medium">
+                                                                {formatCurrency(item?.earnings)}
+                                                            </span>
+                                                            <span className="text-gray-500">
+                                                                {item?.deliveries || 0} deliveries
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 rounded-full h-3">
+                                                        <div
+                                                            className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300"
+                                                            style={{ width: `${earningsPercentage}%` }}
+                                                        ></div>
                                                     </div>
                                                 </div>
-                                                <div className="w-full bg-gray-200 rounded-full h-3">
-                                                    <div
-                                                        className="bg-gradient-to-r from-green-500 to-green-600 h-3 rounded-full transition-all duration-300"
-                                                        style={{ width: `${earningsPercentage}%` }}
-                                                    ></div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <ChartBarIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                                    <p className="text-gray-500">No data available</p>
-                                </div>
-                            )}
+                                            );
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <ChartBarIcon className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                        <p className="text-gray-500">No data available</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Recent Activity */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100">
@@ -245,25 +609,27 @@ const EarningsPage = () => {
                             </div>
                         </div>
                         <div className="p-6">
-                            {dailyStats && dailyStats.length > 0 ? (
+                            {earnings && earnings.length > 0 ? (
                                 <div className="space-y-4">
-                                    {dailyStats.slice(0, 5).map((day, index) => (
+                                    {earnings.slice(0, 5).map((item, index) => (
                                         <div key={index} className="flex items-center space-x-4 p-4 border border-gray-100 rounded-lg">
                                             <div className="p-2 bg-green-50 rounded-lg">
                                                 <CalendarIcon className="h-5 w-5 text-green-600" />
                                             </div>
                                             <div className="flex-1">
                                                 <p className="font-medium text-gray-900">
-                                                    {day?.date ? new Date(day.date).toLocaleDateString('en-US', {
-                                                        month: 'short',
-                                                        day: 'numeric',
-                                                        weekday: 'short'
-                                                    }) : '₺0.00'}
+                                                    {getPeriodLabel(item, index)}
                                                 </p>
-                                                <p className="text-sm text-gray-600">{day?.deliveries || 0} deliveries</p>
+                                                <p className="text-sm text-gray-600">{item?.deliveries || 0} deliveries</p>
+                                                {item?.revenue && (
+                                                    <p className="text-xs text-gray-500">Revenue: {formatCurrency(item.revenue)}</p>
+                                                )}
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-semibold text-gray-900">{formatCurrency(day?.earnings)}</p>
+                                                <p className="font-semibold text-gray-900">{formatCurrency(item?.earnings)}</p>
+                                                {item?.remissionOwed && (
+                                                    <p className="text-xs text-gray-500">Commission: {formatCurrency(item.remissionOwed)}</p>
+                                                )}
                                             </div>
                                         </div>
                                     ))}

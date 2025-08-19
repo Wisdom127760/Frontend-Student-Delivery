@@ -478,7 +478,7 @@ class ApiService {
                     // Try with notification ID in request body
                     try {
                         console.log('📖 API Service: Trying body endpoint:', `/driver/notifications/read`);
-                        const response = await api.put(`/driver/notifications/read`, { notificationId });
+                        const response = await api.put(`/driver/notifications/read`, { id: notificationId });
                         console.log('📖 API Service: Mark as read response (body endpoint):', response.data);
                         return response.data;
                     } catch (bodyError) {
@@ -826,14 +826,15 @@ class ApiService {
 
         console.log('🔔 API Service: Marking admin notification as read:', cleanId);
         try {
-            const response = await api.put(`/admin/notifications/${cleanId}/read`);
+            // Send ID in request body as expected by backend
+            const response = await api.put(`/admin/notifications/read`, { id: cleanId });
             console.log('🔔 API Service: Mark as read response:', response.data);
             return response.data;
         } catch (error) {
             console.log('🔔 API Service: Mark as read failed, trying alternative endpoint');
             try {
-                // Try alternative endpoint
-                const response = await api.put(`/notifications/${cleanId}/read`);
+                // Try alternative endpoint with ID in body
+                const response = await api.put(`/notifications/read`, { id: cleanId });
                 console.log('🔔 API Service: Alternative mark as read response:', response.data);
                 return response.data;
             } catch (fallbackError) {
@@ -1347,6 +1348,29 @@ class ApiService {
             responseType: 'blob'
         });
         console.log('📊 API Service: Export analytics response received');
+        return response.data;
+    }
+
+    // Google Maps Link Testing
+    async testGoogleMapsLink(googleMapsLink) {
+        console.log('🔗 API Service: Testing Google Maps link:', googleMapsLink);
+        const response = await api.post('/delivery/test-maps-link', {
+            googleMapsLink: googleMapsLink
+        });
+        console.log('🔗 API Service: Google Maps link test response:', response.data);
+        return response.data;
+    }
+
+    // Test Nearby Drivers
+    async testNearbyDrivers(lat, lng, radius = 10) {
+        console.log('📍 API Service: Testing nearby drivers:', { lat, lng, radius });
+        const params = new URLSearchParams({
+            lat: lat.toString(),
+            lng: lng.toString(),
+            radius: radius.toString()
+        });
+        const response = await api.get(`/delivery/test-location?${params.toString()}`);
+        console.log('📍 API Service: Nearby drivers test response:', response.data);
         return response.data;
     }
 }

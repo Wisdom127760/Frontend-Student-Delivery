@@ -4,6 +4,7 @@ class SocketService {
     constructor() {
         this.socket = null;
         this.connected = false;
+        this.authenticated = false;
         this.initialized = false;
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
@@ -42,6 +43,18 @@ class SocketService {
             console.log('🔌 Socket connected successfully');
             this.connected = true;
             this.reconnectAttempts = 0;
+
+            // Send explicit authentication event after connection
+            if (this.socket.auth && this.socket.auth.userId) {
+                console.log('🔌 Sending explicit authentication event:', {
+                    userId: this.socket.auth.userId,
+                    userType: this.socket.auth.userType
+                });
+                this.socket.emit('authenticate', {
+                    userId: this.socket.auth.userId,
+                    userType: this.socket.auth.userType
+                });
+            }
         });
 
         this.socket.on('disconnect', (reason) => {
@@ -66,6 +79,18 @@ class SocketService {
             console.log('🔌 Socket reconnected after', attemptNumber, 'attempts');
             this.connected = true;
             this.reconnectAttempts = 0;
+
+            // Re-authenticate after reconnection
+            if (this.socket.auth && this.socket.auth.userId) {
+                console.log('🔌 Re-authenticating after reconnection:', {
+                    userId: this.socket.auth.userId,
+                    userType: this.socket.auth.userType
+                });
+                this.socket.emit('authenticate', {
+                    userId: this.socket.auth.userId,
+                    userType: this.socket.auth.userType
+                });
+            }
         });
 
         this.socket.on('reconnect_error', (error) => {
@@ -75,6 +100,64 @@ class SocketService {
         this.socket.on('reconnect_failed', () => {
             console.error('🔌 Socket reconnection failed');
         });
+
+        // Listen for authentication confirmation
+        this.socket.on('authentication-confirmed', (data) => {
+            console.log('✅ Socket authentication confirmed:', data);
+            this.authenticated = true;
+        });
+
+        // Listen for authentication failure
+        this.socket.on('authentication-failed', (error) => {
+            console.error('❌ Socket authentication failed:', error);
+            this.authenticated = false;
+        });
+
+        // Listen for real-time notifications
+        this.socket.on('new-notification', (notification) => {
+            console.log('📱 New notification received:', notification);
+        });
+
+        // Listen for delivery broadcasts
+        this.socket.on('delivery-broadcast', (delivery) => {
+            console.log('🚚 New delivery broadcast received:', delivery);
+        });
+
+        // Listen for toast notifications
+        this.socket.on('toast-notification', (toast) => {
+            console.log('🍞 Toast notification received:', toast);
+        });
+
+        // Listen for driver status updates
+        this.socket.on('driver-status-updated', (status) => {
+            console.log('👤 Driver status updated:', status);
+        });
+
+        // Listen for delivery status changes
+        this.socket.on('delivery-status-changed', (delivery) => {
+            console.log('📦 Delivery status changed:', delivery);
+        });
+
+        // Listen for broadcast updates
+        this.socket.on('broadcast-updated', (broadcast) => {
+            console.log('📡 Broadcast updated:', broadcast);
+        });
+
+        // Listen for broadcast removal
+        this.socket.on('broadcast-removed', (broadcastId) => {
+            console.log('🗑️ Broadcast removed:', broadcastId);
+        });
+
+        // Listen for system status updates
+        this.socket.on('system-status', (status) => {
+            console.log('⚙️ System status update:', status);
+        });
+
+        // Listen for connection status updates
+        this.socket.on('connection-status', (status) => {
+            console.log('🔌 Connection status update:', status);
+            this.connected = status.connected;
+        });
     }
 
     disconnect() {
@@ -82,9 +165,15 @@ class SocketService {
             this.socket.disconnect();
             this.socket = null;
             this.connected = false;
+            this.authenticated = false;
             this.initialized = false;
             console.log('🔌 Socket disconnected');
         }
+    }
+
+    // Check if socket is authenticated
+    isAuthenticated() {
+        return this.authenticated && this.connected && this.socket?.connected;
     }
 
     emit(event, data) {
@@ -151,6 +240,33 @@ class SocketService {
     // Alternative method name for consistency
     isSocketConnected() {
         return this.connected && this.socket?.connected;
+    }
+
+    // Manual authentication method
+    authenticate(userId, userType) {
+        if (this.socket && this.connected) {
+            console.log('🔌 Manual authentication:', { userId, userType });
+            this.socket.emit('authenticate', { userId, userType });
+            return true;
+        } else {
+            console.warn('🔌 Cannot authenticate: socket not connected');
+            return false;
+        }
+    }
+
+    // Force re-authentication
+    reAuthenticate() {
+        if (this.socket && this.socket.auth) {
+            console.log('🔌 Re-authenticating socket...');
+            this.socket.emit('authenticate', {
+                userId: this.socket.auth.userId,
+                userType: this.socket.auth.userType
+            });
+            return true;
+        } else {
+            console.warn('🔌 Cannot re-authenticate: no auth data available');
+            return false;
+        }
     }
 }
 
