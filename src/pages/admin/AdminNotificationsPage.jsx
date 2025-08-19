@@ -49,6 +49,20 @@ const AdminNotificationsPage = () => {
                 const notificationsData = response.data?.notifications || response.data || response.notifications || [];
                 const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
                 console.log('🔔 AdminNotificationsPage: Setting notifications array:', notificationsArray);
+
+                // Debug: Log the notification data to see what we're getting
+                notificationsArray.forEach((notification, index) => {
+                    console.log(`📅 Notification ${index + 1}:`, {
+                        id: notification._id,
+                        idType: typeof notification._id,
+                        idLength: notification._id ? notification._id.length : 0,
+                        createdAt: notification.createdAt,
+                        type: typeof notification.createdAt,
+                        isValid: notification.createdAt ? !isNaN(new Date(notification.createdAt).getTime()) : false,
+                        fullNotification: notification
+                    });
+                });
+
                 setNotifications(notificationsArray);
             } else {
                 console.warn('🔔 AdminNotificationsPage: Backend returned unsuccessful response:', response);
@@ -93,11 +107,11 @@ const AdminNotificationsPage = () => {
         loadNotifications();
     }, [filter]);
 
-    // Silent refresh every 30 seconds
+    // Silent refresh every 60 seconds (reduced from 30)
     useEffect(() => {
         const refreshInterval = setInterval(() => {
             loadNotifications(true); // Silent refresh
-        }, 30000);
+        }, 60000);
 
         return () => clearInterval(refreshInterval);
     }, [filter]);
@@ -106,7 +120,29 @@ const AdminNotificationsPage = () => {
         try {
             console.log('🔔 AdminNotificationsPage: Marking notification as read:', notificationId);
 
-            const response = await apiService.markAdminNotificationAsRead(notificationId);
+            // Validate notification ID
+            if (!notificationId) {
+                console.error('❌ AdminNotificationsPage: No notification ID provided');
+                toast.error('Invalid notification ID');
+                return;
+            }
+
+            // Clean the notification ID - remove any suffixes or invalid characters
+            let cleanId = notificationId;
+            if (typeof notificationId === 'string') {
+                // Extract only the MongoDB ObjectId part (24 hex characters)
+                const objectIdMatch = notificationId.match(/^[a-fA-F0-9]{24}/);
+                if (objectIdMatch) {
+                    cleanId = objectIdMatch[0];
+                    console.log('🔔 AdminNotificationsPage: Cleaned notification ID for mark as read:', cleanId);
+                } else {
+                    console.error('❌ AdminNotificationsPage: Invalid notification ID format:', notificationId);
+                    toast.error('Invalid notification ID format');
+                    return;
+                }
+            }
+
+            const response = await apiService.markAdminNotificationAsRead(cleanId);
             console.log('✅ AdminNotificationsPage: Notification marked as read:', response);
 
             if (response && response.success) {
@@ -154,7 +190,29 @@ const AdminNotificationsPage = () => {
         try {
             console.log('🔔 AdminNotificationsPage: Deleting notification:', notificationId);
 
-            const response = await apiService.deleteAdminNotification(notificationId);
+            // Validate notification ID
+            if (!notificationId) {
+                console.error('❌ AdminNotificationsPage: No notification ID provided');
+                toast.error('Invalid notification ID');
+                return;
+            }
+
+            // Clean the notification ID - remove any suffixes or invalid characters
+            let cleanId = notificationId;
+            if (typeof notificationId === 'string') {
+                // Extract only the MongoDB ObjectId part (24 hex characters)
+                const objectIdMatch = notificationId.match(/^[a-fA-F0-9]{24}/);
+                if (objectIdMatch) {
+                    cleanId = objectIdMatch[0];
+                    console.log('🔔 AdminNotificationsPage: Cleaned notification ID:', cleanId);
+                } else {
+                    console.error('❌ AdminNotificationsPage: Invalid notification ID format:', notificationId);
+                    toast.error('Invalid notification ID format');
+                    return;
+                }
+            }
+
+            const response = await apiService.deleteAdminNotification(cleanId);
             console.log('✅ AdminNotificationsPage: Notification deleted:', response);
 
             if (response && response.success) {
@@ -187,9 +245,9 @@ const AdminNotificationsPage = () => {
 
     const getTypeIcon = (type) => {
         switch (type) {
-            case 'driver_registration':
+            case 'driver_active':
                 return <UserGroupIcon className="w-4 h-4" />;
-            case 'system':
+            case 'system_alert':
                 return <InformationCircleIcon className="w-4 h-4" />;
             case 'analytics':
                 return <ChartBarIcon className="w-4 h-4" />;
@@ -206,9 +264,9 @@ const AdminNotificationsPage = () => {
 
     const getTypeColor = (type) => {
         switch (type) {
-            case 'driver_registration':
+            case 'driver_active':
                 return 'bg-blue-50 border-blue-200';
-            case 'system':
+            case 'system_alert':
                 return 'bg-gray-50 border-gray-200';
             case 'analytics':
                 return 'bg-purple-50 border-purple-200';
@@ -224,8 +282,43 @@ const AdminNotificationsPage = () => {
     };
 
     const formatTime = (date) => {
+        // Debug: Log what we're receiving
+        console.log('🔍 formatTime called with:', {
+            date: date,
+            type: typeof date,
+            isDate: date instanceof Date,
+            isValid: date ? !isNaN(new Date(date).getTime()) : false
+        });
+
+        // Handle invalid or missing date
+        if (!date) {
+            console.warn('⚠️ No date provided to formatTime');
+            return 'Recently';
+        }
+
+        // Convert to Date object if it's a string
+        let dateObj;
+        try {
+            dateObj = date instanceof Date ? date : new Date(date);
+
+            // Validate the date
+            if (isNaN(dateObj.getTime())) {
+                console.warn('⚠️ Invalid date provided to formatTime:', date);
+                return 'Recently';
+            }
+        } catch (error) {
+            console.warn('⚠️ Error parsing date in formatTime:', error);
+            return 'Recently';
+        }
+
         const now = new Date();
-        const diff = now - date;
+        const diff = now - dateObj;
+
+        // Handle negative time differences (future dates)
+        if (diff < 0) {
+            return 'Just now';
+        }
+
         const minutes = Math.floor(diff / (1000 * 60));
         const hours = Math.floor(diff / (1000 * 60 * 60));
         const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -303,7 +396,7 @@ const AdminNotificationsPage = () => {
                 <div className="mb-4">
                     <div className="flex items-center space-x-3">
                         <span className="text-xs font-medium text-gray-700">Filter:</span>
-                        {['all', 'unread', 'read', 'driver_registration', 'system', 'analytics', 'payment'].map((filterOption) => (
+                        {['all', 'unread', 'read', 'driver_active', 'system_alert', 'analytics', 'payment'].map((filterOption) => (
                             <button
                                 key={filterOption}
                                 onClick={() => setFilter(filterOption)}
@@ -359,7 +452,7 @@ const AdminNotificationsPage = () => {
                                             <div className="flex items-center space-x-4 text-xs text-gray-500">
                                                 <span className="flex items-center space-x-1">
                                                     <ClockIcon className="w-3 h-3" />
-                                                    <span>{formatTime(notification.createdAt)}</span>
+                                                    <span>{formatTime(notification.createdAt || notification.timestamp || notification.date)}</span>
                                                 </span>
                                             </div>
                                         </div>
@@ -443,7 +536,18 @@ const AdminNotificationsPage = () => {
                         <div className="bg-white p-3 rounded-lg border border-gray-200">
                             <div className="flex items-center text-gray-900">
                                 <ClockIcon className="h-4 w-4 mr-2 text-gray-500" />
-                                {selectedNotification?.createdAt.toLocaleString()}
+                                {(() => {
+                                    try {
+                                        const date = selectedNotification?.createdAt;
+                                        if (!date) return 'Unknown';
+                                        const dateObj = date instanceof Date ? date : new Date(date);
+                                        if (isNaN(dateObj.getTime())) return 'Invalid Date';
+                                        return dateObj.toLocaleString();
+                                    } catch (error) {
+                                        console.warn('⚠️ Error formatting date in modal:', error);
+                                        return 'Invalid Date';
+                                    }
+                                })()}
                             </div>
                         </div>
                     </div>

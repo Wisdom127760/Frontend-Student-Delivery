@@ -40,8 +40,8 @@ const AdminLayout = ({ children }) => {
         { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
         // Only show remittances for super admins
         ...(isSuperAdmin(user) ? [{ name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon }] : []),
-        // Only show admin management for super admins
-        ...(isSuperAdmin(user) ? [{ name: 'Admin Management', href: '/admin/admins', icon: ShieldCheckIcon }] : []),
+        // Only show settings for super admins
+        ...(isSuperAdmin(user) ? [{ name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon }] : []),
     ];
 
     const handleLogout = async () => {
@@ -162,14 +162,16 @@ const AdminLayout = ({ children }) => {
                                             <UserCircleIcon className="mr-3 h-4 w-4" />
                                             Profile
                                         </Link>
-                                        <Link
-                                            to="/admin/settings"
-                                            onClick={() => setUserMenuOpen(false)}
-                                            className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                        >
-                                            <Cog6ToothIcon className="mr-3 h-4 w-4" />
-                                            Settings
-                                        </Link>
+                                        {isSuperAdmin(user) && (
+                                            <Link
+                                                to="/admin/settings"
+                                                onClick={() => setUserMenuOpen(false)}
+                                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            >
+                                                <Cog6ToothIcon className="mr-3 h-4 w-4" />
+                                                Settings
+                                            </Link>
+                                        )}
                                         <hr className="my-1" />
                                         <button
                                             onClick={handleLogout}

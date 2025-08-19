@@ -33,6 +33,7 @@ const NotificationsPage = () => {
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
     const [isConnected, setIsConnected] = useState(false);
+    const [markingAsRead, setMarkingAsRead] = useState(new Set());
     const itemsPerPage = 10;
 
     useEffect(() => {
@@ -165,6 +166,9 @@ const NotificationsPage = () => {
                 const notificationsArray = Array.isArray(notificationsData) ? notificationsData : [];
 
                 console.log('🔔 DriverNotificationsPage: Setting notifications:', notificationsArray.length);
+                console.log('🔔 DriverNotificationsPage: Sample notification structure:', notificationsArray[0]);
+                console.log('🔔 DriverNotificationsPage: All notification IDs:', notificationsArray.map(n => ({ id: n._id, type: typeof n._id, length: n._id?.length })));
+
                 setNotifications(notificationsArray);
                 setTotalPages(response.data?.totalPages || 1);
                 setTotalItems(response.data?.totalItems || notificationsArray.length);
@@ -206,6 +210,27 @@ const NotificationsPage = () => {
 
     const markAsRead = async (notificationId) => {
         try {
+            console.log('📖 NotificationsPage: Marking notification as read:', notificationId);
+            console.log('📖 NotificationsPage: Notification ID type:', typeof notificationId);
+            console.log('📖 NotificationsPage: Notification ID length:', notificationId?.length);
+            console.log('📖 NotificationsPage: Full notification object:', notifications.find(n => n._id === notificationId));
+
+            // Validate notification ID
+            if (!notificationId || typeof notificationId !== 'string') {
+                console.warn('📖 NotificationsPage: Invalid notification ID:', notificationId);
+                toast.error('Invalid notification ID');
+                return;
+            }
+
+            // Check if already marking this notification as read
+            if (markingAsRead.has(notificationId)) {
+                console.log('📖 NotificationsPage: Already marking notification as read:', notificationId);
+                return;
+            }
+
+            // Add to marking set
+            setMarkingAsRead(prev => new Set(prev).add(notificationId));
+
             const response = await apiService.markNotificationAsRead(notificationId);
 
             if (response.success) {
@@ -219,7 +244,7 @@ const NotificationsPage = () => {
                 setUnreadCount(prev => Math.max(0, prev - 1));
                 toast.success('Notification marked as read');
             } else {
-                // Fallback to local update
+                // Always fallback to local update for any API failure
                 setNotifications(prev =>
                     prev.map(notification =>
                         notification._id === notificationId
@@ -242,6 +267,13 @@ const NotificationsPage = () => {
             );
             setUnreadCount(prev => Math.max(0, prev - 1));
             toast.success('Notification marked as read');
+        } finally {
+            // Remove from marking set
+            setMarkingAsRead(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(notificationId);
+                return newSet;
+            });
         }
     };
 
@@ -522,12 +554,16 @@ const NotificationsPage = () => {
                                                     >
                                                         View Details
                                                     </button>
-                                                    {!notification.isRead && (
+                                                    {!notification.isRead && notification._id && (
                                                         <button
                                                             onClick={() => markAsRead(notification._id)}
-                                                            className="text-sm text-gray-600 hover:text-gray-700"
+                                                            disabled={markingAsRead.has(notification._id)}
+                                                            className={`text-sm ${markingAsRead.has(notification._id)
+                                                                ? 'text-gray-400 cursor-not-allowed'
+                                                                : 'text-gray-600 hover:text-gray-700'
+                                                                }`}
                                                         >
-                                                            Mark as read
+                                                            {markingAsRead.has(notification._id) ? 'Marking...' : 'Mark as read'}
                                                         </button>
                                                     )}
                                                     <button

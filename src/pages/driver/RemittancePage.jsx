@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { StatCardSkeleton, RemittanceItemSkeleton } from '../../components/common/SkeletonLoader';
 import apiService from '../../services/api';
 import Pagination from '../../components/common/Pagination';
+import { useSystemSettings } from '../../context/SystemSettingsContext';
 import {
     CurrencyDollarIcon,
     ClockIcon,
@@ -18,6 +19,7 @@ import {
 import toast from 'react-hot-toast';
 
 const RemittancePage = () => {
+    const { formatCurrency } = useSystemSettings();
     const { user } = useAuth();
     const [remittances, setRemittances] = useState([]);
     const [summary, setSummary] = useState({});
@@ -194,13 +196,7 @@ const RemittancePage = () => {
     const endIndex = startIndex + itemsPerPage;
     const paginatedRemittances = filteredRemittances.slice(startIndex, endIndex);
 
-    // Format currency
-    const formatCurrency = (amount) => {
-        if (amount === null || amount === undefined || isNaN(amount)) {
-            return '₺0.00';
-        }
-        return `₺${Number(amount).toFixed(2)}`;
-    };
+
 
     if (loading) {
         return (

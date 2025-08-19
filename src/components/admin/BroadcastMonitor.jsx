@@ -121,11 +121,11 @@ const BroadcastMonitor = () => {
 
         loadData();
 
-        // Auto-refresh every 30 seconds (only when not loading)
+        // Auto-refresh every 60 seconds (reduced from 30)
         const interval = setInterval(() => {
             loadBroadcastStats();
             loadBackgroundJobStatus();
-        }, 30000);
+        }, 60000);
 
         return () => clearInterval(interval);
     }, []); // Empty dependency array to run only once on mount

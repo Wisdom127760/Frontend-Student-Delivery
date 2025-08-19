@@ -1,4 +1,6 @@
 import axios from 'axios';
+import rateLimiter from '../utils/rateLimiter';
+import requestDeduplicator from '../utils/requestDeduplicator';
 
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -49,6 +51,13 @@ api.interceptors.response.use(
             console.error('🌐 Backend server is not running or not accessible');
             console.error('🌐 Please ensure the backend server is running on localhost:3001');
             console.error('🌐 Error details:', error.message);
+        }
+
+        // Handle rate limiting (429 errors)
+        if (error.response?.status === 429) {
+            console.warn('⚠️ Rate limit exceeded. Request throttled.');
+            // Don't show user error for rate limiting, just log it
+            // The calling component should handle this gracefully
         }
 
         if (error.response?.status === 401) {
@@ -295,7 +304,14 @@ class ApiService {
                 try {
                     // Try updating the current user's status with status field
                     const user = JSON.parse(localStorage.getItem('user') || '{}');
-                    const response = await api.put(`/drivers/${user.id || user._id}/status`, { status });
+                    const userId = user.id || user._id;
+
+                    if (!userId) {
+                        console.error('❌ No user ID found in localStorage');
+                        throw new Error('User ID not found');
+                    }
+
+                    const response = await api.put(`/drivers/${userId}/status`, { status });
                     return response.data;
                 } catch (thirdError) {
                     console.error('❌ All status update endpoints failed:', {
@@ -413,8 +429,87 @@ class ApiService {
     }
 
     async markNotificationAsRead(notificationId) {
-        const response = await api.put(`/driver/notifications/${notificationId}/read`);
-        return response.data;
+        try {
+            console.log('📖 API Service: Marking notification as read:', notificationId);
+
+            // Validate notification ID
+            if (!notificationId || typeof notificationId !== 'string' || notificationId.length < 10) {
+                console.warn('📖 API Service: Invalid notification ID:', notificationId);
+                return { success: false, message: 'Invalid notification ID' };
+            }
+
+            // Check if it's a valid MongoDB ObjectId format (24 hex characters)
+            const mongoIdRegex = /^[0-9a-fA-F]{24}$/;
+            if (!mongoIdRegex.test(notificationId)) {
+                console.warn('📖 API Service: Notification ID is not a valid MongoDB ObjectId:', notificationId);
+                // Don't return error, just log warning - some IDs might be different format
+            }
+
+
+
+            // Try the driver-specific endpoint first
+            try {
+                console.log('📖 API Service: Trying driver endpoint:', `/driver/notifications/${notificationId}/read`);
+                const response = await api.put(`/driver/notifications/${notificationId}/read`);
+                console.log('📖 API Service: Mark as read response (driver endpoint):', response.data);
+                return response.data;
+            } catch (driverError) {
+                console.log('📖 API Service: Driver endpoint failed:', {
+                    status: driverError.response?.status,
+                    statusText: driverError.response?.statusText,
+                    data: driverError.response?.data,
+                    message: driverError.message
+                });
+
+                // Fallback to generic notifications endpoint
+                try {
+                    console.log('📖 API Service: Trying generic endpoint:', `/notifications/${notificationId}/read`);
+                    const response = await api.put(`/notifications/${notificationId}/read`);
+                    console.log('📖 API Service: Mark as read response (generic endpoint):', response.data);
+                    return response.data;
+                } catch (genericError) {
+                    console.log('📖 API Service: Generic endpoint also failed:', {
+                        status: genericError.response?.status,
+                        statusText: genericError.response?.statusText,
+                        data: genericError.response?.data,
+                        message: genericError.message
+                    });
+
+                    // Try with notification ID in request body
+                    try {
+                        console.log('📖 API Service: Trying body endpoint:', `/driver/notifications/read`);
+                        const response = await api.put(`/driver/notifications/read`, { notificationId });
+                        console.log('📖 API Service: Mark as read response (body endpoint):', response.data);
+                        return response.data;
+                    } catch (bodyError) {
+                        console.log('📖 API Service: Body endpoint also failed:', {
+                            status: bodyError.response?.status,
+                            statusText: bodyError.response?.statusText,
+                            data: bodyError.response?.data,
+                            message: bodyError.message
+                        });
+                        throw bodyError; // Let the outer catch handle it
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('📖 API Service: Error marking notification as read:', error);
+
+            // Handle specific error cases
+            if (error.response?.status === 400) {
+                console.warn('📖 API Service: 400 Bad Request - notification may not exist or already be read');
+                return { success: true, message: 'Notification marked as read locally' };
+            }
+
+            if (error.response?.status === 404) {
+                console.warn('📖 API Service: 404 Not Found - notification does not exist');
+                return { success: true, message: 'Notification marked as read locally' };
+            }
+
+            // For other errors, return success for local update (similar to admin notifications)
+            console.warn('📖 API Service: All endpoints failed, returning success for local update');
+            return { success: true, message: 'Notification marked as read locally' };
+        }
     }
 
     async markAllNotificationsAsRead() {
@@ -439,8 +534,7 @@ class ApiService {
     async sendEmergencyAlert(message, location = null) {
         console.log('🚨 API Service: Sending emergency alert:', { message, location });
         const payload = {
-            message,
-            recipients: [{ type: 'admin' }] // Emergency alerts go to all admins
+            message
         };
         if (location) {
             payload.location = location;
@@ -454,18 +548,17 @@ class ApiService {
         console.log('💬 API Service: Sending message to admin:', message);
         try {
             const response = await api.post('/notifications/driver/send-message', {
-                message,
-                recipients: [{ type: 'admin' }] // Driver messages go to all admins
+                message
             });
             console.log('💬 API Service: Send message response:', response.data);
             return response.data;
         } catch (error) {
             console.log('💬 API Service: Send message failed, trying alternative endpoint');
+            console.log('💬 API Service: Error details:', error.response?.data || error.message);
             // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
             const response = await api.post('/notifications/emergency-alert', {
                 message: `Driver Message: ${message}`,
-                type: 'driver_message',
-                recipients: [{ type: 'admin' }]
+                type: 'driver_message'
             });
             console.log('💬 API Service: Fallback response:', response.data);
             return response.data;
@@ -477,19 +570,18 @@ class ApiService {
         try {
             const response = await api.post('/notifications/admin/send-message', {
                 driverId,
-                message,
-                recipients: [{ type: 'driver', id: driverId }] // Admin messages go to specific driver
+                message
             });
             console.log('💬 API Service: Send message response:', response.data);
             return response.data;
         } catch (error) {
             console.log('💬 API Service: Send message failed, trying alternative endpoint');
+            console.log('💬 API Service: Error details:', error.response?.data || error.message);
             // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
             const response = await api.post('/notifications/emergency-alert', {
                 message: `Admin Message to Driver: ${message}`,
                 driverId: driverId,
-                type: 'admin_message',
-                recipients: [{ type: 'driver', id: driverId }]
+                type: 'admin_message'
             });
             console.log('💬 API Service: Fallback response:', response.data);
             return response.data;
@@ -501,19 +593,18 @@ class ApiService {
         try {
             const response = await api.post('/notifications/system', {
                 message,
-                priority,
-                recipients: [{ type: 'all' }] // System notifications go to all users
+                priority
             });
             console.log('📢 API Service: System notification response:', response.data);
             return response.data;
         } catch (error) {
             console.log('📢 API Service: System notification failed, trying alternative endpoint');
+            console.log('📢 API Service: Error details:', error.response?.data || error.message);
             // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
             const response = await api.post('/notifications/emergency-alert', {
                 message: `System Notification: ${message}`,
                 type: 'system_notification',
-                priority: priority,
-                recipients: [{ type: 'all' }]
+                priority: priority
             });
             console.log('📢 API Service: Fallback response:', response.data);
             return response.data;
@@ -682,7 +773,7 @@ class ApiService {
 
         try {
             const response = await api.get(url);
-            console.log('🔔 API Service: Admin notifications response:', response.data);
+            //console.log('🔔 API Service: Admin notifications response:', response.data);
             return response.data;
         } catch (error) {
             console.error('🔔 API Service: Admin notifications error:', {
@@ -713,16 +804,36 @@ class ApiService {
     }
 
     async markAdminNotificationAsRead(notificationId) {
-        console.log('🔔 API Service: Marking admin notification as read:', notificationId);
+        // Validate and clean notification ID
+        if (!notificationId) {
+            console.error('🔔 API Service: No notification ID provided for mark as read');
+            throw new Error('Notification ID is required');
+        }
+
+        // Clean the notification ID - remove any suffixes or invalid characters
+        let cleanId = notificationId;
+        if (typeof notificationId === 'string') {
+            // Extract only the MongoDB ObjectId part (24 hex characters)
+            const objectIdMatch = notificationId.match(/^[a-fA-F0-9]{24}/);
+            if (objectIdMatch) {
+                cleanId = objectIdMatch[0];
+                console.log('🔔 API Service: Cleaned notification ID for mark as read:', cleanId);
+            } else {
+                console.error('🔔 API Service: Invalid notification ID format for mark as read:', notificationId);
+                throw new Error('Invalid notification ID format');
+            }
+        }
+
+        console.log('🔔 API Service: Marking admin notification as read:', cleanId);
         try {
-            const response = await api.put(`/admin/notifications/${notificationId}/read`);
+            const response = await api.put(`/admin/notifications/${cleanId}/read`);
             console.log('🔔 API Service: Mark as read response:', response.data);
             return response.data;
         } catch (error) {
             console.log('🔔 API Service: Mark as read failed, trying alternative endpoint');
             try {
                 // Try alternative endpoint
-                const response = await api.put(`/notifications/${notificationId}/read`);
+                const response = await api.put(`/notifications/${cleanId}/read`);
                 console.log('🔔 API Service: Alternative mark as read response:', response.data);
                 return response.data;
             } catch (fallbackError) {
@@ -755,9 +866,29 @@ class ApiService {
     }
 
     async deleteAdminNotification(notificationId) {
-        console.log('🔔 API Service: Deleting admin notification:', notificationId);
+        // Validate and clean notification ID
+        if (!notificationId) {
+            console.error('🔔 API Service: No notification ID provided');
+            throw new Error('Notification ID is required');
+        }
+
+        // Clean the notification ID - remove any suffixes or invalid characters
+        let cleanId = notificationId;
+        if (typeof notificationId === 'string') {
+            // Extract only the MongoDB ObjectId part (24 hex characters)
+            const objectIdMatch = notificationId.match(/^[a-fA-F0-9]{24}/);
+            if (objectIdMatch) {
+                cleanId = objectIdMatch[0];
+                console.log('🔔 API Service: Cleaned notification ID:', cleanId);
+            } else {
+                console.error('🔔 API Service: Invalid notification ID format:', notificationId);
+                throw new Error('Invalid notification ID format');
+            }
+        }
+
+        console.log('🔔 API Service: Deleting admin notification:', cleanId);
         try {
-            const response = await api.delete(`/admin/notifications/${notificationId}`);
+            const response = await api.delete(`/admin/notifications/${cleanId}`);
             console.log('🔔 API Service: Delete notification response:', response.data);
             return response.data;
         } catch (error) {
@@ -772,7 +903,7 @@ class ApiService {
             if (error.response?.status === 403) {
                 console.log('🔔 API Service: 403 error, trying alternative delete endpoint');
                 try {
-                    const altResponse = await api.delete(`/notifications/${notificationId}`);
+                    const altResponse = await api.delete(`/notifications/${cleanId}`);
                     console.log('🔔 API Service: Alternative delete response:', altResponse.data);
                     return altResponse.data;
                 } catch (altError) {
@@ -807,6 +938,16 @@ class ApiService {
     }
 
     async createRemittance(remittanceData) {
+        if (!remittanceData) {
+            console.error('💰 API Service: No remittance data provided');
+            throw new Error('Remittance data is required');
+        }
+
+        if (!remittanceData.driverId) {
+            console.error('💰 API Service: No driverId in remittance data');
+            throw new Error('Driver ID is required');
+        }
+
         console.log('💰 API Service: Creating remittance:', remittanceData);
         const response = await api.post('/admin/remittances', remittanceData);
         console.log('💰 API Service: Create remittance response:', response.data);
@@ -849,6 +990,10 @@ class ApiService {
     }
 
     async getDriverRemittanceSummary(driverId) {
+        if (!driverId) {
+            console.error('💰 API Service: No driverId provided for remittance summary');
+            throw new Error('Driver ID is required');
+        }
         console.log('💰 API Service: Getting driver remittance summary for:', driverId);
         const response = await api.get(`/admin/remittances/summary/${driverId}`);
         console.log('💰 API Service: Driver remittance summary response:', response.data);
@@ -856,6 +1001,10 @@ class ApiService {
     }
 
     async getDriverRemittancesForDetails(driverId) {
+        if (!driverId) {
+            console.error('💰 API Service: No driverId provided for driver remittances');
+            throw new Error('Driver ID is required');
+        }
         console.log('💰 API Service: Getting driver remittances for details:', driverId);
         const response = await api.get(`/admin/remittances?driverId=${driverId}`);
         console.log('💰 API Service: Driver remittances response:', response.data);
@@ -1008,11 +1157,38 @@ class ApiService {
     }
 
     async getActiveBroadcasts(lat, lng) {
-        console.log('📡 API Service: Getting active broadcasts for location:', lat, lng);
-        const params = lat && lng ? `?lat=${lat}&lng=${lng}` : '';
-        const response = await api.get(`/delivery/broadcast/active${params}`);
-        console.log('📡 API Service: Active broadcasts response:', response.data);
-        return response.data;
+        const endpoint = '/delivery/broadcast/active';
+        const requestKey = `${endpoint}?lat=${lat}&lng=${lng}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            // Check rate limiting
+            if (!rateLimiter.canMakeRequest(endpoint)) {
+                const waitTime = rateLimiter.getTimeUntilNextRequest(endpoint);
+                console.warn(`⚠️ Rate limited for ${endpoint}, waiting ${waitTime}ms`);
+                return {
+                    success: false,
+                    message: `Rate limited. Please wait ${Math.ceil(waitTime / 1000)} seconds before trying again.`,
+                    data: { broadcasts: [] }
+                };
+            }
+
+            console.log('📡 API Service: Getting active broadcasts for location:', lat, lng);
+            const params = lat && lng ? `?lat=${lat}&lng=${lng}` : '';
+            const response = await api.get(`${endpoint}${params}`);
+            console.log('📡 API Service: Active broadcasts response:', response.data);
+
+            // Handle empty data response
+            if (response.data && response.data.success && (!response.data.data || Object.keys(response.data.data).length === 0)) {
+                console.warn('⚠️ API returned empty data object, returning empty broadcasts array');
+                return {
+                    success: true,
+                    data: { broadcasts: [] },
+                    message: 'No active broadcasts available'
+                };
+            }
+
+            return response.data;
+        });
     }
 
     async acceptBroadcastDelivery(deliveryId) {

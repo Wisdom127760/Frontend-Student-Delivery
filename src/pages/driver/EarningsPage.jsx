@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import apiService from '../../services/api';
 import { EarningsPageSkeleton } from '../../components/common/SkeletonLoader';
+import { useSystemSettings } from '../../context/SystemSettingsContext';
 import {
     CurrencyDollarIcon,
     CalendarIcon,
@@ -14,6 +15,7 @@ import {
 import toast from 'react-hot-toast';
 
 const EarningsPage = () => {
+    const { formatCurrency } = useSystemSettings();
     const [earningsData, setEarningsData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -63,11 +65,7 @@ const EarningsPage = () => {
 
 
 
-    // Format currency
-    const formatCurrency = (amount) => {
-        if (amount === null || amount === undefined) return '₺0.00';
-        return `₺${Number(amount).toFixed(2)}`;
-    };
+
 
     // Extract data
     const summary = earningsData?.summary || null;

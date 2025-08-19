@@ -17,7 +17,8 @@ import {
     ArrowPathIcon,
     FunnelIcon,
     ClockIcon,
-    ClipboardDocumentIcon
+    ClipboardDocumentIcon,
+    PhoneIcon
 } from '@heroicons/react/24/outline';
 import { useToast } from '../../components/common/ToastProvider';
 import apiService from '../../services/api';
@@ -340,7 +341,9 @@ const DeliveriesPage = () => {
                 return;
             }
 
+            console.log('🚚 DeliveriesPage: Creating delivery with payload:', payload);
             const result = await apiService.createDeliveryWithBroadcast(payload);
+            console.log('🚚 DeliveriesPage: Delivery creation result:', result);
 
             if (result.success) {
                 const successMessage = formData.useAutoBroadcast
@@ -354,8 +357,17 @@ const DeliveriesPage = () => {
                 fetchDeliveries();
 
                 // Show customer message modal
+                console.log('🚚 DeliveriesPage: Checking if should show customer message modal:', result.data);
                 if (result.data && result.data.deliveryCode) {
+                    console.log('🚚 DeliveriesPage: Showing customer message modal for delivery:', result.data.deliveryCode);
                     showCustomerMessage(result.data);
+
+                    // Show a delightful success notification
+                    setTimeout(() => {
+                        showSuccess('🎉 Customer notification ready! Use the modal to send messages.');
+                    }, 500);
+                } else {
+                    console.log('🚚 DeliveriesPage: No delivery code found, not showing modal');
                 }
 
                 // Show additional info for auto-broadcast
@@ -450,10 +462,17 @@ const DeliveriesPage = () => {
             const result = await response.json();
 
             if (response.ok) {
+                const result = await response.json();
                 showSuccess('Delivery updated successfully!');
                 setShowEditPanel(false);
                 resetForm();
                 fetchDeliveries();
+
+                // Show customer message modal for manual assignments
+                if (result && result.deliveryCode) {
+                    console.log('🚚 DeliveriesPage: Showing customer message modal for updated delivery:', result.deliveryCode);
+                    showCustomerMessage(result);
+                }
             } else {
                 console.error('Failed to update delivery:', result);
                 if (result.details) {
@@ -1409,6 +1428,349 @@ Student Delivery Team`;
                                     className="px-8 py-3 text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 rounded-lg"
                                 >
                                     Create Delivery
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* View Delivery Panel */}
+            {showViewPanel && selectedDelivery && (
+                <div className="fixed inset-0 z-50 overflow-hidden">
+                    {/* Backdrop */}
+                    <div
+                        className="absolute inset-0 bg-black bg-opacity-50 transition-opacity duration-300"
+                        onClick={closeViewPanel}
+                    />
+
+                    {/* Panel */}
+                    <div className={`absolute right-0 top-0 h-full w-full max-w-md bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                            <div className="flex items-center space-x-3">
+                                <div className="p-2 bg-blue-100 rounded-lg">
+                                    <TruckIcon className="w-6 h-6 text-blue-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-semibold text-gray-900">Delivery Details</h3>
+                                    <p className="text-sm text-gray-500">{selectedDelivery.deliveryCode}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={closeViewPanel}
+                                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <XMarkIcon className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {/* Status and Priority */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedDelivery.status)}`}>
+                                        {selectedDelivery.status}
+                                    </span>
+                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(selectedDelivery.priority)}`}>
+                                        {selectedDelivery.priority}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-2xl font-bold text-green-600">₺{selectedDelivery.fee}</div>
+                                    <div className="text-sm text-gray-500">{selectedDelivery.paymentMethod}</div>
+                                </div>
+                            </div>
+
+                            {/* Customer Information */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <h4 className="text-sm font-medium text-gray-900 mb-3">Customer Information</h4>
+                                <div className="space-y-2">
+                                    <div className="flex items-center space-x-2">
+                                        <UserIcon className="w-4 h-4 text-gray-500" />
+                                        <span className="text-sm text-gray-900">{selectedDelivery.customerName || 'N/A'}</span>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <PhoneIcon className="w-4 h-4 text-gray-500" />
+                                        <span className="text-sm text-gray-900">{selectedDelivery.customerPhone || 'N/A'}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Route Information */}
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-medium text-gray-900">Route Information</h4>
+
+                                {/* Pickup */}
+                                <div className="bg-blue-50 rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                            <span className="text-sm font-medium text-blue-700">Pickup</span>
+                                        </div>
+                                        {selectedDelivery.pickupLocationLink && (
+                                            <a
+                                                href={selectedDelivery.pickupLocationLink}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                            >
+                                                Open Map
+                                            </a>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-900">{selectedDelivery.pickupLocation}</p>
+                                </div>
+
+                                {/* Delivery */}
+                                <div className="bg-green-50 rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                            <span className="text-sm font-medium text-green-700">Delivery</span>
+                                        </div>
+                                        {selectedDelivery.deliveryLocationLink && (
+                                            <a
+                                                href={selectedDelivery.deliveryLocationLink}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-green-600 hover:text-green-800 font-medium"
+                                            >
+                                                Open Map
+                                            </a>
+                                        )}
+                                    </div>
+                                    <p className="text-sm text-gray-900">{selectedDelivery.deliveryLocation}</p>
+                                </div>
+                            </div>
+
+                            {/* Assignment */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <h4 className="text-sm font-medium text-gray-900 mb-3">Assignment</h4>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm text-gray-600">Assigned To:</span>
+                                        <span className="text-sm font-medium text-gray-900">
+                                            {selectedDelivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                        </span>
+                                    </div>
+                                    {selectedDelivery.estimatedTime && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-600">Estimated Time:</span>
+                                            <span className="text-sm font-medium text-gray-900">
+                                                {new Date(selectedDelivery.estimatedTime).toLocaleString()}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {selectedDelivery.distance && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm text-gray-600">Distance:</span>
+                                            <span className="text-sm font-medium text-gray-900">
+                                                {selectedDelivery.distance}
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Notes */}
+                            {selectedDelivery.notes && (
+                                <div className="bg-yellow-50 rounded-lg p-4">
+                                    <h4 className="text-sm font-medium text-gray-900 mb-3">Special Instructions</h4>
+                                    <p className="text-sm text-gray-700">{selectedDelivery.notes}</p>
+                                </div>
+                            )}
+
+                            {/* Timestamps */}
+                            <div className="bg-gray-50 rounded-lg p-4">
+                                <h4 className="text-sm font-medium text-gray-900 mb-3">Timestamps</h4>
+                                <div className="space-y-2 text-xs text-gray-600">
+                                    <div className="flex justify-between">
+                                        <span>Created:</span>
+                                        <span>{new Date(selectedDelivery.createdAt).toLocaleString()}</span>
+                                    </div>
+                                    {selectedDelivery.updatedAt && (
+                                        <div className="flex justify-between">
+                                            <span>Updated:</span>
+                                            <span>{new Date(selectedDelivery.updatedAt).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-6 border-t border-gray-200 bg-gray-50">
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => {
+                                        closeViewPanel();
+                                        openEditPanel(selectedDelivery);
+                                    }}
+                                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                                >
+                                    Edit Delivery
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        closeViewPanel();
+                                        handleDeleteDelivery(selectedDelivery._id);
+                                    }}
+                                    className="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Customer Message Modal */}
+            {showCustomerMessageModal && customerMessageData && (
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-green-500 to-green-600 px-8 py-6 rounded-t-2xl">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                                        <TruckIcon className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-xl font-bold text-white">Delivery Created Successfully!</h3>
+                                        <p className="text-green-100 text-sm">Ready to notify your customer</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setShowCustomerMessageModal(false)}
+                                    className="p-2 text-white/80 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
+                                >
+                                    <XMarkIcon className="w-6 h-6" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-8 space-y-6">
+                            {/* Delivery Summary Card */}
+                            <div className="bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl p-6">
+                                <div className="flex items-center mb-4">
+                                    <div className="p-2 bg-green-100 rounded-lg">
+                                        <TruckIcon className="w-5 h-5 text-green-600" />
+                                    </div>
+                                    <h4 className="text-lg font-semibold text-gray-900 ml-3">Delivery Summary</h4>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                        <span className="text-gray-600 font-medium">Delivery Code</span>
+                                        <span className="font-bold text-gray-900 text-lg">{customerMessageData.deliveryCode}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                        <span className="text-gray-600 font-medium">Fee</span>
+                                        <span className="font-bold text-green-600 text-lg">₺{customerMessageData.fee}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                        <span className="text-gray-600 font-medium">Customer</span>
+                                        <span className="font-semibold text-gray-900">{customerMessageData.customerName}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200">
+                                        <span className="text-gray-600 font-medium">Payment</span>
+                                        <span className="font-semibold text-gray-900">{customerMessageData.paymentMethod}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Message Templates */}
+                            <div className="space-y-4">
+                                <div className="flex items-center space-x-2">
+                                    <div className="p-2 bg-blue-100 rounded-lg">
+                                        <PhoneIcon className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                    <h4 className="text-lg font-semibold text-gray-900">Send Message to Customer</h4>
+                                </div>
+
+                                {/* WhatsApp Message */}
+                                <div className="bg-gradient-to-r from-green-50 to-green-100 border border-green-200 rounded-xl p-5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                            <h5 className="text-sm font-semibold text-green-900">WhatsApp Message</h5>
+                                        </div>
+                                        <button
+                                            onClick={() => copyToClipboard(generateWhatsAppMessage(customerMessageData))}
+                                            className="flex items-center space-x-2 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded-lg hover:bg-green-700 transition-all duration-200"
+                                        >
+                                            <ClipboardDocumentIcon className="w-3 h-3" />
+                                            <span>Copy</span>
+                                        </button>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-green-200">
+                                        {generateWhatsAppMessage(customerMessageData)}
+                                    </div>
+                                </div>
+
+                                {/* SMS Message */}
+                                <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                            <h5 className="text-sm font-semibold text-blue-900">SMS Message</h5>
+                                        </div>
+                                        <button
+                                            onClick={() => copyToClipboard(generateSMSMessage(customerMessageData))}
+                                            className="flex items-center space-x-2 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-all duration-200"
+                                        >
+                                            <ClipboardDocumentIcon className="w-3 h-3" />
+                                            <span>Copy</span>
+                                        </button>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-blue-200">
+                                        {generateSMSMessage(customerMessageData)}
+                                    </div>
+                                </div>
+
+                                {/* Email Message */}
+                                <div className="bg-gradient-to-r from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-5">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center space-x-2">
+                                            <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                                            <h5 className="text-sm font-semibold text-purple-900">Email Message</h5>
+                                        </div>
+                                        <button
+                                            onClick={() => copyToClipboard(generateEmailMessage(customerMessageData))}
+                                            className="flex items-center space-x-2 px-3 py-1.5 bg-purple-600 text-white text-xs font-medium rounded-lg hover:bg-purple-700 transition-all duration-200"
+                                        >
+                                            <ClipboardDocumentIcon className="w-3 h-3" />
+                                            <span>Copy</span>
+                                        </button>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4 text-sm text-gray-700 whitespace-pre-wrap border border-purple-200">
+                                        {generateEmailMessage(customerMessageData)}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="bg-gray-50 px-8 py-6 rounded-b-2xl border-t border-gray-200">
+                            <div className="flex space-x-4">
+                                <button
+                                    onClick={() => {
+                                        const whatsappUrl = `https://wa.me/${customerMessageData.customerPhone?.replace(/\D/g, '')}?text=${encodeURIComponent(generateWhatsAppMessage(customerMessageData))}`;
+                                        window.open(whatsappUrl, '_blank');
+                                    }}
+                                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-xl text-sm font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                >
+                                    <PhoneIcon className="w-4 h-4" />
+                                    <span>Send WhatsApp</span>
+                                </button>
+                                <button
+                                    onClick={() => setShowCustomerMessageModal(false)}
+                                    className="flex-1 bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 px-6 rounded-xl text-sm font-semibold hover:from-gray-600 hover:to-gray-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                                >
+                                    Close
                                 </button>
                             </div>
                         </div>

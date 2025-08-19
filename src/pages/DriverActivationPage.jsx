@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircleIcon, XCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import DriverActivationSkeleton from '../components/common/DriverActivationSkeleton';
 import toast from 'react-hot-toast';
 
 // API Configuration
@@ -87,14 +88,7 @@ const DriverActivationPage = () => {
     };
 
     if (isLoading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Validating your invitation...</p>
-                </div>
-            </div>
-        );
+        return <DriverActivationSkeleton />;
     }
 
     if (!invitation) {

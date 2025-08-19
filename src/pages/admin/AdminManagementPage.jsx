@@ -21,12 +21,22 @@ import AdminUsersTab from '../../components/admin/AdminUsersTab';
 import SystemSettingsTab from '../../components/admin/SystemSettingsTab';
 import EarningsConfigTab from '../../components/admin/EarningsConfigTab';
 import AdminStatsTab from '../../components/admin/AdminStatsTab';
+import AdminManagementSkeleton from '../../components/common/AdminManagementSkeleton';
 import toast from 'react-hot-toast';
 
 const AdminManagementPage = () => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState('admins');
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(true);
+
+    // Simulate loading time for skeleton
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setLoading(false);
+        }, 1500); // Show skeleton for 1.5 seconds
+
+        return () => clearTimeout(timer);
+    }, []);
 
     // Check if user is super admin
     if (!isSuperAdmin(user)) {
@@ -95,6 +105,11 @@ const AdminManagementPage = () => {
                 return <AdminUsersTab />;
         }
     };
+
+    // Show skeleton loading state
+    if (loading) {
+        return <AdminManagementSkeleton />;
+    }
 
     return (
         <div className="min-h-screen bg-gray-50">

@@ -17,6 +17,7 @@ import {
 import AdminUserModal from './AdminUserModal';
 import ConfirmationModal from '../common/ConfirmationModal';
 import Pagination from '../common/Pagination';
+import AdminUsersTableSkeleton from '../common/AdminUsersTableSkeleton';
 import { formatDateTime } from '../../services/systemSettings';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
@@ -291,127 +292,124 @@ const AdminUsersTab = () => {
             </div>
 
             {/* Admin Users Table */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Admin
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Role
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Last Login
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Created
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {loading && (
-                                <tr key="loading">
-                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                                        Loading admin users...
-                                    </td>
+            {loading ? (
+                <AdminUsersTableSkeleton />
+            ) : (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                                <tr>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Admin
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Role
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Status
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Last Login
+                                    </th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Created
+                                    </th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        Actions
+                                    </th>
                                 </tr>
-                            )}
-                            {!loading && admins.length === 0 && (
-                                <tr key="empty">
-                                    <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
-                                        No admin users found
-                                    </td>
-                                </tr>
-                            )}
-                            {!loading && admins.length > 0 && admins.map((admin) => (
-                                <tr key={admin.id || admin._id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0 h-10 w-10">
-                                                <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                                                    <UserIcon className="h-6 w-6 text-gray-600" />
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {admins.length === 0 && (
+                                    <tr key="empty">
+                                        <td colSpan="6" className="px-6 py-4 text-center text-gray-500">
+                                            No admin users found
+                                        </td>
+                                    </tr>
+                                )}
+                                {admins.length > 0 && admins.map((admin) => (
+                                    <tr key={admin.id || admin._id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex items-center">
+                                                <div className="flex-shrink-0 h-10 w-10">
+                                                    <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                                                        <UserIcon className="h-6 w-6 text-gray-600" />
+                                                    </div>
+                                                </div>
+                                                <div className="ml-4">
+                                                    <div className="text-sm font-medium text-gray-900">
+                                                        {admin.name}
+                                                    </div>
+                                                    <div className="text-sm text-gray-500">
+                                                        {admin.email}
+                                                    </div>
                                                 </div>
                                             </div>
-                                            <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">
-                                                    {admin.name}
-                                                </div>
-                                                <div className="text-sm text-gray-500">
-                                                    {admin.email}
-                                                </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {getRoleBadge(admin.role)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {getStatusBadge(admin.isActive)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {admin.lastLogin ? formatDateTime(admin.lastLogin) : 'Never'}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {formatDateTime(admin.createdAt)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div className="flex items-center justify-end space-x-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedAdmin(admin);
+                                                        setShowEditModal(true);
+                                                    }}
+                                                    className="text-green-600 hover:text-green-900"
+                                                >
+                                                    <PencilIcon className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedAdmin(admin);
+                                                        setShowPasswordResetModal(true);
+                                                    }}
+                                                    className="text-blue-600 hover:text-blue-900"
+                                                >
+                                                    <KeyIcon className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedAdmin(admin);
+                                                        setShowDeleteModal(true);
+                                                    }}
+                                                    className="text-red-600 hover:text-red-900"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {getRoleBadge(admin.role)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        {getStatusBadge(admin.isActive)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {admin.lastLogin ? formatDateTime(admin.lastLogin) : 'Never'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {formatDateTime(admin.createdAt)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex items-center justify-end space-x-2">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedAdmin(admin);
-                                                    setShowEditModal(true);
-                                                }}
-                                                className="text-green-600 hover:text-green-900"
-                                            >
-                                                <PencilIcon className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedAdmin(admin);
-                                                    setShowPasswordResetModal(true);
-                                                }}
-                                                className="text-blue-600 hover:text-blue-900"
-                                            >
-                                                <KeyIcon className="w-4 h-4" />
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedAdmin(admin);
-                                                    setShowDeleteModal(true);
-                                                }}
-                                                className="text-red-600 hover:text-red-900"
-                                            >
-                                                <TrashIcon className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="px-6 py-3 border-t border-gray-200">
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                            totalItems={totalItems}
-                            itemsPerPage={itemsPerPage}
-                        />
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
-                )}
-            </div>
+
+                    {/* Pagination */}
+                    {totalPages > 1 && (
+                        <div className="px-6 py-3 border-t border-gray-200">
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={setCurrentPage}
+                                totalItems={totalItems}
+                                itemsPerPage={itemsPerPage}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Modals */}
             {showCreateModal && (

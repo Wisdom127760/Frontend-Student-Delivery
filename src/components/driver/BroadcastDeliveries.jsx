@@ -41,27 +41,57 @@ const BroadcastDeliveries = () => {
     }, []);
 
     // Load active broadcasts
-    const loadBroadcasts = useCallback(async () => {
-        try {
+    const loadBroadcasts = useCallback(async (silent = false) => {
+        if (!userLocation) {
+            console.log('📍 BroadcastDeliveries: No user location available');
+            return;
+        }
+
+        // Prevent multiple simultaneous requests
+        if (loading && !silent) {
+            console.log('📡 BroadcastDeliveries: Request already in progress, skipping');
+            return;
+        }
+
+        if (!silent) {
             setLoading(true);
+        }
+
+        try {
+            console.log('📡 BroadcastDeliveries: Loading broadcasts for location:', userLocation);
             const response = await apiService.getActiveBroadcasts(
-                userLocation?.lat,
-                userLocation?.lng
+                userLocation.lat,
+                userLocation.lng
             );
 
-            if (response.success) {
-                setBroadcasts(response.data.broadcasts || []);
+            if (response && response.success) {
+                const broadcastsData = response.data?.broadcasts || response.data || [];
+                console.log('📡 BroadcastDeliveries: Received broadcasts:', broadcastsData);
+                setBroadcasts(broadcastsData);
             } else {
-                console.error('Failed to load broadcasts:', response);
-                toast.error('Failed to load available deliveries');
+                console.warn('📡 BroadcastDeliveries: No broadcasts data in response:', response);
+                setBroadcasts([]);
             }
         } catch (error) {
-            console.error('Error loading broadcasts:', error);
-            toast.error('Failed to load available deliveries');
+            console.error('❌ BroadcastDeliveries: Error loading broadcasts:', error);
+
+            // Handle rate limiting specifically
+            if (error.response?.status === 429) {
+                console.warn('⚠️ BroadcastDeliveries: Rate limited, will retry later');
+                // Don't show error to user for rate limiting, just log it
+                // Don't clear broadcasts on rate limit to maintain UI
+            } else {
+                if (!silent) {
+                    toast.error('Failed to load available deliveries');
+                }
+                setBroadcasts([]);
+            }
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
-    }, [userLocation]);
+    }, [userLocation, loading]);
 
     useEffect(() => {
         if (userLocation) {
@@ -72,7 +102,7 @@ const BroadcastDeliveries = () => {
     // Refresh broadcasts
     const refreshBroadcasts = async () => {
         setRefreshing(true);
-        await loadBroadcasts();
+        await loadBroadcasts(false); // Not silent for manual refresh
         setRefreshing(false);
         toast.success('Refreshed available deliveries!');
     };
@@ -127,13 +157,13 @@ const BroadcastDeliveries = () => {
         }
     };
 
-    // Auto-refresh broadcasts every 10 seconds
+    // Auto-refresh broadcasts every 60 seconds (increased to avoid rate limiting)
     useEffect(() => {
         const interval = setInterval(() => {
             if (userLocation && !loading) {
-                loadBroadcasts();
+                loadBroadcasts(true); // Silent refresh to avoid UI flicker
             }
-        }, 10000);
+        }, 60000); // Changed from 10000 to 60000 (60 seconds)
 
         return () => clearInterval(interval);
     }, [loadBroadcasts, userLocation, loading]);
@@ -296,8 +326,8 @@ const BroadcastDeliveries = () => {
                                     onClick={() => acceptDelivery(broadcast.id)}
                                     disabled={acceptingDelivery === broadcast.id || getTimeRemaining(broadcast.broadcastEndTime) === 'Expired'}
                                     className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-colors ${acceptingDelivery === broadcast.id || getTimeRemaining(broadcast.broadcastEndTime) === 'Expired'
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : 'bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
+                                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                        : 'bg-green-600 text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500'
                                         }`}
                                 >
                                     {acceptingDelivery === broadcast.id ? (

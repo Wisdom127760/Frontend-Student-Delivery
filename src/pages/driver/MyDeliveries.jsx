@@ -17,7 +17,8 @@ import {
     CalendarDaysIcon,
     UserIcon,
     ArrowDownIcon,
-    CurrencyDollarIcon
+    CurrencyDollarIcon,
+    MegaphoneIcon
 } from '@heroicons/react/24/outline';
 
 const MyDeliveries = () => {
@@ -65,6 +66,8 @@ const MyDeliveries = () => {
                     notes: delivery.notes || null
                 })) || [];
 
+                console.log('🚚 MyDeliveries: Raw deliveries from API:', response.data.deliveries);
+                console.log('🚚 MyDeliveries: Formatted deliveries:', formattedDeliveries);
                 setDeliveries(formattedDeliveries);
             } else {
                 // No fallback - if API fails, show error
@@ -117,7 +120,7 @@ const MyDeliveries = () => {
                 textColor: 'text-yellow-700',
                 borderColor: 'border-yellow-200',
                 icon: ExclamationTriangleIcon,
-                label: 'Pending'
+                label: 'Pending Acceptance'
             },
             picked_up: {
                 color: 'bg-purple-500',
@@ -140,6 +143,29 @@ const MyDeliveries = () => {
     };
 
     // Action handlers
+    const handleAcceptDelivery = async (deliveryId) => {
+        try {
+            console.log('🚚 MyDeliveries: Accepting delivery:', deliveryId);
+            // Use updateDeliveryStatus to change status to 'assigned' since accept endpoint doesn't exist
+            const response = await apiService.updateDeliveryStatus(deliveryId, 'assigned');
+            console.log('🚚 MyDeliveries: Accept delivery response:', response);
+
+            if (response.success) {
+                setDeliveries(prev => prev.map(d =>
+                    d.id === deliveryId
+                        ? { ...d, status: 'assigned' }
+                        : d
+                ));
+                toast.success('Delivery accepted! You can now start the delivery.');
+            } else {
+                toast.error(response.message || 'Failed to accept delivery');
+            }
+        } catch (error) {
+            console.error('Error accepting delivery:', error);
+            toast.error('Failed to accept delivery');
+        }
+    };
+
     const handleStartDelivery = async (deliveryId) => {
         try {
             const response = await apiService.updateDeliveryStatus(deliveryId, 'picked_up');
@@ -149,7 +175,9 @@ const MyDeliveries = () => {
                         ? { ...d, status: 'picked_up', startedAt: new Date().toISOString() }
                         : d
                 ));
-                toast.success('Delivery started!');
+                toast.success('Delivery started! You can now proceed to the delivery location.');
+            } else {
+                toast.error(response.message || 'Failed to start delivery');
             }
         } catch (error) {
             console.error('Error starting delivery:', error);
@@ -166,7 +194,9 @@ const MyDeliveries = () => {
                         ? { ...d, status: 'delivered', completedAt: new Date().toISOString() }
                         : d
                 ));
-                toast.success('Delivery completed!');
+                toast.success('🎉 Delivery completed successfully! Payment will be processed.');
+            } else {
+                toast.error(response.message || 'Failed to complete delivery');
             }
         } catch (error) {
             console.error('Error completing delivery:', error);
@@ -289,6 +319,15 @@ const MyDeliveries = () => {
                         Refresh
                     </button>
 
+                    {/* Quick link to Broadcast page */}
+                    <a
+                        href="/driver/broadcasts"
+                        className="inline-flex items-center px-3 py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors"
+                    >
+                        <MegaphoneIcon className="w-4 h-4 mr-2" />
+                        Available Deliveries
+                    </a>
+
                     {/* View Mode Toggle */}
                     <div className="flex bg-gray-100 rounded-lg p-1">
                         <button
@@ -325,6 +364,56 @@ const MyDeliveries = () => {
                             <option value="picked_up">In Progress</option>
                             <option value="delivered">Delivered</option>
                         </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Delivery Process Instructions */}
+            <div className="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-xl p-6 mb-6">
+                <div className="flex items-start space-x-4">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                        <TruckIcon className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">How to Complete Deliveries</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+                                <div>
+                                    <p className="font-medium text-gray-900">Accept Delivery</p>
+                                    <p className="text-gray-600">Click "Accept" for pending deliveries</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                                <div>
+                                    <p className="font-medium text-gray-900">Start Delivery</p>
+                                    <p className="text-gray-600">Click "Start" when you pick up the item</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                                <div>
+                                    <p className="font-medium text-gray-900">Complete Delivery</p>
+                                    <p className="text-gray-600">Click "Complete" when delivered</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-start space-x-2">
+                                <div className="p-1 bg-yellow-100 rounded">
+                                    <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600" />
+                                </div>
+                                <div className="text-sm">
+                                    <p className="font-medium text-yellow-800 mb-1">💡 Delivery Types</p>
+                                    <p className="text-yellow-700">
+                                        <strong>Pending Acceptance:</strong> These are manually assigned deliveries. Accept them here to start working on them.
+                                        <br />
+                                        <strong>Broadcast Deliveries:</strong> Check the "Available Deliveries" page for new broadcast opportunities.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -411,10 +500,18 @@ const MyDeliveries = () => {
                                             {delivery.deliveryCode}
                                             <ClipboardDocumentIcon className="w-4 h-4 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" />
                                         </button>
-                                        <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.textColor} ${statusConfig.borderColor} border`}>
-                                            <StatusIcon className="w-3 h-3 mr-1" />
-                                            {statusConfig.label}
-                                        </span>
+                                        <div className="flex items-center space-x-2">
+                                            {/* Progress Steps */}
+                                            <div className="flex items-center space-x-1">
+                                                <div className={`w-2 h-2 rounded-full ${delivery.status === 'pending' ? 'bg-blue-500' : delivery.status === 'assigned' || delivery.status === 'picked_up' || delivery.status === 'delivered' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                                <div className={`w-2 h-2 rounded-full ${delivery.status === 'picked_up' || delivery.status === 'delivered' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                                <div className={`w-2 h-2 rounded-full ${delivery.status === 'delivered' ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                            </div>
+                                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${statusConfig.bgColor} ${statusConfig.textColor} ${statusConfig.borderColor} border`}>
+                                                <StatusIcon className="w-3 h-3 mr-1" />
+                                                {statusConfig.label}
+                                            </span>
+                                        </div>
                                     </div>
                                     <div className="flex items-center space-x-2 text-sm text-gray-600">
                                         <UserIcon className="w-4 h-4" />
@@ -536,6 +633,17 @@ const MyDeliveries = () => {
 
                                 {/* Actions */}
                                 <div className="p-6 border-t border-gray-100 space-y-2">
+                                    {(delivery.status === 'pending' || delivery.status === 'pending_acceptance' || delivery.status === 'pending_assignment' || delivery.status === 'assigned_pending') && (
+                                        <button
+                                            onClick={() => handleAcceptDelivery(delivery.id)}
+                                            className="w-full bg-blue-600 text-white py-2.5 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center justify-center"
+                                        >
+                                            <CheckCircleIcon className="w-4 h-4 mr-2" />
+                                            Accept Delivery
+                                        </button>
+                                    )}
+
+
                                     {(delivery.status === 'assigned' || delivery.status === 'pending') && (
                                         <button
                                             onClick={() => handleStartDelivery(delivery.id)}
@@ -612,6 +720,14 @@ const MyDeliveries = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                                 <div className="flex items-center space-x-2">
+                                                    {delivery.status === 'pending' && (
+                                                        <button
+                                                            onClick={() => handleAcceptDelivery(delivery.id)}
+                                                            className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                                                        >
+                                                            Accept
+                                                        </button>
+                                                    )}
                                                     {(delivery.status === 'assigned' || delivery.status === 'pending') && (
                                                         <button
                                                             onClick={() => handleStartDelivery(delivery.id)}

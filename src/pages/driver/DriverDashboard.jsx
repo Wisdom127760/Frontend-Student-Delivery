@@ -103,7 +103,7 @@ const DashboardContent = () => {
         loadDashboardData();
 
         // Refresh data every 30 seconds (silent refresh)
-        const interval = setInterval(() => loadDashboardData(true), 30000);
+        const interval = setInterval(() => loadDashboardData(true), 60000);
         return () => clearInterval(interval);
     }, [loadDashboardData]);
 

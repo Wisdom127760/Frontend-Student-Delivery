@@ -2,44 +2,79 @@
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
 // Dashboard data service
-export const getDashboardData = async (period = 'month') => {
+export const getDashboardData = async (period = 'today') => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/admin/dashboard?period=${period}`, {
+
+    console.log('📊 DashboardService: Fetching dashboard data for period:', period);
+
+    // Map frontend period values to backend expected values
+    const periodMapping = {
+      'today': 'today',
+      'thisWeek': 'thisWeek',
+      'thisMonth': 'thisMonth',
+      'allTime': 'allTime'
+    };
+
+    const mappedPeriod = periodMapping[period] || 'today';
+    console.log('📊 DashboardService: Mapped period:', period, 'to:', mappedPeriod);
+
+    // Try different parameter names that the backend might expect
+    let url = `${API_BASE_URL}/admin/dashboard?period=${mappedPeriod}&timeframe=${mappedPeriod}&filter=${mappedPeriod}`;
+    console.log('📊 DashboardService: Calling URL:', url);
+
+    // Call the correct endpoint with period parameter
+    let response = await fetch(url, {
+      method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       }
     });
 
+    // Note: We'll check the period after getting the response
+
     if (!response.ok) {
+      console.error('❌ DashboardService: API error response:', response.status, response.statusText);
       throw new Error(`Dashboard API error: ${response.status}`);
     }
 
     const data = await response.json();
+
+    // Log the response to see what period the backend actually used
+    console.log('📊 DashboardService: Backend returned period:', data.data?.analytics?.period);
+    console.log('📊 DashboardService: Requested period:', mappedPeriod);
+    console.log('📊 DashboardService: Period match:', data.data?.analytics?.period === mappedPeriod ? '✅' : '❌');
+
+    console.log('✅ DashboardService: Dashboard data received:', data);
+
+    // Return the full response so the component can extract what it needs
     return data;
   } catch (error) {
-    console.error('Error fetching dashboard data:', error);
-    // Return null values instead of fallback data
-    return {
-      totalDeliveries: 0,
-      activeDrivers: 0,
-      totalRevenue: 0,
-      pendingDeliveries: 0,
-      deliveryGrowth: '+0%',
-      driverGrowth: '+0%',
-      revenueGrowth: '+0%',
-      pendingGrowth: '+0%'
-    };
+    console.error('❌ DashboardService: Error fetching dashboard data:', error);
+    throw error; // Remove fallback, let the component handle the error
   }
 };
 
 // Enhanced recent deliveries service with meaningful data
-export const getRecentDeliveries = async (limit = 6) => {
+export const getRecentDeliveries = async (limit = 6, period = 'today') => {
   try {
     const token = localStorage.getItem('token');
 
-    const response = await fetch(`${API_BASE_URL}/admin/dashboard/recent-deliveries?limit=${limit}`, {
+    console.log('📦 DashboardService: Fetching recent deliveries with limit:', limit, 'period:', period);
+
+    // Map frontend period values to backend expected values
+    const periodMapping = {
+      'today': 'today',
+      'thisWeek': 'thisWeek',
+      'thisMonth': 'thisMonth',
+      'allTime': 'allTime'
+    };
+
+    const mappedPeriod = periodMapping[period] || 'today';
+
+    // Get recent deliveries from the main dashboard endpoint with period
+    const response = await fetch(`${API_BASE_URL}/admin/dashboard?period=${mappedPeriod}&timeframe=${mappedPeriod}&filter=${mappedPeriod}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -47,17 +82,21 @@ export const getRecentDeliveries = async (limit = 6) => {
     });
 
     if (!response.ok) {
+      console.error('❌ DashboardService: Recent deliveries API error:', response.status, response.statusText);
       throw new Error(`Recent deliveries API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const deliveries = data.data?.recentDeliveries || data.recentDeliveries || data || [];
+    console.log('✅ DashboardService: Recent deliveries data received:', data);
+
+    // Extract recent deliveries from the dashboard response
+    const deliveries = data.data?.recentDeliveries || data.recentDeliveries || [];
 
     // Enhance delivery data with meaningful information
     const enhancedDeliveries = deliveries.map(delivery => {
       // Calculate delivery priority based on various factors
-      let priority = 'normal';
-      if (delivery.amount > 100) priority = 'high';
+      let priority = delivery.priority || 'normal';
+      if (delivery.fee > 100) priority = 'high';
       if (delivery.status === 'pending' && delivery.createdAt) {
         const timeSinceCreation = Date.now() - new Date(delivery.createdAt).getTime();
         if (timeSinceCreation > 30 * 60 * 1000) priority = 'high'; // 30 minutes
@@ -95,16 +134,29 @@ export const getRecentDeliveries = async (limit = 6) => {
     return enhancedDeliveries;
   } catch (error) {
     console.error('❌ DashboardService: Error fetching recent deliveries:', error);
-    return [];
+    throw error; // Remove fallback, let the component handle the error
   }
 };
 
 // Enhanced top drivers service with gamification data
-export const getTopDrivers = async (limit = 5) => {
+export const getTopDrivers = async (limit = 5, period = 'today') => {
   try {
     const token = localStorage.getItem('token');
 
-    const response = await fetch(`${API_BASE_URL}/admin/dashboard/top-drivers?limit=${limit}`, {
+    console.log('👥 DashboardService: Fetching top drivers with limit:', limit, 'period:', period);
+
+    // Map frontend period values to backend expected values
+    const periodMapping = {
+      'today': 'today',
+      'thisWeek': 'thisWeek',
+      'thisMonth': 'thisMonth',
+      'allTime': 'allTime'
+    };
+
+    const mappedPeriod = periodMapping[period] || 'today';
+
+    // Get top drivers from the main dashboard endpoint with period
+    const response = await fetch(`${API_BASE_URL}/admin/dashboard?period=${mappedPeriod}&timeframe=${mappedPeriod}&filter=${mappedPeriod}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -112,11 +164,15 @@ export const getTopDrivers = async (limit = 5) => {
     });
 
     if (!response.ok) {
+      console.error('❌ DashboardService: Top drivers API error:', response.status, response.statusText);
       throw new Error(`Top drivers API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const drivers = data.data?.topDrivers || data.topDrivers || data.drivers || data || [];
+    console.log('✅ DashboardService: Top drivers data received:', data);
+
+    // Extract top drivers from the dashboard response
+    const drivers = data.data?.topDrivers || data.topDrivers || [];
 
 
 
@@ -160,7 +216,7 @@ export const getTopDrivers = async (limit = 5) => {
     return enhancedDrivers;
   } catch (error) {
     console.error('❌ DashboardService: Error fetching top drivers:', error);
-    return [];
+    throw error; // Remove fallback, let the component handle the error
   }
 };
 

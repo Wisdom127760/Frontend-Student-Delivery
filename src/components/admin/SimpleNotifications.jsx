@@ -10,7 +10,7 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 
 const SimpleNotifications = () => {
-    console.log('🔔 SimpleNotifications: Component is being rendered');
+    //console.log('🔔 SimpleNotifications: Component is being rendered');
     const { user } = useAuth();
     const navigate = useNavigate();
     const { showSuccess, showError } = useToast();
@@ -43,23 +43,46 @@ const SimpleNotifications = () => {
     useEffect(() => {
         if (!user) return;
 
-        console.log('🔌 SimpleNotifications: Setting up socket event listeners for user:', user._id || user.id);
+        //console.log('🔌 SimpleNotifications: Setting up socket event listeners for user:', user._id || user.id);
 
         // Load existing notifications from API
         const loadExistingNotifications = async () => {
             try {
                 const response = await apiService.getAdminNotifications({ limit: 10 });
+                console.log('📋 Loading existing notifications:', response);
                 if (response && response.success && response.data?.notifications) {
-                    const existingNotifications = response.data.notifications.map(notification => ({
-                        id: notification._id,
-                        message: notification.title || notification.message,
-                        timestamp: new Date(notification.createdAt),
-                        type: notification.type,
-                        priority: notification.priority || 'medium',
-                        isRead: notification.isRead,
-                        sender: notification.sender || notification.senderName || notification.from || null,
-                        emergencyData: notification.emergencyData || null
-                    }));
+                    const existingNotifications = response.data.notifications.map(notification => {
+                        // Handle invalid or missing createdAt
+                        let timestamp;
+                        try {
+                            console.log('📅 Processing notification timestamp:', {
+                                id: notification._id,
+                                createdAt: notification.createdAt,
+                                type: typeof notification.createdAt
+                            });
+
+                            timestamp = notification.createdAt ? new Date(notification.createdAt) : new Date();
+                            // Validate the date
+                            if (isNaN(timestamp.getTime())) {
+                                console.warn('⚠️ Invalid createdAt date for notification:', notification.createdAt);
+                                timestamp = new Date();
+                            }
+                        } catch (error) {
+                            console.warn('⚠️ Error parsing createdAt date:', error);
+                            timestamp = new Date();
+                        }
+
+                        return {
+                            id: notification._id,
+                            message: notification.title || notification.message,
+                            timestamp: timestamp,
+                            type: notification.type,
+                            priority: notification.priority || 'medium',
+                            isRead: notification.isRead,
+                            sender: notification.sender || notification.senderName || notification.from || null,
+                            emergencyData: notification.emergencyData || null
+                        };
+                    });
                     setNotifications(existingNotifications);
                 }
             } catch (error) {
@@ -71,15 +94,15 @@ const SimpleNotifications = () => {
 
         // Connect to socket
         if (!socketService.isConnected()) {
-            console.log('🔌 SimpleNotifications: Connecting to socket...');
+            //  console.log('🔌 SimpleNotifications: Connecting to socket...');
             socketService.connect(user._id || user.id, user.userType);
         } else {
-            console.log('🔌 SimpleNotifications: Socket already connected');
+            //console.log('🔌 SimpleNotifications: Socket already connected');
         }
 
         // Listen for notifications - OPTIMIZED FOR IMMEDIATE RESPONSE
         socketService.on('receive_notification', (data) => {
-            console.log('🎉 Admin received notification:', data);
+            //console.log('🎉 Admin received notification:', data);
 
             // Play sound IMMEDIATELY (don't wait for notification to be added)
             soundService.playSound('notification').catch(err =>
@@ -127,17 +150,17 @@ const SimpleNotifications = () => {
             addNotification(notification);
         });
 
-        console.log('🔌 SimpleNotifications: Setting up emergency-alert listener');
+        //console.log('🔌 SimpleNotifications: Setting up emergency-alert listener');
         socketService.on('emergency-alert', (data) => {
-            console.log('🚨 Admin received emergency alert:', data);
+            //console.log('🚨 Admin received emergency alert:', data);
 
             // Play emergency sound IMMEDIATELY (before any processing)
             soundService.playSound('alert').catch(err => console.log('🔊 Emergency sound failed:', err));
 
-            console.log('🔍 Emergency alert driver ID:', data.driverId);
-            console.log('🔍 Emergency alert driver name:', data.driverName);
-            console.log('🔍 Emergency alert message:', data.message);
-            console.log('🔍 Emergency alert timestamp:', data.timestamp);
+            //console.log('🔍 Emergency alert driver ID:', data.driverId);
+            //console.log('🔍 Emergency alert driver name:', data.driverName);
+            //console.log('🔍 Emergency alert message:', data.message);
+            //console.log('🔍 Emergency alert timestamp:', data.timestamp);
 
             // Create detailed emergency notification
             const emergencyMessage = `🚨 EMERGENCY from ${data.driverName || 'Unknown Driver'} (${data.driverArea || 'Unknown Area'}): ${data.message}`;
@@ -166,7 +189,7 @@ const SimpleNotifications = () => {
 
         // Listen for new notification events from API - IMPROVED FOR IMMEDIATE RESPONSE
         socketService.on('new-notification', (data) => {
-            console.log('🔔 Admin received new notification from API:', data);
+            //console.log('🔔 Admin received new notification from API:', data);
 
             // Play sound IMMEDIATELY (before creating notification object)
             if (data.type === 'emergency-alert') {
@@ -191,7 +214,7 @@ const SimpleNotifications = () => {
 
         // Listen for driver messages (multiple possible event names) - IMPROVED FOR IMMEDIATE RESPONSE
         socketService.on('driver-message', (data) => {
-            console.log('💬 Admin received driver message:', data);
+            //console.log('💬 Admin received driver message:', data);
 
             // Play sound IMMEDIATELY
             soundService.playSound('notification').catch(err => console.log('🔊 Message sound failed:', err));
@@ -211,7 +234,7 @@ const SimpleNotifications = () => {
 
         // Listen for new messages (general)
         socketService.on('new-message', (data) => {
-            console.log('💬 Admin received new message:', data);
+            //console.log('💬 Admin received new message:', data);
             const notification = {
                 id: Date.now(),
                 message: `💬 Message from ${data.senderType || 'User'}: ${data.message}`,
@@ -228,7 +251,7 @@ const SimpleNotifications = () => {
 
         // Listen for admin notifications (general)
         socketService.on('admin-notification', (data) => {
-            console.log('🔔 Admin received admin notification:', data);
+            //console.log('🔔 Admin received admin notification:', data);
             const notification = {
                 id: Date.now(),
                 message: data.message || 'New notification',
@@ -244,7 +267,7 @@ const SimpleNotifications = () => {
 
         // Listen for system notifications
         socketService.on('system-notification', (data) => {
-            console.log('🔔 Admin received system notification:', data);
+            //console.log('🔔 Admin received system notification:', data);
             const notification = {
                 id: Date.now(),
                 message: data.message || 'System notification',
@@ -260,7 +283,7 @@ const SimpleNotifications = () => {
 
         // Listen for any notification event (catch-all)
         socketService.on('notification', (data) => {
-            console.log('🔔 Admin received notification event:', data);
+            //console.log('🔔 Admin received notification event:', data);
             const notification = {
                 id: Date.now(),
                 message: data.message || 'New notification',
@@ -354,7 +377,7 @@ const SimpleNotifications = () => {
             );
 
             // Log success
-            console.log('✅ Notification marked as read:', notificationId);
+            //console.log('✅ Notification marked as read:', notificationId);
         } catch (error) {
             console.error('Error marking notification as read:', error);
             // Still update local state for better UX
@@ -374,9 +397,9 @@ const SimpleNotifications = () => {
             );
 
             showSuccess('All notifications marked as read');
-            console.log('✅ All notifications marked as read');
+            //console.log('✅ All notifications marked as read');
         } catch (error) {
-            console.error('Error marking all notifications as read:', error);
+            //console.error('Error marking all notifications as read:', error);
             // Still update local state for better UX
             setNotifications(prev =>
                 prev.map(n => ({ ...n, isRead: true }))
@@ -386,8 +409,19 @@ const SimpleNotifications = () => {
     };
 
     const formatTimeAgo = (timestamp) => {
+        // Handle invalid or missing timestamp
+        if (!timestamp || !(timestamp instanceof Date) || isNaN(timestamp.getTime())) {
+            console.warn('⚠️ Invalid timestamp provided to formatTimeAgo:', timestamp);
+            return 'Recently';
+        }
+
         const now = new Date();
         const diffInSeconds = Math.floor((now - timestamp) / 1000);
+
+        // Handle negative time differences (future dates)
+        if (diffInSeconds < 0) {
+            return 'Just now';
+        }
 
         if (diffInSeconds < 60) return 'Just now';
         if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;

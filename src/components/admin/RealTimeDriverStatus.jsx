@@ -32,10 +32,10 @@ const RealTimeDriverStatus = () => {
   useEffect(() => {
     fetchDriverStatus();
 
-    // Set up auto-refresh every 30 seconds
+    // Set up auto-refresh every 60 seconds (reduced from 30)
     const interval = setInterval(() => {
       fetchDriverStatus(true);
-    }, 30000);
+    }, 60000);
 
     return () => clearInterval(interval);
   }, [fetchDriverStatus]);
@@ -156,11 +156,11 @@ const RealTimeDriverStatus = () => {
       }
     });
 
-    console.log('✅ RealTimeDriverStatus: Socket event listeners set up successfully');
+    //console.log('✅ RealTimeDriverStatus: Socket event listeners set up successfully');
 
     return () => {
       if (socket) {
-        console.log('🧹 RealTimeDriverStatus: Cleaning up socket event listeners');
+        //console.log('🧹 RealTimeDriverStatus: Cleaning up socket event listeners');
         socket.off('driver:online', handleDriverOnline);
         socket.off('driver:offline', handleDriverOffline);
         socket.off('driver:busy', handleDriverBusy);

@@ -7,10 +7,72 @@ import PendingInvitationsModal from '../../components/admin/PendingInvitationsMo
 import ConfirmationModal from '../../components/common/ConfirmationModal';
 import Pagination from '../../components/common/Pagination';
 import driverService from '../../services/driverService';
-import { getStatusColor, getStatusText, formatCurrency, formatDateTime } from '../../services/systemSettings';
+import { formatDateTime } from '../../services/systemSettings';
+import { useSystemSettings } from '../../context/SystemSettingsContext';
 import toast from 'react-hot-toast';
 
 const DriversPage = () => {
+  const { formatCurrency } = useSystemSettings();
+
+  // Driver status helper functions
+  const getDriverStatusText = (driver) => {
+    if (!driver) return 'Unknown';
+
+    // Debug logging
+    console.log('🔍 Driver status check for:', driver.name, {
+      isSuspended: driver.isSuspended,
+      isOnline: driver.isOnline,
+      isActive: driver.isActive,
+      verificationStatus: driver.verificationStatus?.status,
+      accountStatus: driver.accountStatus?.verification?.activeDeliveryPartner
+    });
+
+    // Check suspension first
+    if (driver.isSuspended) return 'Suspended';
+
+    // Check online status
+    if (driver.isOnline) return 'Online';
+
+    // Check active status
+    if (driver.isActive) return 'Active';
+
+    // Check verification status
+    if (driver.verificationStatus?.status) {
+      return driver.verificationStatus.status === 'verified' ? 'Verified' : 'Partially Verified';
+    }
+
+    // Check account status
+    if (driver.accountStatus?.verification?.activeDeliveryPartner) return 'Active Partner';
+
+    // Default fallback
+    return 'Inactive';
+  };
+
+  const getDriverStatusColor = (driver) => {
+    if (!driver) return 'bg-gray-100 text-gray-800';
+
+    // Check suspension first
+    if (driver.isSuspended) return 'bg-red-100 text-red-800';
+
+    // Check online status
+    if (driver.isOnline) return 'bg-green-100 text-green-800';
+
+    // Check active status
+    if (driver.isActive) return 'bg-blue-100 text-blue-800';
+
+    // Check verification status
+    if (driver.verificationStatus?.status) {
+      return driver.verificationStatus.status === 'verified'
+        ? 'bg-green-100 text-green-800'
+        : 'bg-yellow-100 text-yellow-800';
+    }
+
+    // Check account status
+    if (driver.accountStatus?.verification?.activeDeliveryPartner) return 'bg-green-100 text-green-800';
+
+    // Default fallback
+    return 'bg-gray-100 text-gray-800';
+  };
   const [drivers, setDrivers] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -229,7 +291,7 @@ const DriversPage = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Drivers Management</h1>
               <p className="mt-1 text-sm text-gray-600">
@@ -242,13 +304,14 @@ const DriversPage = () => {
               </p>
             </div>
 
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 onClick={() => setShowAddDriverModal(true)}
                 className="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
               >
                 <PlusIcon className="w-3 h-3 mr-1" />
-                Invite Driver
+                <span className="hidden sm:inline">Invite Driver</span>
+                <span className="sm:hidden">Add</span>
               </button>
 
               <button
@@ -256,7 +319,8 @@ const DriversPage = () => {
                 className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
               >
                 <EnvelopeIcon className="w-3 h-3 mr-1" />
-                Pending Invitations
+                <span className="hidden sm:inline">Pending Invitations</span>
+                <span className="sm:hidden">Invites</span>
               </button>
 
               <button
@@ -264,7 +328,8 @@ const DriversPage = () => {
                 className="flex items-center px-3 py-1.5 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
               >
                 <DocumentArrowDownIcon className="w-3 h-3 mr-1" />
-                Export CSV
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">Export</span>
               </button>
 
               <button
@@ -326,29 +391,33 @@ const DriversPage = () => {
         {/* Bulk Actions */}
         {selectedDrivers.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
+              <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
                 <span className="text-xs font-medium text-blue-900">
                   {selectedDrivers.length} driver{selectedDrivers.length !== 1 ? 's' : ''} selected
                 </span>
-                <button
-                  onClick={handleBulkSuspend}
-                  disabled={isBulkActionLoading}
-                  className="flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
-                >
-                  Suspend Selected
-                </button>
-                <button
-                  onClick={handleBulkUnsuspend}
-                  disabled={isBulkActionLoading}
-                  className="flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
-                >
-                  Unsuspend Selected
-                </button>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleBulkSuspend}
+                    disabled={isBulkActionLoading}
+                    className="flex items-center px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 disabled:opacity-50"
+                  >
+                    <span className="hidden sm:inline">Suspend Selected</span>
+                    <span className="sm:hidden">Suspend</span>
+                  </button>
+                  <button
+                    onClick={handleBulkUnsuspend}
+                    disabled={isBulkActionLoading}
+                    className="flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 disabled:opacity-50"
+                  >
+                    <span className="hidden sm:inline">Unsuspend Selected</span>
+                    <span className="sm:hidden">Unsuspend</span>
+                  </button>
+                </div>
               </div>
               <button
                 onClick={() => setSelectedDrivers([])}
-                className="text-xs text-blue-600 hover:text-blue-800"
+                className="text-xs text-blue-600 hover:text-blue-800 self-start sm:self-auto"
               >
                 Clear Selection
               </button>
@@ -356,8 +425,8 @@ const DriversPage = () => {
           </div>
         )}
 
-        {/* Drivers Table */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        {/* Drivers Table - Desktop */}
+        <div className="hidden lg:block bg-white rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -440,8 +509,8 @@ const DriversPage = () => {
                         <div className="text-xs text-gray-500">{driver.phone}</div>
                       </td>
                       <td className="px-4 py-2">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
-                          {getStatusText(driver.status)}
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDriverStatusColor(driver)}`}>
+                          {getDriverStatusText(driver)}
                         </span>
                       </td>
                       <td className="px-4 py-2">
@@ -480,23 +549,129 @@ const DriversPage = () => {
               </tbody>
             </table>
           </div>
+        </div>
 
-          {/* Pagination */}
-          {!isLoading && filteredDrivers.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-200">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-                itemsPerPage={itemsPerPage}
-                onItemsPerPageChange={setItemsPerPage}
-                totalItems={totalItems}
-                startIndex={(currentPage - 1) * itemsPerPage + 1}
-                endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
-              />
+        {/* Drivers Cards - Mobile/Tablet */}
+        <div className="lg:hidden space-y-3">
+          {isLoading ? (
+            // Show skeleton cards while loading
+            Array.from({ length: 5 }).map((_, index) => (
+              <div key={index} className="bg-white rounded-lg shadow-sm p-4 animate-pulse">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                    <div>
+                      <div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+                      <div className="h-3 bg-gray-200 rounded w-16"></div>
+                    </div>
+                  </div>
+                  <div className="h-6 bg-gray-200 rounded w-16"></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                  <div className="h-3 bg-gray-200 rounded w-full"></div>
+                </div>
+              </div>
+            ))
+          ) : filteredDrivers.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+              <div className="flex flex-col items-center">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                  <span className="text-gray-400 text-xs">👥</span>
+                </div>
+                <p className="text-sm font-medium text-gray-900">No drivers found</p>
+                <p className="text-xs text-gray-500">No drivers are currently registered.</p>
+              </div>
             </div>
+          ) : (
+            filteredDrivers.map((driver) => (
+              <div key={driver.id} className="bg-white rounded-lg shadow-sm p-4 border border-gray-100">
+                {/* Header with checkbox and actions */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedDrivers.includes(driver.id)}
+                      onChange={() => handleSelectDriver(driver.id)}
+                      className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                    />
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <span className="text-sm font-medium text-gray-600">
+                        {driver.name?.charAt(0)?.toUpperCase() || 'D'}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{driver.name}</div>
+                      <div className="text-xs text-gray-500">ID: {driver.id}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <button
+                      onClick={() => handleViewDriver(driver)}
+                      className="text-blue-600 hover:text-blue-900 p-1"
+                      title="View Details"
+                    >
+                      <EyeIcon className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDriver(driver)}
+                      className="text-red-600 hover:text-red-900 p-1"
+                      title="Delete Driver"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="mb-3">
+                  <div className="text-sm text-gray-900">{driver.email}</div>
+                  <div className="text-xs text-gray-500">{driver.phone}</div>
+                </div>
+
+                {/* Status and Metrics Grid */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Status</span>
+                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getDriverStatusColor(driver)}`}>
+                      {getDriverStatusText(driver)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Deliveries</span>
+                    <span className="text-sm font-medium text-gray-900">{driver.totalDeliveries || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Earnings</span>
+                    <span className="text-sm font-medium text-gray-900">{formatCurrency(driver.totalEarnings || 0)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">Last Active</span>
+                    <span className="text-xs text-gray-900">{formatDateTime(driver.lastActive)}</span>
+                  </div>
+                </div>
+              </div>
+            ))
           )}
         </div>
+
+        {/* Pagination */}
+        {!isLoading && filteredDrivers.length > 0 && (
+          <div className="px-4 py-3 border-t border-gray-200">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+              itemsPerPage={itemsPerPage}
+              onItemsPerPageChange={setItemsPerPage}
+              totalItems={totalItems}
+              startIndex={(currentPage - 1) * itemsPerPage + 1}
+              endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Modals */}

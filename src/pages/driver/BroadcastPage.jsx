@@ -15,19 +15,19 @@ import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
 import { useToast } from '../../components/common/ToastProvider';
 
-import { formatCurrency } from '../../services/systemSettings';
+import { useSystemSettings } from '../../context/SystemSettingsContext';
 import BroadcastSkeleton from '../../components/common/BroadcastSkeleton';
 import { useDeliveryBroadcast } from '../../components/driver/DeliveryBroadcastProvider';
+import { useBroadcasts } from '../../context/BroadcastContext';
+import rateLimiter from '../../utils/rateLimiter';
 
 const BroadcastPage = () => {
+    const { formatCurrency } = useSystemSettings();
     const { user } = useAuth();
     const { showSuccess, showError } = useToast();
     const { testModal } = useDeliveryBroadcast();
-    const [broadcasts, setBroadcasts] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const { broadcasts, loading, userLocation, updateLocation, refreshBroadcasts, fetchBroadcasts } = useBroadcasts();
     const [accepting, setAccepting] = useState(null);
-    const [driverLocation, setDriverLocation] = useState(null);
     const [isOnline, setIsOnline] = useState(true);
     const [locationError, setLocationError] = useState(null);
     const [locationPermission, setLocationPermission] = useState('prompt');
@@ -111,88 +111,16 @@ const BroadcastPage = () => {
         });
     }, [locationResolved]);
 
-    // Broadcast fetching
-    const fetchBroadcasts = useCallback(async (location, silent = false) => {
+    // Update location in broadcast context
+    const updateLocationInContext = useCallback(async () => {
         try {
-            console.log('📡 Fetching broadcasts for location:', location);
-            const response = await apiService.getActiveBroadcasts(location.lat, location.lng);
-
-            if (response.success) {
-                const broadcasts = response.data.broadcasts || [];
-                console.log('📡 Received broadcasts:', broadcasts.length);
-
-                // Transform backend data to match our frontend format
-                const transformedBroadcasts = broadcasts.map(broadcast => ({
-                    id: broadcast.deliveryId || broadcast._id,
-                    deliveryId: broadcast.deliveryId || broadcast._id,
-                    deliveryCode: broadcast.deliveryCode,
-                    pickupLocation: broadcast.pickupLocation,
-                    deliveryLocation: broadcast.deliveryLocation,
-                    customerName: broadcast.customerName,
-                    customerPhone: broadcast.customerPhone,
-                    fee: broadcast.fee,
-                    driverEarning: broadcast.driverEarning,
-                    companyEarning: broadcast.companyEarning,
-                    paymentMethod: broadcast.paymentMethod,
-                    priority: broadcast.priority,
-                    notes: broadcast.notes,
-                    estimatedTime: broadcast.estimatedTime,
-                    pickupCoordinates: broadcast.pickupCoordinates,
-                    deliveryCoordinates: broadcast.deliveryCoordinates,
-                    broadcastEndTime: broadcast.broadcastEndTime,
-                    broadcastDuration: broadcast.broadcastDuration,
-                    distance: broadcast.distance,
-                    createdAt: broadcast.createdAt
-                }));
-
-                setBroadcasts(transformedBroadcasts);
-            } else {
-                console.log('📡 No broadcasts received or error:', response);
-                setBroadcasts([]);
-            }
-        } catch (error) {
-            console.error('📡 Error fetching broadcasts:', error);
-            setBroadcasts([]);
-            if (!silent) {
-                showError('Failed to load available deliveries. Please try again.');
-            }
-        }
-    }, [showError]);
-
-    // Load available broadcasts
-    const loadBroadcasts = useCallback(async (silent = false) => {
-        try {
-            if (!silent) {
-                setLoading(true);
-            } else {
-                setRefreshing(true);
-            }
-
-            // Get location (this will handle all retries internally)
             const location = await getLocation();
-            setDriverLocation(location);
-
-            // Location error is now handled in getLocation function
-            // No need to set it here as it's already set appropriately
-
-            console.log('📍 Using location:', location);
-
-            // Fetch broadcasts with debouncing
-            fetchBroadcasts(location, silent);
-
+            updateLocation(location);
+            console.log('📍 Updated location in broadcast context:', location);
         } catch (error) {
-            console.error('Error in loadBroadcasts:', error);
-            if (!silent) {
-                showError('Failed to load available deliveries');
-            }
-        } finally {
-            if (!silent) {
-                setLoading(false);
-            } else {
-                setRefreshing(false);
-            }
+            console.error('Error updating location in context:', error);
         }
-    }, [getLocation, fetchBroadcasts, showError]);
+    }, [getLocation, updateLocation]);
 
     // Accept a delivery broadcast
     const acceptBroadcast = async (deliveryId) => {
@@ -205,7 +133,7 @@ const BroadcastPage = () => {
                 showSuccess('Delivery accepted successfully!');
 
                 // Remove the accepted delivery from the list
-                setBroadcasts(prev => prev.filter(b => b.id !== deliveryId));
+                refreshBroadcasts();
 
                 // Play success sound
                 soundService.playSound('success');
@@ -261,8 +189,8 @@ const BroadcastPage = () => {
         const handleNewBroadcast = (data) => {
             console.log('📡 BroadcastPage: New broadcast received:', data);
 
-            // Add new broadcast to the list
-            setBroadcasts(prev => [data, ...prev]);
+            // Refresh broadcasts to get updated list
+            refreshBroadcasts();
 
             // Play notification sound
             soundService.playSound('notification');
@@ -275,8 +203,8 @@ const BroadcastPage = () => {
         const handleBroadcastRemoved = (data) => {
             console.log('📡 BroadcastPage: Broadcast removed:', data);
 
-            // Remove the broadcast from the list
-            setBroadcasts(prev => prev.filter(b => b.id !== data.deliveryId));
+            // Refresh broadcasts to get updated list
+            refreshBroadcasts();
 
             // Show snackbar notification
             showSuccess('A delivery was accepted by another driver');
@@ -286,8 +214,8 @@ const BroadcastPage = () => {
         const handleBroadcastExpired = (data) => {
             console.log('📡 BroadcastPage: Broadcast expired:', data);
 
-            // Remove the expired broadcast from the list
-            setBroadcasts(prev => prev.filter(b => b.id !== data.deliveryId));
+            // Refresh broadcasts to get updated list
+            refreshBroadcasts();
 
             // Show snackbar notification
             showSuccess('A delivery broadcast has expired');
@@ -312,19 +240,19 @@ const BroadcastPage = () => {
 
     // Load initial data and set up auto-refresh
     useEffect(() => {
-        loadBroadcasts();
+        updateLocationInContext();
 
-        // Auto-refresh every 60 seconds (reduced frequency to avoid rate limiting)
+        // Auto-refresh every 3 minutes (reduced frequency to avoid rate limiting)
         const interval = setInterval(() => {
             if (!loading) {
-                loadBroadcasts(true);
+                updateLocationInContext();
             }
-        }, 60000);
+        }, 180000); // 3 minutes
 
         return () => {
             clearInterval(interval);
         };
-    }, [loadBroadcasts, loading]);
+    }, [updateLocationInContext, loading]);
 
     // Request location permission
     const requestLocationPermission = async () => {
@@ -334,13 +262,10 @@ const BroadcastPage = () => {
             setLocationResolved(false); // Reset location resolution
 
             const location = await getLocation();
-            setDriverLocation(location);
+            updateLocation(location);
             setLocationPermission('granted');
             setLocationError(null);
             console.log('📍 Location permission granted:', location);
-
-            // Reload broadcasts with new location
-            loadBroadcasts(true);
         } catch (error) {
             console.log('📍 Location permission denied:', error.message);
             setLocationPermission('denied');
@@ -397,8 +322,8 @@ const BroadcastPage = () => {
         // Initial check
         checkOnlineStatus();
 
-        // Check every 10 seconds
-        const interval = setInterval(checkOnlineStatus, 10000);
+        // Check every 30 seconds (reduced from 10)
+        const interval = setInterval(checkOnlineStatus, 30000);
 
         return () => clearInterval(interval);
     }, [user]);
@@ -434,12 +359,28 @@ const BroadcastPage = () => {
                                 </div>
 
                                 <button
-                                    onClick={() => loadBroadcasts(true)}
-                                    disabled={refreshing}
+                                    onClick={refreshBroadcasts}
+                                    disabled={loading}
                                     className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                                 >
-                                    <ArrowPathIcon className={`w-4 h-4 mr-1 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                                    {refreshing ? 'Refreshing...' : 'Refresh'}
+                                    <ArrowPathIcon className={`w-4 h-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+                                    {loading ? 'Refreshing...' : 'Refresh'}
+                                </button>
+
+                                {/* Debug Force Refresh Button */}
+                                <button
+                                    onClick={async () => {
+                                        console.log('🔧 Debug: Force refreshing broadcasts');
+                                        if (userLocation) {
+                                            // Clear rate limiter for this endpoint
+                                            rateLimiter.clearEndpoint('/delivery/broadcast/active');
+                                            // Force refresh
+                                            await fetchBroadcasts(userLocation, true);
+                                        }
+                                    }}
+                                    className="inline-flex items-center justify-center px-3 sm:px-4 py-2 border border-red-300 rounded-md shadow-sm text-sm font-medium text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                                >
+                                    🔧 Debug Refresh
                                 </button>
 
                                 {/* Test Modal Button */}
@@ -460,8 +401,8 @@ const BroadcastPage = () => {
                         <div className="flex items-center space-x-2">
                             <MapPinIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                             <span className="text-xs sm:text-sm text-blue-800">
-                                {driverLocation ? (
-                                    `Your location: ${driverLocation.lat.toFixed(4)}, ${driverLocation.lng.toFixed(4)}`
+                                {userLocation ? (
+                                    `Your location: ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`
                                 ) : (
                                     'Location not available'
                                 )}
@@ -508,8 +449,13 @@ const BroadcastPage = () => {
                         <MegaphoneIcon className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No deliveries available</h3>
                         <p className="text-gray-600 mb-4">There are currently no deliveries in your area.</p>
+                        <div className="text-xs text-gray-500 mb-4">
+                            Debug: Location = {userLocation ? `${userLocation.lat}, ${userLocation.lng}` : 'None'} |
+                            Broadcasts = {broadcasts.length} |
+                            Loading = {loading.toString()}
+                        </div>
                         <button
-                            onClick={() => loadBroadcasts(true)}
+                            onClick={() => refreshBroadcasts()}
                             className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                             <ArrowPathIcon className="w-4 h-4 mr-2" />

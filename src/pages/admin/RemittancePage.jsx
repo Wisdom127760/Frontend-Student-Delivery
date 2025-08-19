@@ -8,6 +8,7 @@ import {
     FunnelIcon
 } from '@heroicons/react/24/outline';
 import Pagination from '../../components/common/Pagination';
+import AdminRemittanceSkeleton from '../../components/common/AdminRemittanceSkeleton';
 import apiService from '../../services/api';
 
 const RemittancePage = () => {
@@ -34,6 +35,7 @@ const RemittancePage = () => {
     const [selectedDriverForDetails, setSelectedDriverForDetails] = useState(null);
     const [driverRemittanceDetails, setDriverRemittanceDetails] = useState(null);
     const [loadingDriverDetails, setLoadingDriverDetails] = useState(false);
+    const [selectedDriverDetails, setSelectedDriverDetails] = useState(null);
 
     // Modal states
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -46,7 +48,9 @@ const RemittancePage = () => {
     // Form states
     const [formData, setFormData] = useState({
         driverId: '',
-        notes: ''
+        notes: '',
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
     });
     const [bulkFormData, setBulkFormData] = useState({
         startDate: new Date().toISOString().split('T')[0],
@@ -200,7 +204,12 @@ const RemittancePage = () => {
 
     // Load detailed remittance information for a specific driver
     const loadDriverRemittanceDetails = useCallback(async (driverId) => {
-        if (!driverId) return;
+        if (!driverId || driverId.trim() === '') {
+            console.log('🚗 RemittancePage: No driverId provided, clearing details');
+            setSelectedDriverDetails(null);
+            setDriverRemittanceDetails(null);
+            return;
+        }
 
         try {
             setLoadingDriverDetails(true);
@@ -218,6 +227,10 @@ const RemittancePage = () => {
             const paymentStructureResponse = await apiService.getPaymentStructure();
             console.log('🚗 RemittancePage: Payment structure:', paymentStructureResponse);
 
+            // Find the selected driver
+            const driver = drivers.find(d => (d._id || d.id) === driverId);
+            setSelectedDriverDetails(driver);
+
             setDriverRemittanceDetails({
                 summary: summaryResponse.data || summaryResponse,
                 remittances: remittancesResponse.data?.remittances || remittancesResponse.remittances || [],
@@ -227,11 +240,12 @@ const RemittancePage = () => {
             console.log('✅ RemittancePage: Driver remittance details loaded successfully');
         } catch (error) {
             console.error('❌ RemittancePage: Error loading driver remittance details:', error);
+            setSelectedDriverDetails(null);
             setDriverRemittanceDetails(null);
         } finally {
             setLoadingDriverDetails(false);
         }
-    }, []);
+    }, [drivers]);
 
     const handleBulkGenerateRemittances = async () => {
         try {
@@ -256,7 +270,31 @@ const RemittancePage = () => {
         }
     };
 
+
+
     const handleCreateRemittance = async () => {
+        // Validate required fields
+        if (!formData.driverId || formData.driverId.trim() === '') {
+            toast.error('Please select a driver');
+            return;
+        }
+
+        if (!formData.startDate) {
+            toast.error('Start date is required');
+            return;
+        }
+
+        if (!formData.endDate) {
+            toast.error('End date is required');
+            return;
+        }
+
+        // Validate dates
+        if (new Date(formData.endDate) < new Date(formData.startDate)) {
+            toast.error('End date cannot be before start date');
+            return;
+        }
+
         try {
             console.log('💰 RemittancePage: Creating remittance:', formData);
             await apiService.createRemittance(formData);
@@ -266,7 +304,7 @@ const RemittancePage = () => {
                 type: 'success'
             });
             setShowCreateModal(false);
-            setFormData({ driverId: '', notes: '' });
+            setFormData({ driverId: '', notes: '', startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] });
             loadRemittances();
         } catch (error) {
             console.error('❌ RemittancePage: Error creating remittance:', error);
@@ -408,11 +446,7 @@ const RemittancePage = () => {
     };
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-        );
+        return <AdminRemittanceSkeleton />;
     }
 
     return (
@@ -862,48 +896,173 @@ const RemittancePage = () => {
             {/* Create Remittance Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
                         <div className="p-4 border-b border-gray-200">
-                            <h3 className="text-sm font-semibold text-gray-900">Create Remittance</h3>
+                            <h3 className="text-lg font-semibold text-gray-900">Create Remittance</h3>
                         </div>
                         <div className="p-4">
-                            <div className="space-y-3">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Form Section */}
+                                <div className="space-y-4">
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Driver</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Driver</label>
                                     <select
                                         value={formData.driverId}
-                                        onChange={(e) => setFormData({ ...formData, driverId: e.target.value })}
-                                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                                            onChange={(e) => {
+                                                setFormData({ ...formData, driverId: e.target.value });
+                                                loadDriverRemittanceDetails(e.target.value);
+                                            }}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="">Select Driver</option>
                                         {drivers.map(driver => (
-                                            <option key={driver._id || driver.id} value={driver._id || driver.id}>{driver.name}</option>
+                                                <option key={driver._id || driver.id} value={driver._id || driver.id}>
+                                                    {driver.name} ({driver.email})
+                                                </option>
                                         ))}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-700 mb-1">Notes</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
+                                        <input
+                                            type="date"
+                                            value={formData.startDate}
+                                            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">End Date</label>
+                                        <input
+                                            type="date"
+                                            value={formData.endDate}
+                                            min={formData.startDate}
+                                            onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
                                     <textarea
                                         value={formData.notes}
                                         onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                         rows={3}
-                                    />
+                                            placeholder="Optional notes for this remittance..."
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Driver Details Section */}
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-semibold text-gray-900 border-b border-gray-200 pb-2">
+                                        Driver Remittance Details
+                                    </h4>
+
+                                    {loadingDriverDetails ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500"></div>
+                                            <span className="ml-2 text-sm text-gray-600">Loading driver details...</span>
+                                        </div>
+                                    ) : selectedDriverDetails && driverRemittanceDetails ? (
+                                        <div className="space-y-4">
+                                            {/* Driver Info */}
+                                            <div className="bg-gray-50 rounded-lg p-4">
+                                                <div className="flex items-center space-x-3 mb-3">
+                                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                                                        <span className="text-green-600 font-semibold text-sm">
+                                                            {selectedDriverDetails.name?.charAt(0)?.toUpperCase()}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <h5 className="font-medium text-gray-900">{selectedDriverDetails.name}</h5>
+                                                        <p className="text-sm text-gray-600">{selectedDriverDetails.email}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Remittance Summary */}
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="bg-green-50 rounded-lg p-3">
+                                                    <p className="text-xs text-green-600 font-medium">Total Earnings</p>
+                                                    <p className="text-lg font-bold text-green-700">
+                                                        ₺{driverRemittanceDetails.summary?.totalEarnings || 0}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-blue-50 rounded-lg p-3">
+                                                    <p className="text-xs text-blue-600 font-medium">Pending Remittance</p>
+                                                    <p className="text-lg font-bold text-blue-700">
+                                                        ₺{driverRemittanceDetails.summary?.pendingAmount || 0}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-purple-50 rounded-lg p-3">
+                                                    <p className="text-xs text-purple-600 font-medium">Completed Remittances</p>
+                                                    <p className="text-lg font-bold text-purple-700">
+                                                        {driverRemittanceDetails.summary?.completedCount || 0}
+                                                    </p>
+                                                </div>
+                                                <div className="bg-orange-50 rounded-lg p-3">
+                                                    <p className="text-xs text-orange-600 font-medium">Pending Remittances</p>
+                                                    <p className="text-lg font-bold text-orange-700">
+                                                        {driverRemittanceDetails.summary?.pendingCount || 0}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Recent Remittances */}
+                                            {driverRemittanceDetails.remittances && driverRemittanceDetails.remittances.length > 0 && (
+                                                <div className="bg-gray-50 rounded-lg p-3">
+                                                    <p className="text-xs font-medium text-gray-700 mb-2">Recent Remittances</p>
+                                                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                        {driverRemittanceDetails.remittances.slice(0, 3).map((remittance, index) => (
+                                                            <div key={index} className="flex items-center justify-between text-xs">
+                                                                <span className="text-gray-600">
+                                                                    {new Date(remittance.createdAt).toLocaleDateString()}
+                                                                </span>
+                                                                <span className={`px-2 py-1 rounded-full text-xs ${remittance.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                                    remittance.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                                        'bg-red-100 text-red-800'
+                                                                    }`}>
+                                                                    {remittance.status}
+                                                                </span>
+                                                                <span className="font-medium text-gray-900">
+                                                                    ₺{remittance.amount || 0}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : formData.driverId ? (
+                                        <div className="flex items-center justify-center py-8">
+                                            <p className="text-sm text-gray-500">No remittance data available for this driver</p>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center justify-center py-8">
+                                            <p className="text-sm text-gray-500">Select a driver to view their remittance details</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                         <div className="p-4 border-t border-gray-200 flex justify-end space-x-2">
                             <button
-                                onClick={() => setShowCreateModal(false)}
-                                className="px-3 py-1.5 text-gray-600 border border-gray-300 rounded text-xs hover:bg-gray-50"
+                                onClick={() => {
+                                    setShowCreateModal(false);
+                                    setSelectedDriverDetails(null);
+                                    setDriverRemittanceDetails(null);
+                                }}
+                                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg text-sm hover:bg-gray-50"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleCreateRemittance}
-                                className="px-3 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700"
+                                disabled={!formData.driverId || !formData.startDate || !formData.endDate}
+                                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                Create
+                                Create Remittance
                             </button>
                         </div>
                     </div>

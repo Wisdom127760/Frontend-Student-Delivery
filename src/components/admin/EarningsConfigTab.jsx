@@ -155,7 +155,7 @@ const EarningsConfigTab = () => {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 {activeConfiguration.rules.map((rule, index) => (
-                                    <div key={index} className="bg-white rounded border border-green-200 p-3">
+                                    <div key={`active-rule-${index}-${rule.minFee}-${rule.maxFee}`} className="bg-white rounded border border-green-200 p-3">
                                         <div className="text-sm font-medium text-gray-900 mb-1">
                                             {rule.minFee} - {rule.maxFee === 999999 ? '∞' : rule.maxFee}
                                         </div>
@@ -200,7 +200,9 @@ const EarningsConfigTab = () => {
                                         <div className="flex-1">
                                             <div className="flex items-center space-x-3">
                                                 <h5 className="font-medium text-gray-900">{config.name}</h5>
-                                                {getStatusBadge(config.isActive)}
+                                                <div key={`status-${config.id}`}>
+                                                    {getStatusBadge(config.isActive)}
+                                                </div>
                                             </div>
                                             <p className="text-sm text-gray-600 mt-1">{config.notes}</p>
                                             <div className="flex items-center space-x-4 mt-2 text-xs text-gray-500">
@@ -238,7 +240,7 @@ const EarningsConfigTab = () => {
                                     {/* Rules Preview */}
                                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                         {config.rules.slice(0, 3).map((rule, index) => (
-                                            <div key={index} className="bg-gray-50 rounded px-2 py-1 text-xs">
+                                            <div key={`config-${config.id}-rule-${index}-${rule.minFee}-${rule.maxFee}`} className="bg-gray-50 rounded px-2 py-1 text-xs">
                                                 <span className="font-medium">
                                                     {rule.minFee}-{rule.maxFee === 999999 ? '∞' : rule.maxFee}:
                                                 </span>
@@ -512,7 +514,7 @@ const EarningsConfigModal = ({ isOpen, onClose, onSubmit, mode, configuration, s
 
                                 <div className="space-y-4">
                                     {formData.rules.map((rule, index) => (
-                                        <div key={index} className="border border-gray-200 rounded-lg p-4">
+                                        <div key={`form-rule-${index}-${rule.minFee}-${rule.maxFee}`} className="border border-gray-200 rounded-lg p-4">
                                             <div className="flex items-center justify-between mb-3">
                                                 <h4 className="text-sm font-medium text-gray-900">Rule {index + 1}</h4>
                                                 {formData.rules.length > 1 && (

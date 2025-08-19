@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import apiService from '../../services/api';
 import Pagination from '../../components/common/Pagination';
+import DocumentSkeleton from '../../components/common/DocumentSkeleton';
 import toast from 'react-hot-toast';
 import {
     DocumentMagnifyingGlassIcon,
@@ -427,10 +428,7 @@ const DocumentVerificationPage = () => {
                 {/* Documents List */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                     {loading ? (
-                        <div className="p-6 text-center">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-500 mx-auto"></div>
-                            <p className="text-sm text-gray-600 mt-2">Loading documents...</p>
-                        </div>
+                        <DocumentSkeleton count={8} />
                     ) : !Array.isArray(documents) ? (
                         <div className="p-6 text-center">
                             <ExclamationTriangleIcon className="h-8 w-8 text-red-400 mx-auto" />

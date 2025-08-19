@@ -9,6 +9,7 @@ const NotificationsDropdown = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [markingAsRead, setMarkingAsRead] = useState(new Set());
 
     useEffect(() => {
         fetchUnreadCount();
@@ -49,6 +50,23 @@ const NotificationsDropdown = () => {
 
     const markAsRead = async (notificationId) => {
         try {
+            console.log('📖 NotificationsDropdown: Marking notification as read:', notificationId);
+
+            // Validate notification ID
+            if (!notificationId || typeof notificationId !== 'string') {
+                console.warn('📖 NotificationsDropdown: Invalid notification ID:', notificationId);
+                return;
+            }
+
+            // Check if already marking this notification as read
+            if (markingAsRead.has(notificationId)) {
+                console.log('📖 NotificationsDropdown: Already marking notification as read:', notificationId);
+                return;
+            }
+
+            // Add to marking set
+            setMarkingAsRead(prev => new Set(prev).add(notificationId));
+
             const response = await apiService.markNotificationAsRead(notificationId);
 
             if (response.success) {
@@ -60,9 +78,35 @@ const NotificationsDropdown = () => {
                     )
                 );
                 setUnreadCount(prev => Math.max(0, prev - 1));
+            } else {
+                // Always fallback to local update for any API failure
+                setNotifications(prev =>
+                    prev.map(notification =>
+                        notification._id === notificationId
+                            ? { ...notification, isRead: true }
+                            : notification
+                    )
+                );
+                setUnreadCount(prev => Math.max(0, prev - 1));
             }
         } catch (error) {
             console.error('Error marking notification as read:', error);
+            // Fallback to local update
+            setNotifications(prev =>
+                prev.map(notification =>
+                    notification._id === notificationId
+                        ? { ...notification, isRead: true }
+                        : notification
+                )
+            );
+            setUnreadCount(prev => Math.max(0, prev - 1));
+        } finally {
+            // Remove from marking set
+            setMarkingAsRead(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(notificationId);
+                return newSet;
+            });
         }
     };
 
@@ -127,10 +171,12 @@ const NotificationsDropdown = () => {
                                 {notifications.map((notification) => (
                                     <div
                                         key={notification._id}
-                                        className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${!notification.isRead ? 'bg-blue-50' : ''
-                                            }`}
+                                        className={`p-4 transition-colors ${markingAsRead.has(notification._id)
+                                            ? 'cursor-not-allowed opacity-75'
+                                            : 'hover:bg-gray-50 cursor-pointer'
+                                            } ${!notification.isRead ? 'bg-blue-50' : ''}`}
                                         onClick={() => {
-                                            if (!notification.isRead) {
+                                            if (!notification.isRead && notification._id && !markingAsRead.has(notification._id)) {
                                                 markAsRead(notification._id);
                                             }
                                         }}
@@ -154,12 +200,22 @@ const NotificationsDropdown = () => {
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        markAsRead(notification._id);
+                                                        if (notification._id && !markingAsRead.has(notification._id)) {
+                                                            markAsRead(notification._id);
+                                                        }
                                                     }}
-                                                    className="ml-2 p-1 text-gray-400 hover:text-gray-600"
-                                                    title="Mark as read"
+                                                    disabled={markingAsRead.has(notification._id)}
+                                                    className={`ml-2 p-1 ${markingAsRead.has(notification._id)
+                                                        ? 'text-gray-300 cursor-not-allowed'
+                                                        : 'text-gray-400 hover:text-gray-600'
+                                                        }`}
+                                                    title={markingAsRead.has(notification._id) ? 'Marking as read...' : 'Mark as read'}
                                                 >
-                                                    <CheckIcon className="w-4 h-4" />
+                                                    {markingAsRead.has(notification._id) ? (
+                                                        <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin"></div>
+                                                    ) : (
+                                                        <CheckIcon className="w-4 h-4" />
+                                                    )}
                                                 </button>
                                             )}
                                         </div>
