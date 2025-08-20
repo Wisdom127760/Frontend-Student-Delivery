@@ -482,15 +482,7 @@ const RemittancePage = () => {
                                 <p className="text-sm text-gray-600">Automatically calculate remittances from completed deliveries</p>
                             </div>
                             <div className="flex space-x-2">
-                                <button
-                                    onClick={() => {
-                                        console.log('Manual refresh of drivers...');
-                                        fetchDrivers();
-                                    }}
-                                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500"
-                                >
-                                    🔄 Refresh Drivers
-                                </button>
+                                {/* Refresh button removed - WebSocket provides real-time updates */}
 
                                 <button
                                     onClick={() => setShowCreateModal(true)}
@@ -904,25 +896,25 @@ const RemittancePage = () => {
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Form Section */}
                                 <div className="space-y-4">
-                                <div>
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Driver</label>
-                                    <select
-                                        value={formData.driverId}
+                                        <select
+                                            value={formData.driverId}
                                             onChange={(e) => {
                                                 setFormData({ ...formData, driverId: e.target.value });
                                                 loadDriverRemittanceDetails(e.target.value);
                                             }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                    >
-                                        <option value="">Select Driver</option>
-                                        {drivers.map(driver => (
+                                        >
+                                            <option value="">Select Driver</option>
+                                            {drivers.map(driver => (
                                                 <option key={driver._id || driver.id} value={driver._id || driver.id}>
                                                     {driver.name} ({driver.email})
                                                 </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                                         <input
                                             type="date"
@@ -943,11 +935,11 @@ const RemittancePage = () => {
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                                    <textarea
-                                        value={formData.notes}
-                                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                                        <textarea
+                                            value={formData.notes}
+                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                        rows={3}
+                                            rows={3}
                                             placeholder="Optional notes for this remittance..."
                                         />
                                     </div>

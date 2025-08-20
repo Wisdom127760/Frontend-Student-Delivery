@@ -13,10 +13,13 @@ import {
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import apiService from '../../services/api';
+import socketService from '../../services/socketService';
+import { useAuth } from '../../context/AuthContext';
 import Modal from '../../components/common/Modal';
 import Button from '../../components/common/Button';
 
 const AdminNotificationsPage = () => {
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('all'); // all, unread, read, system, admin, driver
@@ -107,14 +110,124 @@ const AdminNotificationsPage = () => {
         loadNotifications();
     }, [filter]);
 
-    // Silent refresh every 60 seconds (reduced from 30)
+    // WebSocket setup for real-time notifications
     useEffect(() => {
-        const refreshInterval = setInterval(() => {
-            loadNotifications(true); // Silent refresh
-        }, 60000);
+        if (!user) return;
 
-        return () => clearInterval(refreshInterval);
-    }, [filter]);
+        console.log('🔌 AdminNotificationsPage: Setting up WebSocket for real-time notifications');
+
+        // Connect to socket if not already connected
+        if (!socketService.isConnected()) {
+            socketService.connect(user._id || user.id, user.userType || user.role);
+        }
+
+        // Listen for new notifications from WebSocket
+        socketService.on('new-notification', (notification) => {
+            console.log('🔔 AdminNotificationsPage: Received new notification via WebSocket:', notification);
+
+            // Add new notification to the top of the list
+            const newNotification = {
+                _id: notification._id || Date.now().toString(),
+                title: notification.title || notification.message || 'New Notification',
+                message: notification.message || notification.title || 'You have a new notification',
+                type: notification.type || 'notification',
+                priority: notification.priority || 'medium',
+                isRead: false,
+                createdAt: notification.createdAt || new Date().toISOString(),
+                sender: notification.sender || notification.senderName || null,
+                emergencyData: notification.emergencyData || null
+            };
+
+            setNotifications(prev => [newNotification, ...prev]);
+        });
+
+        // Listen for notification updates (mark as read, etc.)
+        socketService.on('notification-updated', (data) => {
+            console.log('🔔 AdminNotificationsPage: Notification updated via WebSocket:', data);
+
+            setNotifications(prev =>
+                prev.map(notification =>
+                    notification._id === data._id
+                        ? { ...notification, ...data }
+                        : notification
+                )
+            );
+        });
+
+        // Listen for notification deletions
+        socketService.on('notification-deleted', (notificationId) => {
+            console.log('🔔 AdminNotificationsPage: Notification deleted via WebSocket:', notificationId);
+
+            setNotifications(prev =>
+                prev.filter(notification => notification._id !== notificationId)
+            );
+        });
+
+        // Listen for driver status changes
+        socketService.on('driver-status-changed', (data) => {
+            console.log('🔔 AdminNotificationsPage: Driver status changed via WebSocket:', data);
+
+            const statusNotification = {
+                _id: Date.now().toString(),
+                title: 'Driver Status Update',
+                message: `${data.name || 'Unknown driver'} is now ${data.isOnline ? 'online' : 'offline'}`,
+                type: 'driver_status',
+                priority: 'medium',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                sender: data.name || 'System'
+            };
+
+            setNotifications(prev => [statusNotification, ...prev]);
+        });
+
+        // Listen for delivery status changes
+        socketService.on('delivery-status-changed', (data) => {
+            console.log('🔔 AdminNotificationsPage: Delivery status changed via WebSocket:', data);
+
+            const deliveryNotification = {
+                _id: Date.now().toString(),
+                title: 'Delivery Status Update',
+                message: `Delivery ${data.deliveryCode || 'Unknown'} status changed to ${data.status}`,
+                type: 'delivery_status',
+                priority: 'medium',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                sender: 'System'
+            };
+
+            setNotifications(prev => [deliveryNotification, ...prev]);
+        });
+
+        // Listen for emergency alerts
+        socketService.on('emergency-alert', (data) => {
+            console.log('🔔 AdminNotificationsPage: Emergency alert via WebSocket:', data);
+
+            const emergencyNotification = {
+                _id: Date.now().toString(),
+                title: '🚨 Emergency Alert',
+                message: `Emergency from driver: ${data.message}`,
+                type: 'emergency',
+                priority: 'high',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                sender: data.driverName || 'Driver',
+                emergencyData: data
+            };
+
+            setNotifications(prev => [emergencyNotification, ...prev]);
+        });
+
+        return () => {
+            // Clean up WebSocket listeners
+            socketService.off('new-notification');
+            socketService.off('notification-updated');
+            socketService.off('notification-deleted');
+            socketService.off('driver-status-changed');
+            socketService.off('delivery-status-changed');
+            socketService.off('emergency-alert');
+        };
+    }, [user]);
 
     const markAsRead = async (notificationId) => {
         try {

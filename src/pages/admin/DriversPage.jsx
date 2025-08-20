@@ -272,14 +272,7 @@ const DriversPage = () => {
                 <span className="sm:hidden">Export</span>
               </button>
 
-              <button
-                onClick={handleRefresh}
-                disabled={isLoading}
-                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors"
-                title="Refresh"
-              >
-                <ArrowPathIcon className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
+              {/* Refresh button removed - WebSocket provides real-time updates */}
             </div>
           </div>
         </div>

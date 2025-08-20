@@ -1,26 +1,187 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
 import apiService from '../../services/api';
+import soundService from '../../services/soundService';
 import NotificationsDropdownSkeleton from '../common/NotificationsDropdownSkeleton';
 
 const NotificationsDropdown = () => {
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [markingAsRead, setMarkingAsRead] = useState(new Set());
 
+    // Initial load of unread count
     useEffect(() => {
         fetchUnreadCount();
     }, []);
 
+    // Load notifications when dropdown opens
     useEffect(() => {
         if (isOpen) {
             fetchNotifications();
         }
     }, [isOpen]);
+
+    // WebSocket setup for real-time notifications
+    useEffect(() => {
+        if (!user) return;
+
+        console.log('🔌 NotificationsDropdown: Setting up WebSocket for real-time updates');
+
+        // Connect to socket if not already connected
+        if (!socketService.isConnected()) {
+            socketService.connect(user._id || user.id, user.userType || user.role);
+        }
+
+        // Listen for new notifications
+        socketService.on('new-notification', (data) => {
+            console.log('🔔 NotificationsDropdown: Received new notification via WebSocket:', data);
+
+            // Play sound for new notifications
+            soundService.playSound('notification');
+
+            const newNotification = {
+                _id: data._id || Date.now().toString(),
+                title: data.title || 'New Notification',
+                message: data.message || 'You have a new notification',
+                type: data.type || 'notification',
+                priority: data.priority || 'medium',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+
+            // Add to notifications list if dropdown is open
+            if (isOpen) {
+                setNotifications(prev => [newNotification, ...prev.slice(0, 4)]); // Keep only 5 notifications
+            }
+
+            // Update unread count
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for delivery assignments
+        socketService.on('delivery-assigned', (data) => {
+            console.log('🚚 NotificationsDropdown: Received delivery assignment via WebSocket:', data);
+
+            // Play delivery sound
+            soundService.playSound('delivery');
+
+            const deliveryNotification = {
+                _id: data._id || Date.now().toString(),
+                title: 'New Delivery Assigned',
+                message: `You have been assigned delivery ${data.deliveryCode || 'Unknown'}`,
+                type: 'delivery',
+                priority: 'high',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+
+            // Add to notifications list if dropdown is open
+            if (isOpen) {
+                setNotifications(prev => [deliveryNotification, ...prev.slice(0, 4)]);
+            }
+
+            // Update unread count
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for admin messages
+        socketService.on('admin-message', (data) => {
+            console.log('💬 NotificationsDropdown: Received admin message via WebSocket:', data);
+
+            // Play notification sound
+            soundService.playSound('notification');
+
+            const messageNotification = {
+                _id: data._id || Date.now().toString(),
+                title: 'Message from Admin',
+                message: data.message || 'You have a new message from admin',
+                type: 'message',
+                priority: 'medium',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+
+            // Add to notifications list if dropdown is open
+            if (isOpen) {
+                setNotifications(prev => [messageNotification, ...prev.slice(0, 4)]);
+            }
+
+            // Update unread count
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for notification updates (mark as read, etc.)
+        socketService.on('notification-updated', (data) => {
+            console.log('🔔 NotificationsDropdown: Notification updated via WebSocket:', data);
+
+            setNotifications(prev =>
+                prev.map(notification =>
+                    notification._id === data._id
+                        ? { ...notification, ...data }
+                        : notification
+                )
+            );
+
+            // Update unread count if notification was marked as read
+            if (data.isRead) {
+                setUnreadCount(prev => Math.max(0, prev - 1));
+            }
+        });
+
+        // Listen for notification deletions
+        socketService.on('notification-deleted', (notificationId) => {
+            console.log('🔔 NotificationsDropdown: Notification deleted via WebSocket:', notificationId);
+
+            setNotifications(prev => {
+                const deletedNotification = prev.find(n => n._id === notificationId);
+                if (deletedNotification && !deletedNotification.isRead) {
+                    setUnreadCount(prevCount => Math.max(0, prevCount - 1));
+                }
+                return prev.filter(notification => notification._id !== notificationId);
+            });
+        });
+
+        // Listen for payment notifications
+        socketService.on('payment-received', (data) => {
+            console.log('💰 NotificationsDropdown: Payment received via WebSocket:', data);
+
+            // Play notification sound
+            soundService.playSound('notification');
+
+            const paymentNotification = {
+                _id: data._id || Date.now().toString(),
+                title: 'Payment Received',
+                message: `Payment of ₺${data.amount || 'Unknown'} received for delivery ${data.deliveryCode || 'Unknown'}`,
+                type: 'payment',
+                priority: 'high',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString()
+            };
+
+            // Add to notifications list if dropdown is open
+            if (isOpen) {
+                setNotifications(prev => [paymentNotification, ...prev.slice(0, 4)]);
+            }
+
+            // Update unread count
+            setUnreadCount(prev => prev + 1);
+        });
+
+        return () => {
+            // Clean up WebSocket listeners
+            socketService.off('new-notification');
+            socketService.off('delivery-assigned');
+            socketService.off('admin-message');
+            socketService.off('notification-updated');
+            socketService.off('notification-deleted');
+            socketService.off('payment-received');
+        };
+    }, [user, isOpen]);
 
     const fetchNotifications = async () => {
         try {

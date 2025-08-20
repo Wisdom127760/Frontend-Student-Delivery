@@ -62,6 +62,11 @@ const DriverProfilePage = () => {
             console.log('Profile options response status:', response.status);
 
             if (!response.ok) {
+                // If endpoint doesn't exist (404), use fallback options
+                if (response.status === 404) {
+                    console.log('Profile options endpoint not found, using fallback options...');
+                    throw new Error('ENDPOINT_NOT_FOUND');
+                }
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
@@ -151,6 +156,8 @@ const DriverProfilePage = () => {
                     hasProfileImage: !!data.data.profileImage,
                     profileImageUrl: data.data.profileImage,
                     profileData: data.data,
+                    documents: data.data.documents,
+                    documentCount: Object.keys(data.data.documents || {}).length,
                     profileStructure: {
                         profileImage: data.data.profileImage,
                         profile: data.data.profile,
@@ -196,20 +203,15 @@ const DriverProfilePage = () => {
         setIsSaving(true);
 
         try {
+            // Send flat structure instead of nested objects
             const updateData = {
-                personalDetails: {
-                    fullName: formData.fullName,
-                    email: formData.email,
-                    phone: formData.phone
-                },
-                studentInfo: {
-                    studentId: formData.studentId,
-                    university: formData.university
-                },
-                transportation: {
-                    method: formData.transportationMethod,
-                    area: formData.transportationArea
-                }
+                fullName: formData.fullName,
+                email: formData.email,
+                phone: formData.phone,
+                studentId: formData.studentId,
+                university: formData.university,
+                transportationMethod: formData.transportationMethod,
+                transportationArea: formData.transportationArea
             };
 
             const result = await apiService.updateDriverProfile(updateData);
@@ -416,14 +418,7 @@ const DriverProfilePage = () => {
                         <div className="flex items-center space-x-3">
                             {!isEditing && (
                                 <>
-                                    <button
-                                        onClick={() => fetchProfile(true)}
-                                        className="inline-flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 shadow-sm hover:shadow-md"
-                                        title="Refresh profile data"
-                                    >
-                                        <ArrowPathIcon className="w-4 h-4 mr-2" />
-                                        Refresh
-                                    </button>
+                                    {/* Refresh button removed - WebSocket provides real-time updates */}
                                     <button
                                         onClick={() => setIsEditing(true)}
                                         className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md"
@@ -1017,16 +1012,92 @@ const DriverProfilePage = () => {
                     {/* Documents Tab */}
                     {activeTab === 'documents' && (
                         <div className="p-8">
-                            <div className="mb-6">
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Document Verification</h3>
-                                <p className="text-gray-600">Upload required documents for account verification</p>
+                            <div className="mb-6 flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Document Verification</h3>
+                                    <p className="text-gray-600">Upload required documents for account verification</p>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        console.log('🔄 Manually refreshing profile data...');
+                                        await fetchProfile(true);
+                                        toast.success('Profile data refreshed!');
+                                    }}
+                                    className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                >
+                                    <ArrowPathIcon className="w-4 h-4 mr-2" />
+                                    Refresh
+                                </button>
+                            </div>
+
+                            {/* Document Status Summary */}
+                            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+                                <h4 className="text-lg font-medium text-gray-900 mb-4">Document Status</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {[
+                                        { key: 'studentId', label: 'Student ID', required: true },
+                                        { key: 'profilePhoto', label: 'Profile Photo', required: true },
+                                        { key: 'universityEnrollment', label: 'University Enrollment', required: true },
+                                        { key: 'identityCard', label: 'Identity Card', required: true },
+                                        { key: 'transportationLicense', label: 'Transportation License', required: false }
+                                    ].map((doc) => {
+                                        const document = profile?.documents?.[doc.key];
+                                        const isUploaded = document && document.status !== 'missing';
+                                        const isVerified = document?.status === 'verified';
+                                        const isPending = document?.status === 'pending';
+
+                                        return (
+                                            <div key={doc.key} className="flex items-center p-3 border border-gray-200 rounded-lg">
+                                                <div className="flex-shrink-0 mr-3">
+                                                    {isVerified ? (
+                                                        <CheckCircleIcon className="w-6 h-6 text-green-500" />
+                                                    ) : isUploaded ? (
+                                                        <ClockIcon className="w-6 h-6 text-yellow-500" />
+                                                    ) : (
+                                                        <DocumentTextIcon className="w-6 h-6 text-gray-400" />
+                                                    )}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900">{doc.label}</p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {isVerified ? 'Verified' :
+                                                            isUploaded ? 'Pending Verification' :
+                                                                doc.required ? 'Required' : 'Optional'}
+                                                    </p>
+                                                    {document?.uploadDate && (
+                                                        <p className="text-xs text-gray-400">
+                                                            Uploaded: {new Date(document.uploadDate).toLocaleDateString()}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
 
                             <div className="space-y-6">
                                 <DocumentUpload
-                                    documentType="studentId"
-                                    onDocumentUploaded={() => { }}
-                                    isUploaded={profile?.verification?.studentVerified}
+                                    documents={profile?.documents || {}}
+                                    onDocumentUploaded={async (documentType, documentData) => {
+                                        console.log('📄 Document uploaded successfully:', { documentType, documentData });
+
+                                        // Show success message
+                                        toast.success(`${documentType} uploaded successfully!`);
+
+                                        // Refresh profile data to get updated document information
+                                        await fetchProfile(true);
+
+                                        // Force a re-render to show updated document status
+                                        setProfile(prev => ({
+                                            ...prev,
+                                            documents: {
+                                                ...prev?.documents,
+                                                [documentType]: documentData
+                                            }
+                                        }));
+                                    }}
+                                    user={user}
                                 />
 
                                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -1035,7 +1106,7 @@ const DriverProfilePage = () => {
                                         <div className="ml-3">
                                             <h3 className="text-sm font-medium text-blue-800">Verification Status</h3>
                                             <div className="mt-2 text-sm text-blue-700">
-                                                <p>Upload your student ID to verify your account and start accepting deliveries.</p>
+                                                <p>Upload your required documents to verify your account and start accepting deliveries.</p>
                                             </div>
                                         </div>
                                     </div>

@@ -30,6 +30,7 @@ import DriverProfilePage from './pages/driver/ProfilePage';
 import MyDeliveries from './pages/driver/MyDeliveries';
 import DriverEarningsPage from './pages/driver/EarningsPage';
 import DriverRemittancePage from './pages/driver/RemittancePage';
+import ReferralPage from './pages/driver/ReferralPage';
 import NotificationsPage from './pages/driver/NotificationsPage';
 import BroadcastPage from './pages/driver/BroadcastPage';
 import DriverActivationPage from './pages/DriverActivationPage';
@@ -190,6 +191,15 @@ function App() {
                         <DeliveryBroadcastProvider>
                           <DriverLayout>
                             <DriverEarningsPage />
+                          </DriverLayout>
+                        </DeliveryBroadcastProvider>
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/driver/referrals" element={
+                      <ProtectedRoute allowedRoles={['driver']}>
+                        <DeliveryBroadcastProvider>
+                          <DriverLayout>
+                            <ReferralPage />
                           </DriverLayout>
                         </DeliveryBroadcastProvider>
                       </ProtectedRoute>

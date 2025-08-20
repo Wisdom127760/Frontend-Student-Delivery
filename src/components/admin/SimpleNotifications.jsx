@@ -297,38 +297,15 @@ const SimpleNotifications = () => {
             addNotification(notification);
         });
 
-        // Check connection status and refresh notifications periodically
+        // Check connection status periodically
         const checkConnection = () => {
             setIsConnected(socketService.isConnected());
         };
         checkConnection();
         const interval = setInterval(checkConnection, 5000);
 
-        // Refresh notifications every 30 seconds as fallback
-        const refreshInterval = setInterval(async () => {
-            try {
-                const response = await apiService.getAdminNotifications({ limit: 10 });
-                if (response && response.success && response.data?.notifications) {
-                    const existingNotifications = response.data.notifications.map(notification => ({
-                        id: notification._id,
-                        message: notification.title || notification.message,
-                        timestamp: new Date(notification.createdAt),
-                        type: notification.type,
-                        priority: notification.priority || 'medium',
-                        isRead: notification.isRead,
-                        sender: notification.sender || notification.senderName || notification.from || null,
-                        emergencyData: notification.emergencyData || null
-                    }));
-                    setNotifications(existingNotifications);
-                }
-            } catch (error) {
-                console.error('Error refreshing notifications:', error);
-            }
-        }, 30000); // Refresh every 30 seconds
-
         return () => {
             clearInterval(interval);
-            clearInterval(refreshInterval);
             socketService.off('receive_notification');
             socketService.off('driver-status-changed');
             socketService.off('delivery-status-changed');

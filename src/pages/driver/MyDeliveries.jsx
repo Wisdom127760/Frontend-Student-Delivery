@@ -401,15 +401,7 @@ const MyDeliveries = () => {
                     <p className="text-gray-600 mt-1">Track and manage your delivery assignments</p>
                 </div>
                 <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-                    {/* Refresh Button */}
-                    <button
-                        onClick={refreshDeliveries}
-                        disabled={refreshing}
-                        className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
-                    >
-                        <ArrowPathIcon className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </button>
+                    {/* Refresh button removed - WebSocket provides real-time updates */}
 
                     {/* Quick link to Broadcast page */}
                     <a

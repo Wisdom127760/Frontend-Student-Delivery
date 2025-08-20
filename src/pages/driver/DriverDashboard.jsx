@@ -10,7 +10,8 @@ import {
     CheckCircleIcon,
     StarIcon,
     FunnelIcon,
-    MegaphoneIcon
+    MegaphoneIcon,
+    UserGroupIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -27,6 +28,7 @@ const DashboardContent = () => {
     const [loading, setLoading] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState('today');
     const [dashboardData, setDashboardData] = useState(null);
+    const [referralData, setReferralData] = useState(null);
 
     // Load dashboard data from comprehensive endpoint
     const loadDashboardData = useCallback(async (silent = false) => {
@@ -43,19 +45,13 @@ const DashboardContent = () => {
             const response = await apiService.getDashboardData(selectedPeriod);
 
             if (response.success && response.data) {
-
-
-
                 setDashboardData(response.data);
-
                 // Removed success toast to prevent unwanted notifications
             } else {
                 console.warn('⚠️ Invalid dashboard response:', response);
                 console.warn('Response structure:', JSON.stringify(response, null, 2));
                 throw new Error('Invalid response structure');
             }
-
-
 
         } catch (error) {
             console.error('❌ Error loading dashboard data:', error);
@@ -70,8 +66,6 @@ const DashboardContent = () => {
                 data: error.response?.data,
                 headers: error.response?.headers
             });
-
-
 
             // Show appropriate error messages
             if (!silent) {
@@ -92,6 +86,32 @@ const DashboardContent = () => {
         }
     }, [selectedPeriod]);
 
+    // Load referral data
+    const loadReferralData = useCallback(async () => {
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const driverId = user._id || user.id;
+
+            if (!driverId) {
+                console.warn('⚠️ No driver ID found for referral data');
+                return;
+            }
+
+            console.log('🎯 Loading referral data for driver:', driverId);
+            const response = await apiService.getDriverReferralCode(driverId);
+
+            if (response.success) {
+                setReferralData(response.data);
+                console.log('✅ Referral data loaded:', response.data);
+            } else {
+                console.warn('⚠️ Failed to load referral data:', response);
+            }
+        } catch (error) {
+            console.error('❌ Error loading referral data:', error);
+            // Don't show error toast for referral data as it's not critical
+        }
+    }, []);
+
     // Period change handler
     const handlePeriodChange = (period) => {
         setSelectedPeriod(period);
@@ -101,11 +121,12 @@ const DashboardContent = () => {
 
     useEffect(() => {
         loadDashboardData();
+        loadReferralData();
 
         // Refresh data every 30 seconds (silent refresh)
         const interval = setInterval(() => loadDashboardData(true), 60000);
         return () => clearInterval(interval);
-    }, [loadDashboardData]);
+    }, [loadDashboardData, loadReferralData]);
 
     // Get current period data based on selected filter
     const getCurrentPeriodData = () => {
@@ -242,6 +263,51 @@ const DashboardContent = () => {
                         </div>
                     ))}
                 </div>
+
+                {/* Referral Code Section */}
+                {referralData && (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-gray-900">Your Referral Code</h2>
+                            <button
+                                onClick={() => navigate('/driver/referrals')}
+                                className="text-green-600 hover:text-green-700 text-sm font-medium"
+                            >
+                                View Referrals
+                            </button>
+                        </div>
+                        <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4 border border-green-200">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm text-gray-600 mb-1">Share this code with new drivers:</p>
+                                    <div className="flex items-center space-x-4">
+                                        <div className="bg-white px-4 py-2 rounded-lg border border-green-300">
+                                            <p className="font-mono text-lg font-bold text-green-600">
+                                                {referralData.referralCode || 'Loading...'}
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                if (referralData.referralCode) {
+                                                    navigator.clipboard.writeText(referralData.referralCode);
+                                                    toast.success('Referral code copied!');
+                                                }
+                                            }}
+                                            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                                        >
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-sm text-gray-600 mb-1">Rewards</p>
+                                    <p className="text-sm font-medium text-gray-900">You: 1000 points</p>
+                                    <p className="text-sm font-medium text-gray-900">Friend: 500 points</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Content Grid */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

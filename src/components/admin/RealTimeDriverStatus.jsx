@@ -209,14 +209,7 @@ const RealTimeDriverStatus = () => {
             </p>
           </div>
 
-          <button
-            onClick={() => fetchDriverStatus()}
-            disabled={isLoading}
-            className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
-            title="Refresh"
-          >
-            <ArrowPathIcon className={`w-3 h-3 ${isLoading ? 'animate-spin' : ''}`} />
-          </button>
+          {/* Refresh button removed - WebSocket provides real-time updates */}
         </div>
       </div>
 

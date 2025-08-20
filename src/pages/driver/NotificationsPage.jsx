@@ -66,13 +66,13 @@ const NotificationsPage = () => {
 
             // Add new notification to the top of the list
             const newNotification = {
-                _id: Date.now().toString(),
+                _id: data._id || Date.now().toString(),
                 title: data.title || 'New Notification',
                 message: data.message || 'You have a new notification',
                 type: data.type || 'notification',
                 priority: data.priority || 'medium',
                 isRead: false,
-                createdAt: new Date().toISOString(),
+                createdAt: data.createdAt || new Date().toISOString(),
                 metadata: data.metadata || {}
             };
 
@@ -88,13 +88,13 @@ const NotificationsPage = () => {
             soundService.playSound('delivery');
 
             const deliveryNotification = {
-                _id: Date.now().toString(),
+                _id: data._id || Date.now().toString(),
                 title: 'New Delivery Assigned',
                 message: `You have been assigned delivery ${data.deliveryCode || 'Unknown'}`,
                 type: 'delivery',
                 priority: 'high',
                 isRead: false,
-                createdAt: new Date().toISOString(),
+                createdAt: data.createdAt || new Date().toISOString(),
                 metadata: data
             };
 
@@ -110,17 +110,105 @@ const NotificationsPage = () => {
             soundService.playSound('notification');
 
             const messageNotification = {
-                _id: Date.now().toString(),
+                _id: data._id || Date.now().toString(),
                 title: 'Message from Admin',
                 message: data.message || 'You have a new message from admin',
                 type: 'message',
+                priority: 'medium',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString(),
+                metadata: data
+            };
+
+            setNotifications(prev => [messageNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for notification updates (mark as read, etc.)
+        socketService.on('notification-updated', (data) => {
+            console.log('🔔 DriverNotificationsPage: Notification updated via WebSocket:', data);
+
+            setNotifications(prev =>
+                prev.map(notification =>
+                    notification._id === data._id
+                        ? { ...notification, ...data }
+                        : notification
+                )
+            );
+
+            // Update unread count if notification was marked as read
+            if (data.isRead) {
+                setUnreadCount(prev => Math.max(0, prev - 1));
+            }
+        });
+
+        // Listen for notification deletions
+        socketService.on('notification-deleted', (notificationId) => {
+            console.log('🔔 DriverNotificationsPage: Notification deleted via WebSocket:', notificationId);
+
+            setNotifications(prev => {
+                const deletedNotification = prev.find(n => n._id === notificationId);
+                if (deletedNotification && !deletedNotification.isRead) {
+                    setUnreadCount(prevCount => Math.max(0, prevCount - 1));
+                }
+                return prev.filter(notification => notification._id !== notificationId);
+            });
+        });
+
+        // Listen for delivery status changes
+        socketService.on('delivery-status-changed', (data) => {
+            console.log('📦 DriverNotificationsPage: Delivery status changed via WebSocket:', data);
+
+            const statusNotification = {
+                _id: Date.now().toString(),
+                title: 'Delivery Status Update',
+                message: `Delivery ${data.deliveryCode || 'Unknown'} status changed to ${data.status}`,
+                type: 'delivery_status',
                 priority: 'medium',
                 isRead: false,
                 createdAt: new Date().toISOString(),
                 metadata: data
             };
 
-            setNotifications(prev => [messageNotification, ...prev.slice(0, -1)]);
+            setNotifications(prev => [statusNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for payment notifications
+        socketService.on('payment-received', (data) => {
+            console.log('💰 DriverNotificationsPage: Payment received via WebSocket:', data);
+
+            const paymentNotification = {
+                _id: data._id || Date.now().toString(),
+                title: 'Payment Received',
+                message: `Payment of ₺${data.amount || 'Unknown'} received for delivery ${data.deliveryCode || 'Unknown'}`,
+                type: 'payment',
+                priority: 'high',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString(),
+                metadata: data
+            };
+
+            setNotifications(prev => [paymentNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
+        // Listen for earnings updates
+        socketService.on('earnings-updated', (data) => {
+            console.log('💰 DriverNotificationsPage: Earnings updated via WebSocket:', data);
+
+            const earningsNotification = {
+                _id: Date.now().toString(),
+                title: 'Earnings Update',
+                message: `Your earnings have been updated. New total: ₺${data.totalEarnings || 'Unknown'}`,
+                type: 'earnings',
+                priority: 'medium',
+                isRead: false,
+                createdAt: new Date().toISOString(),
+                metadata: data
+            };
+
+            setNotifications(prev => [earningsNotification, ...prev.slice(0, -1)]);
             setUnreadCount(prev => prev + 1);
         });
 
@@ -129,18 +217,23 @@ const NotificationsPage = () => {
             socketService.off('new-notification');
             socketService.off('delivery-assigned');
             socketService.off('admin-message');
+            socketService.off('notification-updated');
+            socketService.off('notification-deleted');
+            socketService.off('delivery-status-changed');
+            socketService.off('payment-received');
+            socketService.off('earnings-updated');
         };
     }, [user]);
 
-    // Silent refresh every 30 seconds
-    useEffect(() => {
-        const refreshInterval = setInterval(() => {
-            fetchNotifications(true); // Silent refresh
-            fetchUnreadCount(true); // Silent refresh
-        }, 30000);
+    // Remove the API polling interval - we now rely on WebSockets for real-time updates
+    // useEffect(() => {
+    //     const refreshInterval = setInterval(() => {
+    //         fetchNotifications(true); // Silent refresh
+    //         fetchUnreadCount(true); // Silent refresh
+    //     }, 30000);
 
-        return () => clearInterval(refreshInterval);
-    }, [currentPage, filter]);
+    //     return () => clearInterval(refreshInterval);
+    // }, [currentPage, filter]);
 
     const fetchNotifications = useCallback(async (silent = false) => {
         try {

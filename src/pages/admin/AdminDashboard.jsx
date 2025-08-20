@@ -457,17 +457,7 @@ const AdminDashboard = () => {
                             <div className="flex items-center justify-between">
                                 <h2 className="text-xs font-semibold text-gray-900">🏆 Driver Leaderboard</h2>
                                 <div className="flex items-center space-x-2">
-                                    <button
-                                        onClick={() => {
-                                            console.log('🔄 Manual refresh triggered');
-                                            loadDashboardData();
-                                        }}
-                                        className="flex items-center space-x-1 text-xs text-gray-600 hover:text-gray-700 font-medium transition-colors"
-                                        title="Refresh leaderboard data"
-                                    >
-                                        <ArrowPathIcon className="w-3 h-3" />
-                                        <span>Refresh</span>
-                                    </button>
+                                    {/* Refresh button removed - WebSocket provides real-time updates */}
                                     <button
                                         onClick={copyLeaderboardToClipboard}
                                         disabled={isCopying}

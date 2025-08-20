@@ -19,7 +19,8 @@ import {
     ArrowRightOnRectangleIcon,
     DocumentTextIcon,
     BellIcon,
-    Bars3Icon
+    Bars3Icon,
+    UserGroupIcon
 } from '@heroicons/react/24/outline';
 import socketService from '../../services/socketService';
 
@@ -145,6 +146,7 @@ const DriverLayout = ({ children }) => {
         { name: 'Broadcast', href: '/driver/broadcasts', icon: TruckIcon },
         { name: 'My Deliveries', href: '/driver/deliveries', icon: TruckIcon },
         { name: 'Earnings', href: '/driver/earnings', icon: CurrencyDollarIcon },
+        { name: 'Referrals', href: '/driver/referrals', icon: UserGroupIcon },
         { name: 'Remittances', href: '/driver/remittances', icon: DocumentTextIcon },
         { name: 'Notifications', href: '/driver/notifications', icon: BellIcon },
     ];

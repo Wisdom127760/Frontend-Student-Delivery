@@ -1373,6 +1373,74 @@ class ApiService {
         console.log('📍 API Service: Nearby drivers test response:', response.data);
         return response.data;
     }
+
+    // Referral endpoints
+    async generateReferralCode(driverId) {
+        const response = await api.post(`/referral/driver/${driverId}/generate`);
+        return response.data;
+    }
+
+    async getDriverReferralCode(driverId) {
+        const response = await api.get(`/referral/driver/${driverId}/code`);
+        return response.data;
+    }
+
+    async useReferralCode(driverId, referralCode) {
+        const response = await api.post(`/referral/driver/${driverId}/use`, { referralCode });
+        return response.data;
+    }
+
+    async getDriverReferralStats(driverId) {
+        const response = await api.get(`/referral/driver/${driverId}/stats`);
+        return response.data;
+    }
+
+    async updateReferralProgress(driverId) {
+        const response = await api.post(`/referral/driver/${driverId}/progress/update`);
+        return response.data;
+    }
+
+    // Referral points endpoints
+    async getDriverPointsSummary(driverId) {
+        const response = await api.get(`/referral/driver/${driverId}/points`);
+        return response.data;
+    }
+
+    async getDriverPointsHistory(driverId, limit = 20) {
+        const response = await api.get(`/referral/driver/${driverId}/points/history?limit=${limit}`);
+        return response.data;
+    }
+
+    async redeemDriverPoints(driverId, { amount, description }) {
+        const response = await api.post(`/referral/driver/${driverId}/points/redeem`, { amount, description });
+        return response.data;
+    }
+
+    // Public referral endpoints
+    async getReferralLeaderboard(limit = 10) {
+        const response = await api.get(`/referral/leaderboard?limit=${limit}`);
+        return response.data;
+    }
+
+    // Admin referral endpoints
+    async getReferralAdminStats() {
+        const response = await api.get('/referral/admin/statistics');
+        return response.data;
+    }
+
+    async getAllReferrals(page = 1, limit = 20, status = null) {
+        let url = `/referral/admin/referrals?page=${page}&limit=${limit}`;
+        if (status) {
+            url += `&status=${status}`;
+        }
+        const response = await api.get(url);
+        return response.data;
+    }
+
+    async cancelReferral(referralId) {
+        const response = await api.put(`/referral/admin/referrals/${referralId}/cancel`);
+        return response.data;
+    }
 }
 
 // Create singleton instance
