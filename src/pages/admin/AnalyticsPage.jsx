@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import { LineChart, PieChart } from '../../components/charts';
 import { formatCurrency } from '../../services/systemSettings';
 import toast from 'react-hot-toast';
@@ -204,7 +205,7 @@ const AnalyticsPage = () => {
                                     {analyticsData.driverPerformance.map((driver, index) => (
                                         <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                                             <div>
-                                                <p className="text-sm font-medium text-gray-900">{driver.name}</p>
+                                                <p className="text-sm font-medium text-gray-900">{capitalizeName(driver.name)}</p>
                                                 <p className="text-xs text-gray-600">{driver.deliveries} deliveries</p>
                                             </div>
                                             <div className="text-right">

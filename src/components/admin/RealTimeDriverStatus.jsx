@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import { getRealTimeDriverStatus } from '../../services/dashboardService';
 import { getStatusColor, getStatusText } from '../../services/systemSettings';
 import socketService from '../../services/socketService';
@@ -243,7 +244,7 @@ const RealTimeDriverStatus = () => {
                   <div className="flex items-start space-x-2 min-w-0 flex-1">
                     <div className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusColor(status).split(' ')[0]}`}></div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-900 truncate">{driver.name}</p>
+                      <p className="text-xs font-medium text-gray-900 truncate">{capitalizeName(driver.name)}</p>
                       <p className="text-xs text-gray-500 truncate">{driver.currentLocation || driver.area || 'Unknown'}</p>
                     </div>
                   </div>

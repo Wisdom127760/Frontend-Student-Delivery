@@ -9,7 +9,6 @@ import {
     ChartBarIcon,
     CalendarDaysIcon,
     ArrowPathIcon,
-    StarIcon,
     BanknotesIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
@@ -113,9 +112,26 @@ const EarningsPage = () => {
     // Refresh earnings
     const refreshEarnings = async () => {
         setRefreshing(true);
-        await loadEarningsData();
-        setRefreshing(false);
-        toast.success('Earnings data refreshed!');
+        try {
+            // First try to trigger earnings calculation
+            try {
+                console.log('💰 EarningsPage: Triggering earnings calculation...');
+                await apiService.calculateDriverEarnings();
+                console.log('✅ EarningsPage: Earnings calculation triggered');
+            } catch (earningsError) {
+                console.warn('⚠️ EarningsPage: Earnings calculation failed:', earningsError);
+                // Continue with loading earnings data even if calculation fails
+            }
+
+            // Then load the updated earnings data
+            await loadEarningsData();
+            toast.success('Earnings data refreshed!');
+        } catch (error) {
+            console.error('Error refreshing earnings:', error);
+            toast.error('Failed to refresh earnings data');
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     // Period handlers
@@ -324,7 +340,7 @@ const EarningsPage = () => {
                 </div>
 
                 {/* Main Earnings Stats Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                     {/* Total Earnings */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                         <div className="flex items-center justify-between">
@@ -370,20 +386,7 @@ const EarningsPage = () => {
                         </div>
                     </div>
 
-                    {/* Rating */}
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                                <p className="text-sm text-gray-600 mb-2">Average Rating</p>
-                                <p className="text-3xl font-bold text-gray-900">
-                                    {summary?.averageRating ? summary.averageRating.toFixed(1) : '0.0'}
-                                </p>
-                            </div>
-                            <div className="p-3 rounded-lg bg-yellow-50">
-                                <StarIcon className="h-6 w-6 text-yellow-600" />
-                            </div>
-                        </div>
-                    </div>
+
                 </div>
 
                 {/* Content Grid */}

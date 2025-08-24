@@ -22,6 +22,7 @@ const SimpleNotifications = () => {
     const [replyMessage, setReplyMessage] = useState('');
     const [selectedNotification, setSelectedNotification] = useState(null);
     const dropdownRef = useRef(null);
+    const processedNotifications = useRef(new Set()); // Track processed notifications to prevent duplicates
 
     // Handle click outside dropdown
     useEffect(() => {
@@ -100,9 +101,38 @@ const SimpleNotifications = () => {
             //console.log('🔌 SimpleNotifications: Socket already connected');
         }
 
+        // Helper function to create unique notification ID
+        const createNotificationId = (data) => {
+            if (data.id) return data.id;
+            if (data.message && data.timestamp) {
+                return `${data.message}-${data.timestamp}`;
+            }
+            return `${Date.now()}-${Math.random()}`;
+        };
+
+        // Helper function to check if notification is duplicate
+        const isDuplicateNotification = (notificationId) => {
+            if (processedNotifications.current.has(notificationId)) {
+                return true;
+            }
+            processedNotifications.current.add(notificationId);
+            // Clean up old entries to prevent memory leaks
+            if (processedNotifications.current.size > 100) {
+                const entries = Array.from(processedNotifications.current);
+                processedNotifications.current = new Set(entries.slice(-50));
+            }
+            return false;
+        };
+
         // Listen for notifications - OPTIMIZED FOR IMMEDIATE RESPONSE
         socketService.on('receive_notification', (data) => {
             //console.log('🎉 Admin received notification:', data);
+
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate notification detected, skipping:', notificationId);
+                return;
+            }
 
             // Play sound IMMEDIATELY (don't wait for notification to be added)
             soundService.playSound('notification').catch(err =>
@@ -110,13 +140,12 @@ const SimpleNotifications = () => {
             );
 
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: data.message,
                 timestamp: new Date(),
                 type: 'notification'
             };
 
-            // Add notification to UI
             addNotification(notification);
         });
 
@@ -154,6 +183,12 @@ const SimpleNotifications = () => {
         socketService.on('emergency-alert', (data) => {
             //console.log('🚨 Admin received emergency alert:', data);
 
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate emergency alert detected, skipping:', notificationId);
+                return;
+            }
+
             // Play emergency sound IMMEDIATELY (before any processing)
             soundService.playSound('alert').catch(err => console.log('🔊 Emergency sound failed:', err));
 
@@ -166,7 +201,7 @@ const SimpleNotifications = () => {
             const emergencyMessage = `🚨 EMERGENCY from ${data.driverName || 'Unknown Driver'} (${data.driverArea || 'Unknown Area'}): ${data.message}`;
 
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: emergencyMessage,
                 timestamp: new Date(),
                 priority: 'high',
@@ -191,6 +226,12 @@ const SimpleNotifications = () => {
         socketService.on('new-notification', (data) => {
             //console.log('🔔 Admin received new notification from API:', data);
 
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate new-notification detected, skipping:', notificationId);
+                return;
+            }
+
             // Play sound IMMEDIATELY (before creating notification object)
             if (data.type === 'emergency-alert') {
                 soundService.playSound('alert').catch(err => console.log('🔊 Alert sound failed:', err));
@@ -201,7 +242,7 @@ const SimpleNotifications = () => {
             }
 
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: data.message || data.title || 'New notification received',
                 timestamp: new Date(),
                 type: data.type || 'notification',
@@ -216,11 +257,17 @@ const SimpleNotifications = () => {
         socketService.on('driver-message', (data) => {
             //console.log('💬 Admin received driver message:', data);
 
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate driver message detected, skipping:', notificationId);
+                return;
+            }
+
             // Play sound IMMEDIATELY
             soundService.playSound('notification').catch(err => console.log('🔊 Message sound failed:', err));
 
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: `💬 Message from ${data.driverName || 'Driver'}: ${data.message}`,
                 timestamp: new Date(),
                 type: 'driver-message',
@@ -235,8 +282,15 @@ const SimpleNotifications = () => {
         // Listen for new messages (general)
         socketService.on('new-message', (data) => {
             //console.log('💬 Admin received new message:', data);
+
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate new-message detected, skipping:', notificationId);
+                return;
+            }
+
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: `💬 Message from ${data.senderType || 'User'}: ${data.message}`,
                 timestamp: new Date(),
                 type: 'message',
@@ -252,8 +306,15 @@ const SimpleNotifications = () => {
         // Listen for admin notifications (general)
         socketService.on('admin-notification', (data) => {
             //console.log('🔔 Admin received admin notification:', data);
+
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate admin notification detected, skipping:', notificationId);
+                return;
+            }
+
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: data.message || 'New notification',
                 timestamp: new Date(),
                 type: data.type || 'notification',
@@ -268,8 +329,15 @@ const SimpleNotifications = () => {
         // Listen for system notifications
         socketService.on('system-notification', (data) => {
             //console.log('🔔 Admin received system notification:', data);
+
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate system notification detected, skipping:', notificationId);
+                return;
+            }
+
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: data.message || 'System notification',
                 timestamp: new Date(),
                 type: 'system',
@@ -284,8 +352,15 @@ const SimpleNotifications = () => {
         // Listen for any notification event (catch-all)
         socketService.on('notification', (data) => {
             //console.log('🔔 Admin received notification event:', data);
+
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate general notification detected, skipping:', notificationId);
+                return;
+            }
+
             const notification = {
-                id: Date.now(),
+                id: notificationId,
                 message: data.message || 'New notification',
                 timestamp: new Date(),
                 type: data.type || 'notification',

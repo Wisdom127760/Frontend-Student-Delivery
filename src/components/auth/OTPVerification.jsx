@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 const OTPVerification = () => {
     const [otp, setOtp] = useState('');
     const [timeLeft, setTimeLeft] = useState(60);
     const [isResending, setIsResending] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errors, setErrors] = useState({});
     const { login, sendOTP } = useAuth();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -21,6 +23,7 @@ const OTPVerification = () => {
     useEffect(() => {
         if (!email) {
             console.log('❌ No email found, redirecting to login...');
+            toast.error('Email is required. Please try logging in again.');
             navigate('/');
         }
     }, [email, navigate]);
@@ -61,13 +64,230 @@ const OTPVerification = () => {
         newOTP[index] = value;
         const otpString = newOTP.join('');
         setOtp(otpString);
+
+        // Clear errors when user starts typing
+        if (errors.otp) {
+            setErrors(prev => ({ ...prev, otp: null }));
+        }
+    };
+
+    // Enhanced error handling function
+    const handleError = (error, context = 'verification') => {
+        console.error(`❌ ${context} error:`, error);
+
+        let errorMessage = 'An unexpected error occurred. Please try again.';
+        let errorType = 'general';
+
+        // Handle different types of errors
+        if (error.response) {
+            // Server responded with error status
+            const { status, data } = error.response;
+
+            switch (status) {
+                case 400:
+                    // Check for specific OTP validation errors
+                    if (data?.message?.toLowerCase().includes('otp') || data?.message?.toLowerCase().includes('code')) {
+                        if (data?.message?.toLowerCase().includes('invalid')) {
+                            errorMessage = 'Invalid OTP code. Please check the code and try again.';
+                            errorType = 'invalidOTP';
+                        } else if (data?.message?.toLowerCase().includes('expired')) {
+                            errorMessage = 'OTP code has expired. Please request a new code.';
+                            errorType = 'expiredOTP';
+                        } else if (data?.message?.toLowerCase().includes('wrong')) {
+                            errorMessage = 'Incorrect OTP code. Please check the code and try again.';
+                            errorType = 'wrongOTP';
+                        } else {
+                            errorMessage = 'Invalid OTP code. Please check the code and try again.';
+                            errorType = 'invalidOTP';
+                        }
+                    } else if (data?.message?.toLowerCase().includes('email')) {
+                        errorMessage = 'Please enter a valid email address.';
+                        errorType = 'validation';
+                    } else {
+                        errorMessage = data?.message || 'Invalid request. Please check your input.';
+                        errorType = 'validation';
+                    }
+                    break;
+                case 401:
+                    if (data?.message?.toLowerCase().includes('expired')) {
+                        errorMessage = 'Your session has expired. Please log in again.';
+                        errorType = 'sessionExpired';
+                    } else {
+                        errorMessage = data?.message || 'Authentication failed. Please try again.';
+                        errorType = 'auth';
+                    }
+                    break;
+                case 403:
+                    if (data?.message?.toLowerCase().includes('suspended')) {
+                        errorMessage = 'Your account has been suspended. Please contact support.';
+                        errorType = 'suspended';
+                    } else if (data?.message?.toLowerCase().includes('blocked')) {
+                        errorMessage = 'Your account has been blocked. Please contact support.';
+                        errorType = 'blocked';
+                    } else {
+                        errorMessage = data?.message || 'Access denied. You are not authorized to perform this action.';
+                        errorType = 'permission';
+                    }
+                    break;
+                case 404:
+                    if (data?.message?.toLowerCase().includes('user') || data?.message?.toLowerCase().includes('not found')) {
+                        errorMessage = 'No account found with this email address. Please check your email or create a new account.';
+                        errorType = 'userNotFound';
+                    } else {
+                        errorMessage = data?.message || 'User not found. Please check your email address.';
+                        errorType = 'notFound';
+                    }
+                    break;
+                case 409:
+                    if (data?.message?.toLowerCase().includes('already verified')) {
+                        errorMessage = 'This OTP has already been used. Please request a new code.';
+                        errorType = 'alreadyUsed';
+                    } else {
+                        errorMessage = data?.message || 'OTP conflict. Please request a new code.';
+                        errorType = 'conflict';
+                    }
+                    break;
+                case 429:
+                    errorMessage = data?.message || 'Too many verification attempts. Please wait a moment before trying again.';
+                    errorType = 'rateLimit';
+                    break;
+                case 500:
+                    errorMessage = data?.message || 'Server error. Please try again later.';
+                    errorType = 'server';
+                    break;
+                default:
+                    errorMessage = data?.message || `Server error (${status}). Please try again.`;
+                    errorType = 'server';
+            }
+        } else if (error.request) {
+            // Network error - no response received
+            errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
+            errorType = 'network';
+        } else if (error.code === 'ERR_NETWORK') {
+            // Axios network error
+            errorMessage = 'Network error. Please check your connection and try again.';
+            errorType = 'network';
+        } else if (error.message) {
+            // Other errors with message
+            if (error.message.toLowerCase().includes('user not found')) {
+                errorMessage = 'No account found with this email address. Please check your email or create a new account.';
+                errorType = 'userNotFound';
+            } else if (error.message.toLowerCase().includes('invalid otp') || error.message.toLowerCase().includes('wrong otp')) {
+                errorMessage = 'Invalid OTP code. Please check the code and try again.';
+                errorType = 'invalidOTP';
+            } else if (error.message.toLowerCase().includes('expired otp')) {
+                errorMessage = 'OTP code has expired. Please request a new code.';
+                errorType = 'expiredOTP';
+            } else if (error.message.toLowerCase().includes('suspended')) {
+                errorMessage = 'Your account has been suspended. Please contact support.';
+                errorType = 'suspended';
+            } else {
+                errorMessage = error.message;
+                errorType = 'general';
+            }
+        }
+
+        // Show appropriate toast based on error type
+        switch (errorType) {
+            case 'validation':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'invalidOTP':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'expiredOTP':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'wrongOTP':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'alreadyUsed':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'sessionExpired':
+                toast.error(errorMessage, {
+                    duration: 4000,
+                });
+                break;
+            case 'auth':
+                toast.error(errorMessage, {
+                    duration: 4000,
+                });
+                break;
+            case 'permission':
+                toast.error(errorMessage, {
+                    duration: 4000,
+                });
+                break;
+            case 'userNotFound':
+                toast.error(errorMessage, {
+                    duration: 6000,
+                });
+                break;
+            case 'suspended':
+                toast.error(errorMessage, {
+                    duration: 8000,
+                });
+                break;
+            case 'blocked':
+                toast.error(errorMessage, {
+                    duration: 8000,
+                });
+                break;
+            case 'conflict':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'rateLimit':
+                toast.error(errorMessage, {
+                    duration: 6000,
+                });
+                break;
+            case 'network':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            case 'server':
+                toast.error(errorMessage, {
+                    duration: 5000,
+                });
+                break;
+            default:
+                toast.error(errorMessage, {
+                    duration: 4000,
+                });
+        }
+
+        return { message: errorMessage, type: errorType };
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setErrors({});
 
+        // Client-side validation
         if (otp.length !== 6) {
-            toast.error('Please enter a 6-digit OTP');
+            setErrors({ otp: 'Please enter a complete 6-digit code' });
+            toast.error('Please enter all 6 digits of the OTP');
+            return;
+        }
+
+        // Validate OTP format (only numbers)
+        if (!/^\d{6}$/.test(otp)) {
+            setErrors({ otp: 'OTP must contain only numbers' });
+            toast.error('OTP must contain only numbers');
             return;
         }
 
@@ -77,6 +297,10 @@ const OTPVerification = () => {
             const userData = await login(email, otp, userType);
             console.log('✅ Login successful, user data:', userData);
 
+            toast.success('Login successful!', {
+                duration: 2000,
+            });
+
             // Small delay to ensure auth state is fully updated
             setTimeout(() => {
                 const dashboardUrl = userType === 'admin' ? '/admin' : '/driver';
@@ -84,8 +308,18 @@ const OTPVerification = () => {
                 navigate(dashboardUrl);
             }, 100); // Very small delay just to ensure state is set
         } catch (error) {
-            console.error('❌ Login failed:', error);
-            toast.error('Invalid OTP. Please try again.');
+            const errorInfo = handleError(error, 'login');
+
+            // Set specific field errors if applicable
+            if (errorInfo.type === 'validation') {
+                setErrors({ otp: 'Invalid OTP. Please check the code and try again.' });
+            } else if (errorInfo.type === 'auth') {
+                setErrors({ otp: 'Authentication failed. Please try again.' });
+            } else if (errorInfo.type === 'notFound') {
+                // Redirect to login if user not found
+                toast.error('User not found. Please try logging in again.');
+                navigate('/');
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -100,9 +334,19 @@ const OTPVerification = () => {
         try {
             await sendOTP(email, userType);
             setTimeLeft(60);
-            toast.success('OTP resent successfully!');
+            toast.success('OTP resent successfully!', {
+                duration: 3000,
+            });
         } catch (error) {
-            toast.error('Failed to resend OTP. Please try again.');
+            const errorInfo = handleError(error, 'resend');
+
+            // Handle specific resend errors
+            if (errorInfo.type === 'rateLimit') {
+                setTimeLeft(120); // Extend cooldown for rate limiting
+            } else if (errorInfo.type === 'notFound') {
+                // Redirect to login if user not found
+                navigate('/');
+            }
         } finally {
             setIsResending(false);
         }
@@ -123,18 +367,6 @@ const OTPVerification = () => {
                     <p className="text-gray-600 text-sm mt-1">
                         We sent a code to <span className="font-medium">{email}</span>
                     </p>
-
-                    {/* Development Helper */}
-                    {/* {process.env.NODE_ENV === 'development' && (
-                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <p className="text-xs text-yellow-800">
-                                <strong>Development Mode:</strong> Check your email or try common test codes
-                            </p>
-                            <p className="text-xs text-yellow-600 mt-1">
-                                If this is a real backend, check server logs for the actual OTP
-                            </p>
-                        </div>
-                    )} */}
                 </div>
 
                 {/* Form */}
@@ -155,13 +387,19 @@ const OTPVerification = () => {
                                         maxLength={1}
                                         value={otp[index] || ''}
                                         onChange={(e) => handleOTPChange(index, e.target.value)}
-                                        className="w-10 h-12 text-center text-lg font-medium border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                        className={`w-10 h-12 text-center text-lg font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${errors.otp
+                                            ? 'border-red-300 focus:ring-red-500'
+                                            : 'border-gray-300'
+                                            }`}
                                         placeholder="0"
                                     />
                                 ))}
                             </div>
-                            {otp.length > 0 && otp.length < 6 && (
-                                <p className="text-sm text-red-600 mt-2">Please enter all 6 digits</p>
+                            {errors.otp && (
+                                <div className="flex items-center mt-2 text-sm text-red-600">
+                                    <AlertCircle className="w-4 h-4 mr-1" />
+                                    {errors.otp}
+                                </div>
                             )}
                         </div>
 
@@ -176,9 +414,13 @@ const OTPVerification = () => {
                                     type="button"
                                     onClick={handleResendOTP}
                                     disabled={isResending}
-                                    className="text-sm text-green-600 hover:text-green-700 disabled:opacity-50"
+                                    className="text-sm text-green-600 hover:text-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {isResending ? 'Sending...' : 'Resend code'}
+                                    {isResending ? (
+                                        <LoadingSpinner size="xs" color="green" showText={true} text="Sending..." />
+                                    ) : (
+                                        'Resend code'
+                                    )}
                                 </button>
                             )}
                         </div>
@@ -187,19 +429,23 @@ const OTPVerification = () => {
                         <button
                             type="submit"
                             disabled={otp.length !== 6 || isSubmitting}
-                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2.5 px-4 rounded-md font-medium transition-colors"
+                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2.5 px-4 rounded-md font-medium transition-colors disabled:cursor-not-allowed"
                         >
-                            {isSubmitting ? 'Verifying...' : 'Verify & Continue'}
+                            {isSubmitting ? (
+                                <LoadingSpinner size="sm" color="white" showText={true} text="Verifying..." />
+                            ) : (
+                                'Verify Code'
+                            )}
                         </button>
 
                         {/* Back Button */}
                         <button
                             type="button"
                             onClick={handleBack}
-                            className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 text-gray-600 hover:text-gray-800 transition-colors"
+                            className="w-full flex items-center justify-center text-gray-600 hover:text-gray-800 py-2 transition-colors"
                         >
-                            <ArrowLeft className="w-4 h-4" />
-                            <span>Back</span>
+                            <ArrowLeft className="w-4 h-4 mr-2" />
+                            Back to Login
                         </button>
 
                     </form>
@@ -207,7 +453,7 @@ const OTPVerification = () => {
 
                 {/* Footer */}
                 <p className="text-center text-xs text-gray-500 mt-6">
-                    Secure OTP authentication
+                    Enter the code sent to your email
                 </p>
             </div>
         </div>

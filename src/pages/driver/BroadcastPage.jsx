@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import {
     MegaphoneIcon,
     ClockIcon,
@@ -413,7 +414,7 @@ const BroadcastPage = () => {
                         <div>⏳ Loading: {loading.toString()}</div>
                         <div>🔌 Socket Connected: {socketService.isConnected().toString()}</div>
                         <div>🔐 Socket Authenticated: {socketService.isAuthenticated().toString()}</div>
-                        <div>👤 User: {user?.name || user?.email || 'Unknown'}</div>
+                        <div>👤 User: {capitalizeName(user?.name) || user?.email || 'Unknown'}</div>
                         <div>🆔 User ID: {user?._id || user?.id || 'None'}</div>
                         <div>🔌 Socket URL: {process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001'}</div>
                         <div>🔄 Real-time Updates: Enabled (WebSocket)</div>

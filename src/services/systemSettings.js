@@ -91,7 +91,9 @@ export const getStatusColor = (status) => {
     'in_progress': 'bg-orange-100 text-orange-800',
     'online': 'bg-green-100 text-green-800',
     'offline': 'bg-gray-100 text-gray-800',
-    'busy': 'bg-red-100 text-red-800'
+    'busy': 'bg-red-100 text-red-800',
+    'suspended': 'bg-red-100 text-red-800',
+    'inactive': 'bg-gray-100 text-gray-600'
   };
 
   return statusColors[status] || 'bg-gray-100 text-gray-800';
@@ -106,10 +108,12 @@ export const getStatusText = (status) => {
     'in_progress': 'In Progress',
     'online': 'Online',
     'offline': 'Offline',
-    'busy': 'Busy'
+    'busy': 'Busy',
+    'suspended': 'Suspended',
+    'inactive': 'Inactive'
   };
 
-  return statusTexts[status] || status;
+  return statusTexts[status] || 'Unknown';
 };
 
 export const validateEmail = (email) => {

@@ -19,7 +19,9 @@ import {
     DocumentTextIcon,
     DocumentMagnifyingGlassIcon,
     BellIcon,
-    Bars3Icon
+    Bars3Icon,
+    GiftIcon,
+    TrophyIcon
 } from '@heroicons/react/24/outline';
 
 const AdminLayout = ({ children }) => {
@@ -36,6 +38,8 @@ const AdminLayout = ({ children }) => {
         { name: 'Drivers', href: '/admin/drivers', icon: UserGroupIcon },
         { name: 'Document Verification', href: '/admin/documents', icon: DocumentMagnifyingGlassIcon },
         { name: 'Analytics', href: '/admin/enhanced-analytics', icon: ChartBarIcon },
+        { name: 'Leaderboard', href: '/admin/leaderboard', icon: TrophyIcon },
+        { name: 'Referral Rewards', href: '/admin/referral-rewards', icon: GiftIcon },
         { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
         // Only show remittances for super admins
         ...(isSuperAdmin(user) ? [{ name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon }] : []),
@@ -123,28 +127,11 @@ const AdminLayout = ({ children }) => {
                         </button>
 
                         {/* Search bar - visible on all devices */}
-                        <div className="hidden sm:flex flex-1 max-w-lg mx-4">
+                        <div className="flex flex-1 max-w-lg mx-4">
                             <GlobalSearch />
                         </div>
 
-                        {/* Mobile search button */}
-                        <button
-                            onClick={() => {
-                                // Trigger CMD+K search on mobile
-                                const event = new KeyboardEvent('keydown', {
-                                    key: 'k',
-                                    metaKey: true,
-                                    bubbles: true
-                                });
-                                document.dispatchEvent(event);
-                            }}
-                            className="sm:hidden flex items-center space-x-1 px-3 py-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                            <span className="text-xs font-medium">⌘K</span>
-                        </button>
+
 
                         {/* Right side */}
                         <div className="flex items-center space-x-2 sm:space-x-4">

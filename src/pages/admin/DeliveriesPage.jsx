@@ -1,29 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
-import { useLocation } from 'react-router-dom';
-import SkeletonLoader from '../../components/common/SkeletonLoader';
-import ConfirmationModal from '../../components/common/ConfirmationModal';
-import Pagination from '../../components/common/Pagination';
-import CapitalizedInput from '../../components/common/CapitalizedInput';
-import { formMemory } from '../../utils/formMemory';
 import {
-    PlusIcon,
-    EyeIcon,
-    PencilIcon,
-    TrashIcon,
-    TruckIcon,
-    XMarkIcon,
-    UserIcon,
-    ArrowPathIcon,
-    FunnelIcon,
-    ClockIcon,
-    ClipboardDocumentIcon,
-    PhoneIcon
+    PlusIcon, MagnifyingGlassIcon, FunnelIcon, ArrowPathIcon,
+    EyeIcon, PencilIcon, TrashIcon, XMarkIcon, TruckIcon,
+    CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, PhoneIcon,
+    UserIcon
 } from '@heroicons/react/24/outline';
 import { useToast } from '../../components/common/ToastProvider';
 import apiService from '../../services/api';
 import socketService from '../../services/socketService';
 import GoogleMapsLocationInput from '../../components/common/GoogleMapsLocationInput';
+import SmartInput from '../../components/common/SmartInput';
+import FormMemoryPanel from '../../components/common/FormMemoryPanel';
+import formMemory from '../../utils/formMemory';
+import { capitalizeName } from '../../utils/nameUtils';
+import SkeletonLoader from '../../components/common/SkeletonLoader';
+import Pagination from '../../components/common/Pagination';
+import ConfirmationModal from '../../components/common/ConfirmationModal';
 
 const DeliveriesPage = () => {
     const location = useLocation();
@@ -36,6 +30,7 @@ const DeliveriesPage = () => {
     const [paymentFilter, setPaymentFilter] = useState('all');
     const [broadcastFilter, setBroadcastFilter] = useState('all');
     const [lastRefresh, setLastRefresh] = useState(null);
+    const [showFilters, setShowFilters] = useState(false);
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -88,6 +83,10 @@ const DeliveriesPage = () => {
             lng: null
         }
     });
+
+    // Form memory state
+    const [showMemoryPanel, setShowMemoryPanel] = useState(false);
+    const [autoFillMode, setAutoFillMode] = useState(false);
 
     const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 
@@ -346,6 +345,9 @@ const DeliveriesPage = () => {
 
                 showSuccess(successMessage);
 
+                // Save form data to memory for future use
+                handleSaveFormToMemory();
+
                 setShowCreatePanel(false);
                 resetForm();
                 fetchDeliveries();
@@ -543,6 +545,48 @@ const DeliveriesPage = () => {
         formMemory.clearFormData('delivery');
     };
 
+    // Form memory handlers
+    const handleAutoFillForm = (entry) => {
+        setFormData(prev => ({
+            ...prev,
+            ...entry,
+            // Preserve some fields that shouldn't be auto-filled
+            fee: entry.fee || prev.fee,
+            paymentMethod: entry.paymentMethod || prev.paymentMethod,
+            priority: entry.priority || prev.priority,
+            useAutoBroadcast: prev.useAutoBroadcast,
+            broadcastRadius: prev.broadcastRadius,
+            broadcastDuration: prev.broadcastDuration
+        }));
+
+        setAutoFillMode(true);
+        setShowMemoryPanel(false);
+
+        showSuccess('Form auto-filled with recent data!');
+    };
+
+    const handleSaveFormToMemory = () => {
+        // Only save if we have meaningful data
+        if (formData.customerName && formData.customerPhone) {
+            formMemory.saveFormData('delivery', formData);
+            showSuccess('Form data saved to memory for future use!');
+        }
+    };
+
+    const handleAutoFillFromMemory = () => {
+        const autoFilledData = formMemory.autoFillForm('delivery', formData);
+        if (autoFilledData !== formData) {
+            setFormData(autoFilledData);
+            setAutoFillMode(true);
+            showSuccess('Form auto-filled with most recent data!');
+        } else {
+            showInfo('No recent data available for auto-fill');
+        }
+    };
+
+    const handleToggleMemoryPanel = () => {
+        setShowMemoryPanel(!showMemoryPanel);
+    };
 
 
     const showCustomerMessage = (delivery) => {
@@ -651,7 +695,7 @@ Student Delivery Team`;
         }
     };
 
-    const openViewPanel = (delivery) => {
+    const handleViewDelivery = (delivery) => {
         setSelectedDelivery(delivery);
         setShowViewPanel(true);
         // Trigger animation after a brief delay
@@ -663,7 +707,7 @@ Student Delivery Team`;
         fetchDeliveryDetails(delivery._id);
     };
 
-    const openEditPanel = (delivery) => {
+    const handleEditDelivery = (delivery) => {
         setSelectedDelivery(delivery);
         setFormData({
             pickupLocation: delivery.pickupLocation || '',
@@ -746,6 +790,7 @@ Student Delivery Team`;
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const paginatedDeliveries = filteredDeliveries.slice(startIndex, endIndex);
+    const totalItems = filteredDeliveries.length;
 
     const handlePageChange = (page) => {
         setCurrentPage(page);
@@ -754,6 +799,10 @@ Student Delivery Team`;
     const handleItemsPerPageChange = (newItemsPerPage) => {
         setItemsPerPage(newItemsPerPage);
         setCurrentPage(1); // Reset to first page
+    };
+
+    const handleRefresh = () => {
+        fetchDeliveries();
     };
 
     const getStatusColor = (status) => {
@@ -813,349 +862,433 @@ Student Delivery Team`;
 
     return (
         <>
-            <div className="min-h-screen bg-gray-50">
-                <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-6 py-4 sm:py-6">
-                    <div className="space-y-4">
-                        {/* Header */}
-                        <div className="bg-white shadow-sm rounded-lg p-3 sm:p-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0">
-                                <div>
-                                    <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">Deliveries</h1>
-                                    <p className="text-xs sm:text-sm text-gray-600">Manage all delivery orders and track their status</p>
+            <div className="h-full flex flex-col bg-gray-50">
+                {/* Header Section - Compact */}
+                <div className="bg-white border-b border-gray-200 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-4">
+                            <div>
+                                <h1 className="text-lg font-semibold text-gray-900">Deliveries</h1>
+                                <p className="text-xs text-gray-500">
+                                    {deliveries.length} delivery{deliveries.length !== 1 ? 's' : ''} found
                                     {lastRefresh && (
-                                        <div className="mt-1 flex items-center text-xs text-gray-400">
-                                            <ClockIcon className="h-3 w-3 mr-1" />
-                                            <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
-                                        </div>
+                                        <span className="ml-2">• Updated {lastRefresh.toLocaleTimeString()}</span>
                                     )}
-                                </div>
-                                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                                    {/* Refresh button removed - WebSocket provides real-time updates */}
-                                    <button
-                                        onClick={openCreatePanel}
-                                        className="inline-flex items-center justify-center px-3 py-2 border border-transparent rounded text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
-                                    >
-                                        <PlusIcon className="h-4 w-4 mr-1" />
-                                        New Delivery
-                                    </button>
-                                </div>
+                                </p>
                             </div>
                         </div>
 
-                        {/* Accounting Summary */}
-                        <div className="bg-white shadow-sm rounded-lg p-3 sm:p-4">
-                            <h3 className="text-sm sm:text-base font-semibold text-gray-900 mb-3">Accounting Summary</h3>
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-                                <div className="bg-blue-50 p-2 sm:p-3 rounded-lg">
-                                    <div className="text-xs font-medium text-blue-600">Total Deliveries</div>
-                                    <div className="text-lg sm:text-xl font-bold text-blue-900">{totals.totalDeliveries}</div>
-                                </div>
-                                <div className="bg-green-50 p-2 sm:p-3 rounded-lg">
-                                    <div className="text-xs font-medium text-green-600">Total Revenue</div>
-                                    <div className="text-lg sm:text-xl font-bold text-green-900">₺{totals.totalRevenue.toLocaleString()}</div>
-                                </div>
-                                <div className="bg-purple-50 p-2 sm:p-3 rounded-lg">
-                                    <div className="text-xs font-medium text-purple-600">Average Fee</div>
-                                    <div className="text-lg sm:text-xl font-bold text-purple-900">
-                                        ₺{totals.totalDeliveries > 0 ? (totals.totalRevenue / totals.totalDeliveries).toFixed(2) : '0'}
-                                    </div>
-                                </div>
-                                <div className="bg-orange-50 p-2 sm:p-3 rounded-lg">
-                                    <div className="text-xs font-medium text-orange-600">Delivered Revenue</div>
-                                    <div className="text-lg sm:text-xl font-bold text-orange-900">
-                                        ₺{(totals.byStatus.delivered?.amount || 0).toLocaleString()}
-                                    </div>
-                                </div>
-                            </div>
+                        <div className="flex items-center space-x-2">
+                            <button
+                                onClick={() => setShowFilters(!showFilters)}
+                                className={`flex items-center px-3 py-1.5 text-xs rounded transition-colors ${showFilters
+                                    ? 'bg-blue-100 text-blue-700'
+                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                            >
+                                <FunnelIcon className="w-3 h-3 mr-1" />
+                                Filters
+                            </button>
 
-                            {/* Payment Method Breakdown */}
-                            <div className="mt-4">
-                                <h4 className="text-xs sm:text-sm font-semibold text-gray-900 mb-2">Payment Method Breakdown</h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                                    {Object.entries(totals.byPaymentMethod).map(([method, data]) => (
-                                        <div key={method} className="bg-gray-50 p-2 rounded-lg">
-                                            <div className="text-xs font-medium text-gray-700 capitalize">{method.replace('_', ' ')}</div>
-                                            <div className="text-sm font-bold text-gray-900">{data.count}</div>
-                                            <div className="text-xs text-gray-600">₺{data.amount.toLocaleString()}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
+                            <button
+                                onClick={handleRefresh}
+                                className="flex items-center px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded hover:bg-gray-200 transition-colors"
+                            >
+                                <ArrowPathIcon className="w-3 h-3 mr-1" />
+                                Refresh
+                            </button>
+
+                            <button
+                                onClick={openCreatePanel}
+                                className="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                            >
+                                <PlusIcon className="w-3 h-3 mr-1" />
+                                New Delivery
+                            </button>
                         </div>
+                    </div>
 
-                        {/* Filters */}
-                        <div className="bg-white shadow-sm rounded-lg p-3 sm:p-4">
-                            <div className="flex flex-col space-y-3">
-                                <div className="flex items-center space-x-2">
-                                    <FunnelIcon className="h-4 w-4 text-gray-500" />
-                                    <span className="text-xs sm:text-sm font-medium text-gray-700">Filters:</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    {/* Collapsible Filters */}
+                    {showFilters && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Status
+                                    </label>
                                     <select
                                         value={statusFilter}
                                         onChange={(e) => setStatusFilter(e.target.value)}
-                                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="all">All Status</option>
                                         <option value="pending">Pending</option>
                                         <option value="assigned">Assigned</option>
-                                        <option value="picked_up">Picked Up</option>
+                                        <option value="in_progress">In Progress</option>
                                         <option value="delivered">Delivered</option>
                                         <option value="cancelled">Cancelled</option>
                                     </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Payment
+                                    </label>
                                     <select
                                         value={paymentFilter}
                                         onChange={(e) => setPaymentFilter(e.target.value)}
-                                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
-                                        <option value="all">All Payments</option>
+                                        <option value="all">All Payment</option>
                                         <option value="cash">Cash</option>
-                                        <option value="pos">POS</option>
-                                        <option value="naira_transfer">Naira Transfer</option>
-                                        <option value="isbank_transfer">Isbank Transfer</option>
-                                        <option value="crypto_transfer">Crypto Transfer</option>
+                                        <option value="card">Card</option>
+                                        <option value="online">Online</option>
                                     </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Broadcast
+                                    </label>
                                     <select
                                         value={broadcastFilter}
                                         onChange={(e) => setBroadcastFilter(e.target.value)}
-                                        className="px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                        className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="all">All Broadcasts</option>
-                                        <option value="not_started">Not Started</option>
-                                        <option value="broadcasting">Broadcasting</option>
-                                        <option value="accepted">Accepted</option>
-                                        <option value="expired">Expired</option>
-                                        <option value="manual_assignment">Manual Assignment</option>
+                                        <option value="broadcasted">Broadcasted</option>
+                                        <option value="not_broadcasted">Not Broadcasted</option>
                                     </select>
-                                    <div className="flex items-center justify-center px-3 py-2 bg-gray-50 rounded-md">
-                                        <span className="text-xs sm:text-sm text-gray-500">
-                                            {filteredDeliveries.length} of {deliveries.length} deliveries
-                                        </span>
+                                </div>
+
+                                <div className="flex items-end">
+                                    <div className="text-xs text-gray-600">
+                                        {filteredDeliveries.length} delivery{filteredDeliveries.length !== 1 ? 's' : ''} found
                                     </div>
                                 </div>
                             </div>
                         </div>
+                    )}
+                </div>
 
-                        {/* Deliveries List - Mobile Card View */}
-                        <div className="lg:hidden">
-                            <div className="space-y-3">
-                                {paginatedDeliveries.map((delivery) => (
-                                    <div key={delivery._id} className="bg-white shadow-sm rounded-lg p-4 space-y-3">
-                                        {/* Header */}
-                                        <div className="flex items-start justify-between">
-                                            <div className="flex items-center space-x-3">
-                                                <TruckIcon className="h-6 w-6 text-blue-600" />
-                                                <div>
-                                                    <button
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(delivery.deliveryCode);
-                                                            showSuccess('Delivery code copied to clipboard!');
-                                                        }}
-                                                        className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer flex items-center"
-                                                        title="Click to copy delivery code"
-                                                    >
-                                                        {delivery.deliveryCode}
-                                                        <ClipboardDocumentIcon className="w-3 h-3 ml-1 opacity-50 hover:opacity-100" />
-                                                    </button>
-                                                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium mt-1 ${getPriorityColor(delivery.priority)}`}>
-                                                        {delivery.priority}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-sm font-bold text-green-600">₺{delivery.fee}</div>
-                                                <div className="text-xs text-gray-500">{delivery.paymentMethod}</div>
-                                            </div>
-                                        </div>
-
-                                        {/* Customer Info */}
-                                        <div>
-                                            <div className="text-sm font-medium text-gray-900">{delivery.customerName || 'N/A'}</div>
-                                            <div className="text-sm text-gray-500">{delivery.customerPhone || 'N/A'}</div>
-                                        </div>
-
-                                        {/* Route */}
-                                        <div className="space-y-1">
-                                            <div className="text-sm text-gray-900">
-                                                <span className="font-medium">From:</span> {delivery.pickupLocation}
-                                            </div>
-                                            <div className="text-sm text-gray-500">
-                                                <span className="font-medium">To:</span> {delivery.deliveryLocation}
-                                            </div>
-                                        </div>
-
-                                        {/* Status and Driver */}
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center space-x-2">
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(delivery.status)}`}>
-                                                    {delivery.status}
-                                                </span>
-                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getBroadcastColor(delivery.broadcastStatus)}`}>
-                                                    {delivery.broadcastStatus}
-                                                </span>
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                {delivery.assignedTo ? delivery.assignedTo.name : 'Unassigned'}
-                                            </div>
-                                        </div>
-
-                                        {/* Actions */}
-                                        <div className="flex items-center justify-end space-x-2 pt-2 border-t border-gray-100">
-                                            <button
-                                                onClick={() => openViewPanel(delivery)}
-                                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
-                                            >
-                                                <EyeIcon className="h-3 w-3 mr-1" />
-                                                View
-                                            </button>
-                                            <button
-                                                onClick={() => openEditPanel(delivery)}
-                                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded transition-colors"
-                                            >
-                                                <PencilIcon className="h-3 w-3 mr-1" />
-                                                Edit
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteDelivery(delivery._id)}
-                                                className="inline-flex items-center px-2 py-1 text-xs font-medium text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                                            >
-                                                <TrashIcon className="h-3 w-3 mr-1" />
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                {/* Summary Cards - Compact */}
+                <div className="bg-white border-b border-gray-200 px-4 py-2">
+                    <div className="grid grid-cols-4 gap-3">
+                        <div className="text-center">
+                            <div className="text-lg font-bold text-blue-600">{totals.totalDeliveries}</div>
+                            <div className="text-xs text-gray-500">Total</div>
                         </div>
+                        <div className="text-center">
+                            <div className="text-lg font-bold text-green-600">₺{totals.totalRevenue.toLocaleString()}</div>
+                            <div className="text-xs text-gray-500">Revenue</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-lg font-bold text-purple-600">
+                                ₺{totals.totalDeliveries > 0 ? (totals.totalRevenue / totals.totalDeliveries).toFixed(0) : '0'}
+                            </div>
+                            <div className="text-xs text-gray-500">Avg Fee</div>
+                        </div>
+                        <div className="text-center">
+                            <div className="text-lg font-bold text-orange-600">
+                                ₺{(totals.byStatus.delivered?.amount || 0).toLocaleString()}
+                            </div>
+                            <div className="text-xs text-gray-500">Delivered</div>
+                        </div>
+                    </div>
+                </div>
 
-                        {/* Deliveries List - Desktop Table View */}
-                        <div className="hidden lg:block bg-white shadow-sm rounded-lg overflow-hidden">
-                            <div className="overflow-x-auto">
+                {/* Table Container - Takes remaining height */}
+                <div className="flex-1 overflow-hidden">
+                    {/* Deliveries Table - Desktop */}
+                    <div className="hidden lg:block h-full bg-white">
+                        <div className="h-full flex flex-col">
+                            <div className="flex-1 overflow-auto">
                                 <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
+                                    <thead className="bg-gray-50 sticky top-0 z-10">
                                         <tr>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Broadcast</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fee</th>
-                                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
-                                            <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Delivery
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Customer
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Route
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Payment
+                                            </th>
+                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Assigned
+                                            </th>
+                                            <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                Actions
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {paginatedDeliveries.map((delivery) => (
-                                            <tr key={delivery._id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <TruckIcon className="h-8 w-8 text-blue-600" />
-                                                        <div className="ml-4">
-                                                            <button
-                                                                onClick={() => {
-                                                                    navigator.clipboard.writeText(delivery.deliveryCode);
-                                                                    showSuccess('Delivery code copied to clipboard!');
-                                                                }}
-                                                                className="text-sm font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer flex items-center"
-                                                                title="Click to copy delivery code"
-                                                            >
-                                                                {delivery.deliveryCode}
-                                                                <ClipboardDocumentIcon className="w-3 h-3 ml-1 opacity-50 hover:opacity-100" />
-                                                            </button>
-                                                            <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPriorityColor(delivery.priority)}`}>
-                                                                {delivery.priority}
-                                                            </div>
+                                        {loading ? (
+                                            // Show skeleton rows while loading
+                                            Array.from({ length: 8 }).map((_, index) => (
+                                                <tr key={index} className="animate-pulse">
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                                                        <div className="h-3 bg-gray-200 rounded w-16 mt-1"></div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-4 bg-gray-200 rounded w-20"></div>
+                                                        <div className="h-3 bg-gray-200 rounded w-16 mt-1"></div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-4 bg-gray-200 rounded w-32"></div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-5 bg-gray-200 rounded w-16"></div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-4 bg-gray-200 rounded w-12"></div>
+                                                        <div className="h-3 bg-gray-200 rounded w-8 mt-1"></div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-4 bg-gray-200 rounded w-16"></div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="h-6 bg-gray-200 rounded w-20"></div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : filteredDeliveries.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="7" className="px-4 py-8 text-center">
+                                                    <div className="flex flex-col items-center">
+                                                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                                                            <span className="text-gray-400 text-xs">📦</span>
                                                         </div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <div className="text-sm text-gray-900">{delivery.customerName || 'N/A'}</div>
-                                                    <div className="text-sm text-gray-500">{delivery.customerPhone || 'N/A'}</div>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="text-sm text-gray-900">
-                                                        <div className="font-medium">From: {delivery.pickupLocation}</div>
-                                                        <div className="text-gray-500">To: {delivery.deliveryLocation}</div>
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    {delivery.assignedTo ? (
-                                                        <div className="flex items-center">
-                                                            <UserIcon className="h-4 w-4 text-gray-400 mr-2" />
-                                                            <div>
-                                                                <div className="text-sm font-medium text-gray-900">{delivery.assignedTo.name}</div>
-                                                                <div className="text-sm text-gray-500">{delivery.assignedTo.area}</div>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-sm text-gray-500">Unassigned</span>
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(delivery.status)}`}>
-                                                        {delivery.status}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getBroadcastColor(delivery.broadcastStatus)}`}>
-                                                        {delivery.broadcastStatus}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900">₺{delivery.fee}</div>
-                                                    <div className="text-sm text-gray-500">{delivery.paymentMethod}</div>
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                                    {format(new Date(delivery.createdAt), 'MMM dd, yyyy')}
-                                                </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-                                                    <div className="flex items-center justify-end space-x-2">
-                                                        <button
-                                                            onClick={() => openViewPanel(delivery)}
-                                                            className="text-blue-600 hover:text-blue-900"
-                                                            title="View details"
-                                                        >
-                                                            <EyeIcon className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => openEditPanel(delivery)}
-                                                            className="text-gray-600 hover:text-gray-900"
-                                                            title="Edit delivery"
-                                                        >
-                                                            <PencilIcon className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleDeleteDelivery(delivery._id)}
-                                                            className="text-red-600 hover:text-red-900"
-                                                            title="Delete delivery"
-                                                        >
-                                                            <TrashIcon className="h-4 w-4" />
-                                                        </button>
+                                                        <p className="text-sm font-medium text-gray-900">No deliveries found</p>
+                                                        <p className="text-xs text-gray-500">No deliveries match your current filters.</p>
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ))}
+                                        ) : (
+                                            filteredDeliveries.map((delivery) => (
+                                                <tr key={delivery._id} className="hover:bg-gray-50">
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex items-center">
+                                                            <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center mr-2">
+                                                                <span className="text-xs font-medium text-gray-600">
+                                                                    {delivery.deliveryCode?.charAt(0) || 'D'}
+                                                                </span>
+                                                            </div>
+                                                            <div>
+                                                                <div className="text-sm font-medium text-gray-900">{delivery.deliveryCode}</div>
+                                                                <div className="text-xs text-gray-500">{format(new Date(delivery.createdAt), 'MMM dd, yyyy')}</div>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="text-sm text-gray-900">{delivery.customerName}</div>
+                                                        <div className="text-xs text-gray-500">{delivery.customerPhone}</div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="text-sm text-gray-900 truncate max-w-xs">
+                                                            {delivery.pickupLocation}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">→ {delivery.deliveryLocation}</div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="flex items-center space-x-1">
+                                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(delivery.status)}`}>
+                                                                {delivery.status}
+                                                            </span>
+                                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(delivery.priority)}`}>
+                                                                {delivery.priority}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="text-sm font-medium text-gray-900">₺{delivery.fee}</div>
+                                                        <div className="text-xs text-gray-500 capitalize">{delivery.paymentMethod}</div>
+                                                    </td>
+                                                    <td className="px-3 py-2">
+                                                        <div className="text-sm text-gray-900">
+                                                            {delivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {delivery.estimatedTime ? format(new Date(delivery.estimatedTime), 'MMM dd, HH:mm') : 'No ETA'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-right">
+                                                        <div className="flex items-center justify-end space-x-1">
+                                                            <button
+                                                                onClick={() => handleViewDelivery(delivery)}
+                                                                className="text-blue-600 hover:text-blue-900 p-1"
+                                                                title="View Details"
+                                                            >
+                                                                <EyeIcon className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleEditDelivery(delivery)}
+                                                                className="text-green-600 hover:text-green-900 p-1"
+                                                                title="Edit Delivery"
+                                                            >
+                                                                <PencilIcon className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDeleteDelivery(delivery._id)}
+                                                                className="text-red-600 hover:text-red-900 p-1"
+                                                                title="Delete Delivery"
+                                                            >
+                                                                <TrashIcon className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
                                     </tbody>
                                 </table>
                             </div>
                         </div>
+                    </div>
 
-                        {/* Pagination */}
-                        {totalPages > 1 && (
-                            <div className="bg-white shadow-sm rounded-lg p-4">
-                                <Pagination
-                                    currentPage={currentPage}
-                                    totalPages={totalPages}
-                                    onPageChange={setCurrentPage}
-                                    itemsPerPage={itemsPerPage}
-                                    onItemsPerPageChange={setItemsPerPage}
-                                    totalItems={filteredDeliveries.length}
-                                />
-                            </div>
-                        )}
+                    {/* Deliveries Cards - Mobile/Tablet */}
+                    <div className="lg:hidden h-full overflow-y-auto">
+                        <div className="space-y-2 p-2">
+                            {loading ? (
+                                // Show skeleton cards while loading
+                                Array.from({ length: 6 }).map((_, index) => (
+                                    <div key={index} className="bg-white rounded-lg shadow-sm p-3 animate-pulse">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+                                                <div>
+                                                    <div className="h-4 bg-gray-200 rounded w-20 mb-1"></div>
+                                                    <div className="h-3 bg-gray-200 rounded w-16"></div>
+                                                </div>
+                                            </div>
+                                            <div className="h-5 bg-gray-200 rounded w-16"></div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                            <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                            <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                            <div className="h-3 bg-gray-200 rounded w-full"></div>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : filteredDeliveries.length === 0 ? (
+                                <div className="bg-white rounded-lg shadow-sm p-6 text-center">
+                                    <div className="flex flex-col items-center">
+                                        <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center mb-2">
+                                            <span className="text-gray-400 text-xs">📦</span>
+                                        </div>
+                                        <p className="text-sm font-medium text-gray-900">No deliveries found</p>
+                                        <p className="text-xs text-gray-500">No deliveries match your current filters.</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                filteredDeliveries.map((delivery) => (
+                                    <div key={delivery._id} className="bg-white rounded-lg shadow-sm p-3 border border-gray-100">
+                                        {/* Header with delivery code and actions */}
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center space-x-2">
+                                                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
+                                                    <span className="text-xs font-medium text-gray-600">
+                                                        {delivery.deliveryCode?.charAt(0) || 'D'}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <div className="text-sm font-medium text-gray-900">{delivery.deliveryCode}</div>
+                                                    <div className="text-xs text-gray-500">{format(new Date(delivery.createdAt), 'MMM dd, yyyy')}</div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center space-x-1">
+                                                <button
+                                                    onClick={() => handleViewDelivery(delivery)}
+                                                    className="text-blue-600 hover:text-blue-900 p-1"
+                                                    title="View Details"
+                                                >
+                                                    <EyeIcon className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleEditDelivery(delivery)}
+                                                    className="text-green-600 hover:text-green-900 p-1"
+                                                    title="Edit Delivery"
+                                                >
+                                                    <PencilIcon className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteDelivery(delivery._id)}
+                                                    className="text-red-600 hover:text-red-900 p-1"
+                                                    title="Delete Delivery"
+                                                >
+                                                    <TrashIcon className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Customer Information */}
+                                        <div className="mb-2">
+                                            <div className="text-sm text-gray-900">{delivery.customerName}</div>
+                                            <div className="text-xs text-gray-500">{delivery.customerPhone}</div>
+                                        </div>
+
+                                        {/* Route Information */}
+                                        <div className="mb-2">
+                                            <div className="text-sm text-gray-900 truncate">{delivery.pickupLocation}</div>
+                                            <div className="text-xs text-gray-500">→ {delivery.deliveryLocation}</div>
+                                        </div>
+
+                                        {/* Status and Payment Grid */}
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-gray-500">Status</span>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(delivery.status)}`}>
+                                                    {delivery.status}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-gray-500">Priority</span>
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(delivery.priority)}`}>
+                                                    {delivery.priority}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-gray-500">Payment</span>
+                                                <span className="text-sm font-medium text-gray-900">₺{delivery.fee}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-xs text-gray-500">Assigned</span>
+                                                <span className="text-sm text-gray-900">
+                                                    {delivery.assignedTo ? 'Yes' : 'No'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
                     </div>
                 </div>
+
+                {/* Pagination - Fixed at bottom */}
+                {!loading && filteredDeliveries.length > 0 && (
+                    <div className="bg-white border-t border-gray-200 px-4 py-2">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            onPageChange={handlePageChange}
+                            itemsPerPage={itemsPerPage}
+                            onItemsPerPageChange={setItemsPerPage}
+                            totalItems={totalItems}
+                            startIndex={(currentPage - 1) * itemsPerPage + 1}
+                            endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
+                        />
+                    </div>
+                )}
             </div>
 
             {/* Create Delivery Side Panel */}
@@ -1252,30 +1385,81 @@ Student Delivery Team`;
 
                                     {/* Customer Information */}
                                     <div>
-                                        <h4 className="text-lg font-medium text-gray-900 mb-4">Customer Information</h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Name</label>
-                                                <CapitalizedInput
-                                                    type="text"
-                                                    placeholder="Enter customer name"
-                                                    value={formData.customerName}
-                                                    onChange={(e) => setFormData({ ...formData, customerName: e.target.value })}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                                    capitalizeMode="words"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Customer Phone</label>
-                                                <input
-                                                    type="tel"
-                                                    placeholder="Enter phone number"
-                                                    value={formData.customerPhone}
-                                                    onChange={(e) => setFormData({ ...formData, customerPhone: e.target.value })}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                                                />
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h4 className="text-lg font-medium text-gray-900">Customer Information</h4>
+                                            <div className="flex items-center space-x-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={handleAutoFillFromMemory}
+                                                    className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors"
+                                                    title="Auto-fill from memory"
+                                                >
+                                                    🔄 Auto-fill
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleToggleMemoryPanel}
+                                                    className="text-xs bg-green-50 text-green-600 hover:bg-green-100 px-3 py-1 rounded-lg transition-colors"
+                                                    title="Show recent entries"
+                                                >
+                                                    📋 Memory
+                                                </button>
                                             </div>
                                         </div>
+
+                                        {/* Memory Panel */}
+                                        {showMemoryPanel && (
+                                            <div className="mb-4">
+                                                <FormMemoryPanel
+                                                    formType="delivery"
+                                                    onFillForm={handleAutoFillForm}
+                                                    maxEntries={3}
+                                                />
+                                            </div>
+                                        )}
+
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <SmartInput
+                                                formType="delivery"
+                                                fieldName="customerName"
+                                                label="Customer Name"
+                                                value={formData.customerName}
+                                                onChange={(value) => setFormData({ ...formData, customerName: value })}
+                                                placeholder="Enter customer name"
+                                                required={true}
+                                                suggestions={[]}
+                                            />
+                                            <SmartInput
+                                                formType="delivery"
+                                                fieldName="customerPhone"
+                                                label="Customer Phone"
+                                                value={formData.customerPhone}
+                                                onChange={(value) => setFormData({ ...formData, customerPhone: value })}
+                                                placeholder="Enter phone number"
+                                                type="tel"
+                                                required={true}
+                                                suggestions={[]}
+                                            />
+                                        </div>
+
+                                        {/* Auto-fill indicator */}
+                                        {autoFillMode && (
+                                            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-lg">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className="text-blue-600">🔄</span>
+                                                    <span className="text-sm text-blue-800">
+                                                        Form auto-filled from memory. Review and adjust as needed.
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setAutoFillMode(false)}
+                                                        className="text-xs text-blue-600 hover:text-blue-800 underline"
+                                                    >
+                                                        Dismiss
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Payment Details */}
@@ -1343,12 +1527,25 @@ Student Delivery Team`;
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                                                <textarea
-                                                    rows="3"
-                                                    placeholder="Add any additional notes or special instructions..."
+                                                <SmartInput
+                                                    formType="delivery"
+                                                    fieldName="notes"
                                                     value={formData.notes}
-                                                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 resize-none"
+                                                    onChange={(value) => setFormData({ ...formData, notes: value })}
+                                                    placeholder="Add any additional notes or special instructions..."
+                                                    suggestions={[
+                                                        "Call customer before delivery",
+                                                        "Leave at security gate",
+                                                        "Call when arriving",
+                                                        "Fragile items - handle with care",
+                                                        "Cash on delivery",
+                                                        "Meet at main entrance",
+                                                        "Apartment building - call for access",
+                                                        "Office hours only (9 AM - 5 PM)",
+                                                        "Weekend delivery preferred",
+                                                        "Contact customer for exact location"
+                                                    ]}
+                                                    showSuggestions={true}
                                                 />
                                             </div>
                                         </div>
@@ -1419,7 +1616,7 @@ Student Delivery Team`;
                                                     <option value="">Select a driver</option>
                                                     {drivers.map((driver) => (
                                                         <option key={driver._id} value={driver._id}>
-                                                            {driver.name} - {driver.phone}
+                                                            {capitalizeName(driver.name)} - {driver.phone}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -1461,9 +1658,9 @@ Student Delivery Team`;
                     />
 
                     {/* Panel */}
-                    <div className={`absolute inset-0 h-full w-full bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                    <div className={`absolute inset-0 h-full w-full bg-white shadow-xl transform transition-transform duration-300 ease-in-out ${isViewPanelOpen ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}>
                         {/* Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-200 flex-shrink-0">
                             <div className="flex items-center space-x-3">
                                 <div className="p-2 bg-blue-100 rounded-lg">
                                     <TruckIcon className="w-6 h-6 text-blue-600" />
@@ -1481,8 +1678,8 @@ Student Delivery Team`;
                             </button>
                         </div>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {/* Content - Scrollable Area */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
                             {/* Status and Priority */}
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center space-x-2">
@@ -1617,12 +1814,12 @@ Student Delivery Team`;
                         </div>
 
                         {/* Footer */}
-                        <div className="p-6 border-t border-gray-200 bg-gray-50">
+                        <div className="p-6 border-t border-gray-200 bg-gray-50 flex-shrink-0">
                             <div className="flex space-x-3">
                                 <button
                                     onClick={() => {
                                         closeViewPanel();
-                                        openEditPanel(selectedDelivery);
+                                        handleEditDelivery(selectedDelivery);
                                     }}
                                     className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
                                 >

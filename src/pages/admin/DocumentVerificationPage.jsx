@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import apiService from '../../services/api';
+import VerifiedBadge from '../../components/common/VerifiedBadge';
+import { isDriverVerified } from '../../utils/verificationHelpers';
 import Pagination from '../../components/common/Pagination';
 import DocumentSkeleton from '../../components/common/DocumentSkeleton';
 import toast from 'react-hot-toast';
@@ -45,8 +47,7 @@ const DocumentVerificationPage = () => {
         studentId: IdentificationIcon,
         profilePhoto: PhotoIcon,
         universityEnrollment: AcademicCapIcon,
-        identityCard: IdentificationIcon,
-        transportationLicense: TruckIcon
+        identityCard: IdentificationIcon
     };
 
     // Document type labels
@@ -54,8 +55,7 @@ const DocumentVerificationPage = () => {
         studentId: 'Student ID',
         profilePhoto: 'Profile Photo',
         universityEnrollment: 'University Enrollment',
-        identityCard: 'Identity Card',
-        transportationLicense: 'Transportation License'
+        identityCard: 'Identity Card'
     };
 
     const loadDocuments = useCallback(async () => {
@@ -89,12 +89,29 @@ const DocumentVerificationPage = () => {
                     console.log('  - uploadUrl:', documentsArray[0].uploadUrl);
                     console.log('  - cloudinaryUrl:', documentsArray[0].cloudinaryUrl);
                     console.log('  - imageUrl:', documentsArray[0].imageUrl);
+
+                    // Enhanced debugging for file URL detection
+                    console.log('🔍 DocumentVerificationPage: File URL analysis:');
+                    const doc = documentsArray[0];
+                    const possibleUrlFields = ['fileUrl', 'documentUrl', 'url', 'imageUrl', 'cloudinaryUrl', 'uploadUrl', 'file'];
+                    possibleUrlFields.forEach(field => {
+                        console.log(`  - ${field}:`, doc[field] ? `✅ ${doc[field]}` : '❌ undefined/null');
+                    });
                 }
 
-                // OVERRIDE BACKEND LOGIC: Fix the needsUpload field based on uploadDate
+                // ENHANCED LOGIC: Fix the needsUpload field based on multiple upload indicators
                 const correctedDocuments = documentsArray.map(document => {
                     const hasUploadDate = document.uploadDate && document.uploadDate !== null;
-                    const correctedNeedsUpload = !hasUploadDate; // If it has uploadDate, it doesn't need upload
+                    const hasCreatedAt = document.createdAt && document.createdAt !== null;
+                    const hasSubmittedAt = document.submittedAt && document.submittedAt !== null;
+                    const hasUploadedAt = document.uploadedAt && document.uploadedAt !== null;
+                    const hasDate = document.date && document.date !== null;
+
+                    // Check if document has any upload-related timestamp
+                    const hasAnyUploadTimestamp = hasUploadDate || hasCreatedAt || hasSubmittedAt || hasUploadedAt || hasDate;
+
+                    // If document has any upload timestamp, it doesn't need upload
+                    const correctedNeedsUpload = !hasAnyUploadTimestamp;
 
                     return {
                         ...document,
@@ -297,6 +314,11 @@ const DocumentVerificationPage = () => {
         }
     };
 
+    // Helper function to get document URL
+    const getDocumentUrl = (document) => {
+        return document.documentUrl || document.fileUrl || document.url || document.imageUrl || document.cloudinaryUrl;
+    };
+
     // Helper function to check document status
     const getDocumentStatus = (document) => {
         // Check for multiple possible file URL field names (backend might use different field names)
@@ -314,13 +336,21 @@ const DocumentVerificationPage = () => {
             field && (field.includes('cloudinary.com') || field.includes('http'))
         );
 
-        // TEMPORARY WORKAROUND: If document has uploadDate but no URL, treat as uploaded
-        // This is needed because backend isn't storing the documentUrl field
+        // ENHANCED LOGIC: Check multiple fields that indicate document has been uploaded
         const hasUploadDate = document.uploadDate && document.uploadDate !== null;
-        const hasFileOrUploadDate = hasFile || hasUploadDate;
+        const hasCreatedAt = document.createdAt && document.createdAt !== null;
+        const hasSubmittedAt = document.submittedAt && document.submittedAt !== null;
+        const hasUploadedAt = document.uploadedAt && document.uploadedAt !== null;
+        const hasDate = document.date && document.date !== null;
 
-        const needsUpload = !hasFileOrUploadDate && document.status === 'pending';
-        const canVerify = hasFileOrUploadDate && document.status === 'pending';
+        // Check if document has any upload-related timestamp
+        const hasAnyUploadTimestamp = hasUploadDate || hasCreatedAt || hasSubmittedAt || hasUploadedAt || hasDate;
+
+        // Check if document has any file URL or upload timestamp
+        const hasFileOrUploadTimestamp = hasFile || hasAnyUploadTimestamp;
+
+        const needsUpload = !hasFileOrUploadTimestamp && document.status === 'pending';
+        const canVerify = hasFileOrUploadTimestamp && document.status === 'pending';
 
         // Debug logging for document status
         if (document.documentType === 'universityEnrollment') {
@@ -331,7 +361,7 @@ const DocumentVerificationPage = () => {
                 uploadDate: document.uploadDate,
                 hasFile,
                 hasUploadDate,
-                hasFileOrUploadDate,
+                hasFileOrUploadTimestamp,
                 needsUpload,
                 canVerify,
                 status: document.status
@@ -339,7 +369,7 @@ const DocumentVerificationPage = () => {
         }
 
         return {
-            hasFile: hasFileOrUploadDate, // Use the workaround
+            hasFile: hasFileOrUploadTimestamp, // Use the enhanced logic
             needsUpload,
             canVerify,
             isVerified: document.status === 'verified',
@@ -494,6 +524,11 @@ const DocumentVerificationPage = () => {
                                                         <div className="flex items-center space-x-1">
                                                             <UserIcon className="h-3 w-3 text-gray-400" />
                                                             <span className="text-xs text-gray-600">{document.driverName || 'Unknown Driver'}</span>
+                                                            <VerifiedBadge
+                                                                isVerified={isDriverVerified(document)}
+                                                                size="xs"
+                                                                className="flex-shrink-0"
+                                                            />
                                                         </div>
                                                         <div className="flex items-center space-x-1">
                                                             <ClockIcon className="h-3 w-3 text-gray-400" />
@@ -613,9 +648,16 @@ const DocumentVerificationPage = () => {
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-500">Driver</label>
-                                    <p className="text-sm text-gray-900 mt-1">
-                                        {selectedDocument.driverName || 'Unknown Driver'}
-                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-sm text-gray-900">
+                                            {selectedDocument.driverName || 'Unknown Driver'}
+                                        </p>
+                                        <VerifiedBadge
+                                            isVerified={isDriverVerified(selectedDocument)}
+                                            size="sm"
+                                            className="flex-shrink-0"
+                                        />
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium text-gray-500">Select File</label>
@@ -713,9 +755,16 @@ const DocumentVerificationPage = () => {
                                     </div>
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">Driver Name</label>
-                                        <p className="text-sm text-gray-900 mt-1">
-                                            {selectedDocument.driverName || 'Unknown Driver'}
-                                        </p>
+                                        <div className="flex items-center gap-2 mt-1">
+                                            <p className="text-sm text-gray-900">
+                                                {selectedDocument.driverName || 'Unknown Driver'}
+                                            </p>
+                                            <VerifiedBadge
+                                                isVerified={isDriverVerified(selectedDocument)}
+                                                size="sm"
+                                                className="flex-shrink-0"
+                                            />
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">Driver Email</label>
@@ -751,10 +800,10 @@ const DocumentVerificationPage = () => {
                                 <div>
                                     <label className="text-sm font-medium text-gray-500">Document File</label>
                                     <div className="mt-2">
-                                        {selectedDocument.fileUrl ? (
+                                        {getDocumentUrl(selectedDocument) ? (
                                             <div className="space-y-2">
                                                 <img
-                                                    src={selectedDocument.fileUrl}
+                                                    src={getDocumentUrl(selectedDocument)}
                                                     alt="Document"
                                                     className="max-w-full h-auto rounded border shadow-sm"
                                                     onError={(e) => {
@@ -766,7 +815,7 @@ const DocumentVerificationPage = () => {
                                                     <div className="p-4 border border-gray-200 rounded bg-gray-50">
                                                         <p className="text-sm text-gray-600 mb-2">Document file could not be displayed as image.</p>
                                                         <a
-                                                            href={selectedDocument.fileUrl}
+                                                            href={getDocumentUrl(selectedDocument)}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
@@ -778,7 +827,7 @@ const DocumentVerificationPage = () => {
                                                 </div>
                                                 <div className="flex items-center space-x-2">
                                                     <a
-                                                        href={selectedDocument.fileUrl}
+                                                        href={getDocumentUrl(selectedDocument)}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className="inline-flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
@@ -787,7 +836,7 @@ const DocumentVerificationPage = () => {
                                                         Open in New Tab
                                                     </a>
                                                     <span className="text-xs text-gray-500">
-                                                        {selectedDocument.fileUrl.split('.').pop()?.toUpperCase()} file
+                                                        {getDocumentUrl(selectedDocument)?.split('.').pop()?.toUpperCase()} file
                                                     </span>
                                                 </div>
                                             </div>

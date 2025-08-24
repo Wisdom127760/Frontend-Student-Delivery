@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { getProfile, updateProfile } from '../../services/profileService';
-import ProfileImageUpload from '../../components/common/ProfileImageUpload';
 import CapitalizedInput from '../../components/common/CapitalizedInput';
 import { ProfilePageSkeleton } from '../../components/common/SkeletonLoader';
 import { capitalizeName } from '../../utils/capitalize';
 import toast from 'react-hot-toast';
-import { UserIcon, EnvelopeIcon, PhoneIcon, MapPinIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
+import { UserIcon, EnvelopeIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
 const ProfilePage = () => {
     const { user } = useAuth();
@@ -16,8 +15,6 @@ const ProfilePage = () => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
-        phone: '',
-        address: '',
         role: 'admin'
     });
 
@@ -26,11 +23,14 @@ const ProfilePage = () => {
             try {
                 const data = await getProfile(user?.id);
                 setProfile(data);
+
+                // Use admin's first and second name as full name
+                const adminName = user?.name || 'Super Admin';
+                const adminEmail = user?.email || data?.email || '';
+
                 setFormData({
-                    name: data.name || '',
-                    email: data.email || '',
-                    phone: data.phone || '',
-                    address: data.address || '',
+                    name: adminName,
+                    email: adminEmail,
                     role: data.role || 'admin'
                 });
             } catch (error) {
@@ -43,7 +43,7 @@ const ProfilePage = () => {
         if (user?.id) {
             fetchProfile();
         }
-    }, [user?.id]);
+    }, [user?.id, user?.name, user?.email]);
 
     const handleInputChange = (e) => {
         const { name, value } = e.target;
@@ -58,21 +58,33 @@ const ProfilePage = () => {
         setIsSaving(true);
 
         try {
-            const updatedProfile = await updateProfile(user?.id, formData);
+            // Only send name field - backend validation rejects email and role
+            const updateData = {
+                name: formData.name
+            };
+
+            const updatedProfile = await updateProfile(user?.id, updateData);
             setProfile(updatedProfile);
             toast.success('Profile updated successfully!');
         } catch (error) {
+            console.error('Profile update error:', error);
             toast.error('Failed to update profile');
         } finally {
             setIsSaving(false);
         }
     };
 
-    const handleImageUpdate = (imageUrl) => {
-        setProfile(prev => ({
-            ...prev,
-            profileImage: imageUrl
-        }));
+    // Admin profile uses logo instead of uploaded image
+    const getAdminProfileImage = () => {
+        return (
+            <div className="w-24 h-24 bg-gradient-to-br from-green-600 to-green-700 rounded-full flex items-center justify-center overflow-hidden">
+                <img
+                    src="/White.png"
+                    alt="Admin Profile"
+                    className="w-full h-full object-cover"
+                />
+            </div>
+        );
     };
 
     if (isLoading) {
@@ -96,14 +108,16 @@ const ProfilePage = () => {
 
                     <div className="p-4">
                         <form onSubmit={handleSubmit} className="space-y-6">
-                            {/* Profile Image */}
+                            {/* Profile Image - Admin Logo */}
                             <div>
-                                <h3 className="text-sm font-medium text-gray-900 mb-3">Profile Image</h3>
-                                <ProfileImageUpload
-                                    userId={user?.id}
-                                    currentImage={profile?.profileImage}
-                                    onImageUpdate={handleImageUpdate}
-                                />
+                                <h3 className="text-sm font-medium text-gray-900 mb-3">Profile Photo</h3>
+                                <div className="flex items-center space-x-4">
+                                    {getAdminProfileImage()}
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-900">Admin Profile</p>
+                                        <p className="text-xs text-gray-600">System logo used as profile image</p>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Personal Information */}
@@ -140,47 +154,12 @@ const ProfilePage = () => {
                                                 id="email"
                                                 name="email"
                                                 value={formData.email}
-                                                onChange={handleInputChange}
-                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                                                placeholder="Enter your email"
+                                                readOnly
+                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs bg-gray-50 text-gray-600 cursor-not-allowed"
+                                                placeholder="Email cannot be changed"
                                             />
                                         </div>
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="phone" className="block text-xs font-medium text-gray-700 mb-1">
-                                            Phone Number
-                                        </label>
-                                        <div className="relative">
-                                            <PhoneIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                            <input
-                                                type="tel"
-                                                id="phone"
-                                                name="phone"
-                                                value={formData.phone}
-                                                onChange={handleInputChange}
-                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                                                placeholder="Enter your phone number"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label htmlFor="address" className="block text-xs font-medium text-gray-700 mb-1">
-                                            Address
-                                        </label>
-                                        <div className="relative">
-                                            <MapPinIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                            <input
-                                                type="text"
-                                                id="address"
-                                                name="address"
-                                                value={formData.address}
-                                                onChange={handleInputChange}
-                                                className="w-full pl-7 pr-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                                                placeholder="Enter your address"
-                                            />
-                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">Email address cannot be modified</p>
                                     </div>
                                 </div>
                             </div>

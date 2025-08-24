@@ -1,23 +1,48 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
 import apiService from '../../services/api';
 import soundService from '../../services/soundService';
 import NotificationsDropdownSkeleton from '../common/NotificationsDropdownSkeleton';
+import { useNavigate } from 'react-router-dom';
 
 const NotificationsDropdown = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [markingAsRead, setMarkingAsRead] = useState(new Set());
+    const dropdownRef = useRef(null);
+    const buttonRef = useRef(null);
 
     // Initial load of unread count
     useEffect(() => {
         fetchUnreadCount();
     }, []);
+
+    // Click outside to close dropdown
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (isOpen &&
+                dropdownRef.current &&
+                !dropdownRef.current.contains(event.target) &&
+                buttonRef.current &&
+                !buttonRef.current.contains(event.target)) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        document.addEventListener('touchstart', handleClickOutside);
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            document.removeEventListener('touchstart', handleClickOutside);
+        };
+    }, [isOpen]);
 
     // Load notifications when dropdown opens
     useEffect(() => {
@@ -287,10 +312,21 @@ const NotificationsDropdown = () => {
         }
     };
 
+    const handleNotificationClick = () => {
+        // On mobile, navigate to notifications page
+        // On desktop, toggle dropdown
+        if (window.innerWidth < 640) {
+            navigate('/driver/notifications');
+        } else {
+            setIsOpen(!isOpen);
+        }
+    };
+
     return (
         <div className="relative">
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                ref={buttonRef}
+                onClick={handleNotificationClick}
                 className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
             >
                 <BellIcon className="w-6 h-6" />
@@ -302,25 +338,28 @@ const NotificationsDropdown = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                    <div className="p-4 border-b border-gray-200">
+                <div
+                    ref={dropdownRef}
+                    className="absolute mt-2 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[80vh] overflow-hidden sm:right-0 sm:left-auto right-0 left-4 sm:left-auto sm:w-80 lg:w-96 hidden sm:block"
+                >
+                    <div className="p-3 sm:p-4 border-b border-gray-200">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-lg font-semibold text-gray-900">Notifications</h3>
+                            <h3 className="text-base sm:text-lg font-semibold text-gray-900">Notifications</h3>
                             <button
                                 onClick={() => setIsOpen(false)}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="text-gray-400 hover:text-gray-600 p-1"
                             >
-                                ×
+                                <XMarkIcon className="w-5 h-5" />
                             </button>
                         </div>
                         {unreadCount > 0 && (
-                            <p className="text-sm text-gray-600 mt-1">
+                            <p className="text-xs sm:text-sm text-gray-600 mt-1">
                                 {unreadCount} unread notification{unreadCount !== 1 ? 's' : ''}
                             </p>
                         )}
                     </div>
 
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-96 overflow-y-auto scrollbar-hide">
                         {loading ? (
                             <NotificationsDropdownSkeleton />
                         ) : notifications.length === 0 ? (
@@ -333,7 +372,7 @@ const NotificationsDropdown = () => {
                                 {notifications.map((notification) => (
                                     <div
                                         key={notification._id}
-                                        className={`p-4 transition-colors ${markingAsRead.has(notification._id)
+                                        className={`p-3 sm:p-4 transition-colors ${markingAsRead.has(notification._id)
                                             ? 'cursor-not-allowed opacity-75'
                                             : 'hover:bg-gray-50 cursor-pointer'
                                             } ${!notification.isRead ? 'bg-blue-50' : ''}`}
@@ -345,12 +384,12 @@ const NotificationsDropdown = () => {
                                     >
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1 min-w-0">
-                                                <h4 className={`text-sm font-medium ${notification.isRead ? 'text-gray-700' : 'text-gray-900'
+                                                <h4 className={`text-xs sm:text-sm font-medium ${notification.isRead ? 'text-gray-700' : 'text-gray-900'
                                                     }`}>
                                                     {notification.title}
                                                 </h4>
-                                                <p className={`text-sm mt-1 ${notification.isRead ? 'text-gray-600' : 'text-gray-800'
-                                                    }`}>
+                                                <p className={`text-xs sm:text-sm mt-1 ${notification.isRead ? 'text-gray-600' : 'text-gray-800'
+                                                    } line-clamp-2`}>
                                                     {notification.message}
                                                 </p>
                                                 <span className="text-xs text-gray-500 mt-2 block">
@@ -367,7 +406,7 @@ const NotificationsDropdown = () => {
                                                         }
                                                     }}
                                                     disabled={markingAsRead.has(notification._id)}
-                                                    className={`ml-2 p-1 ${markingAsRead.has(notification._id)
+                                                    className={`ml-2 p-1 flex-shrink-0 ${markingAsRead.has(notification._id)
                                                         ? 'text-gray-300 cursor-not-allowed'
                                                         : 'text-gray-400 hover:text-gray-600'
                                                         }`}
@@ -388,10 +427,10 @@ const NotificationsDropdown = () => {
                     </div>
 
                     {notifications.length > 0 && (
-                        <div className="p-4 border-t border-gray-200">
+                        <div className="p-3 sm:p-4 border-t border-gray-200">
                             <a
                                 href="/driver/notifications"
-                                className="text-sm text-green-600 hover:text-green-700 font-medium"
+                                className="text-xs sm:text-sm text-green-600 hover:text-green-700 font-medium"
                             >
                                 View all notifications →
                             </a>

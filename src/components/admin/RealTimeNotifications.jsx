@@ -9,6 +9,7 @@ const RealTimeNotifications = () => {
     const [showNotifications, setShowNotifications] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
     const dropdownRef = useRef(null);
+    const processedNotifications = useRef(new Set()); // Track processed notifications to prevent duplicates
 
     // Handle click outside dropdown
     useEffect(() => {
@@ -70,6 +71,29 @@ const RealTimeNotifications = () => {
             socketService.connect(user._id || user.id, user.userType);
         }
 
+        // Helper function to create unique notification ID
+        const createNotificationId = (data) => {
+            if (data.id) return data.id;
+            if (data.message && data.timestamp) {
+                return `${data.message}-${data.timestamp}`;
+            }
+            return `${Date.now()}-${Math.random()}`;
+        };
+
+        // Helper function to check if notification is duplicate
+        const isDuplicateNotification = (notificationId) => {
+            if (processedNotifications.current.has(notificationId)) {
+                return true;
+            }
+            processedNotifications.current.add(notificationId);
+            // Clean up old entries to prevent memory leaks
+            if (processedNotifications.current.size > 100) {
+                const entries = Array.from(processedNotifications.current);
+                processedNotifications.current = new Set(entries.slice(-50));
+            }
+            return false;
+        };
+
         // Socket event listeners
         socketService.on('connect', () => {
             setIsConnected(true);
@@ -93,8 +117,14 @@ const RealTimeNotifications = () => {
                 return;
             }
 
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate driver-status-changed detected, skipping:', notificationId);
+                return;
+            }
+
             addNotification({
-                id: Date.now(),
+                id: notificationId,
                 type: 'driver-status',
                 title: 'Driver Status Update',
                 message: `${data.name || 'Unknown driver'} is now ${data.isOnline ? 'online' : 'offline'}`,
@@ -104,8 +134,14 @@ const RealTimeNotifications = () => {
         });
 
         socketService.on('delivery-status-changed', (data) => {
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate delivery-status-changed detected, skipping:', notificationId);
+                return;
+            }
+
             addNotification({
-                id: Date.now(),
+                id: notificationId,
                 type: 'delivery-status',
                 title: 'Delivery Status Update',
                 message: `Delivery ${data.deliveryCode} status changed to ${data.status}`,
@@ -115,8 +151,14 @@ const RealTimeNotifications = () => {
         });
 
         socketService.on('new-message', (data) => {
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate new-message detected, skipping:', notificationId);
+                return;
+            }
+
             addNotification({
-                id: Date.now(),
+                id: notificationId,
                 type: 'message',
                 title: 'New Message',
                 message: `New message from ${data.senderType}: ${data.message.substring(0, 50)}...`,
@@ -126,8 +168,14 @@ const RealTimeNotifications = () => {
         });
 
         socketService.on('delivery-assigned', (data) => {
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate delivery-assigned detected, skipping:', notificationId);
+                return;
+            }
+
             addNotification({
-                id: Date.now(),
+                id: notificationId,
                 type: 'delivery-assigned',
                 title: 'Delivery Assigned',
                 message: `Delivery ${data.deliveryCode} assigned to driver`,
@@ -137,8 +185,14 @@ const RealTimeNotifications = () => {
         });
 
         socketService.on('emergency-alert', (data) => {
+            const notificationId = createNotificationId(data);
+            if (isDuplicateNotification(notificationId)) {
+                console.log('🔄 Duplicate emergency-alert detected, skipping:', notificationId);
+                return;
+            }
+
             addNotification({
-                id: Date.now(),
+                id: notificationId,
                 type: 'emergency',
                 title: '🚨 Emergency Alert',
                 message: `Emergency from driver: ${data.message}`,

@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import {
     PlusIcon,
     ClockIcon,
     CheckCircleIcon,
     XCircleIcon,
     CurrencyDollarIcon,
-    FunnelIcon
+    FunnelIcon,
+    MagnifyingGlassIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import Pagination from '../../components/common/Pagination';
 import AdminRemittanceSkeleton from '../../components/common/AdminRemittanceSkeleton';
+import SearchableDropdown from '../../components/common/SearchableDropdown';
 import apiService from '../../services/api';
+import toast from 'react-hot-toast';
 
 const RemittancePage = () => {
     const [remittances, setRemittances] = useState([]);
     const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
-
+    const [refreshing, setRefreshing] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
@@ -48,7 +53,6 @@ const RemittancePage = () => {
     // Form states
     const [formData, setFormData] = useState({
         driverId: '',
-        notes: '',
         startDate: new Date().toISOString().split('T')[0],
         endDate: new Date().toISOString().split('T')[0]
     });
@@ -58,9 +62,8 @@ const RemittancePage = () => {
         dueDateDays: 7
     });
 
-
     // Toast notification
-    const [toast, setToast] = useState({
+    const [toastNotification, setToastNotification] = useState({
         show: false,
         message: '',
         type: 'success'
@@ -69,64 +72,45 @@ const RemittancePage = () => {
     const loadRemittances = useCallback(async () => {
         try {
             setLoading(true);
-            console.log('💰 RemittancePage: Loading remittances with params:', {
-                page: currentPage,
-                limit: itemsPerPage,
-                ...filters
-            });
-
             const response = await apiService.getRemittances({
                 page: currentPage,
                 limit: itemsPerPage,
                 ...filters
             });
 
-            console.log('💰 RemittancePage: Remittances API response:', response);
-
             if (response && response.success) {
-                // Parse the correct response structure
+                // Handle the new API response structure
                 const remittancesData = response.data?.remittances || response.remittances || [];
                 const remittancesArray = Array.isArray(remittancesData) ? remittancesData : [];
-                console.log('💰 RemittancePage: Setting remittances array:', remittancesArray);
                 setRemittances(remittancesArray);
 
-                // Parse pagination from the correct structure
+                // Handle pagination from the new structure
                 const pagination = response.data?.pagination || response.pagination || {};
-                setTotalPages(pagination.pages || 1);
-                setTotalItems(pagination.total || 0);
+                setTotalPages(pagination.totalPages || pagination.pages || 1);
+                setTotalItems(pagination.totalItems || pagination.total || 0);
 
-                // Don't calculate stats here - we get them from the dedicated statistics API
-                console.log('💰 RemittancePage: Remittances loaded, stats will come from dedicated API');
+                // Also update stats from the same response if available
+                const statistics = response.data?.statistics || response.statistics || {};
+                if (statistics && Object.keys(statistics).length > 0) {
+                    setStats({
+                        pending: statistics.pendingRemittances || 0,
+                        completed: statistics.completedRemittances || 0,
+                        cancelled: statistics.cancelledRemittances || 0,
+                        totalAmount: statistics.totalAmount || 0,
+                        totalPaid: statistics.totalPaid || 0,
+                        totalPending: statistics.totalPending || 0,
+                        totalOverdue: statistics.totalOverdue || 0,
+                        completionRate: statistics.completionRate || 0
+                    });
+                }
             } else {
-                console.warn('💰 RemittancePage: Backend returned unsuccessful response:', response);
                 setRemittances([]);
                 setTotalPages(1);
                 setTotalItems(0);
-                // Don't reset stats here - keep the ones from the statistics API
             }
         } catch (error) {
             console.error('❌ RemittancePage: Error loading remittances:', error);
-            console.error('❌ RemittancePage: Error details:', {
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-                message: error.message
-            });
-
-            // Show user-friendly error message
-            if (error.response?.status === 400) {
-                toast.error('Remittances failed: Invalid parameters.');
-            } else if (error.response?.status === 401) {
-                toast.error('Remittances failed: Authentication required.');
-            } else if (error.response?.status === 403) {
-                toast.error('Remittances failed: Permission denied.');
-            } else if (error.response?.status === 404) {
-                toast.error('Remittances failed: Endpoint not found.');
-            } else if (error.response?.status === 500) {
-                toast.error('Remittances failed: Server error. Please try again later.');
-                toast.error('Failed to load remittances');
-            }
-
+            toast.error('Failed to load remittances');
             setRemittances([]);
         } finally {
             setLoading(false);
@@ -135,29 +119,19 @@ const RemittancePage = () => {
 
     const fetchDrivers = useCallback(async () => {
         try {
-            console.log('🚗 RemittancePage: Loading drivers...');
             const response = await apiService.getDrivers();
-
-            // Enhanced parsing to handle different response structures
             let driversArray = [];
             if (response && response.success && response.data && response.data.drivers) {
-                // Backend returns: { success: true, data: { drivers: [...] } }
                 driversArray = response.data.drivers;
             } else if (response && response.data && response.data.drivers) {
-                // Alternative structure: { data: { drivers: [...] } }
                 driversArray = response.data.drivers;
             } else if (response && response.drivers) {
-                // Direct structure: { drivers: [...] }
                 driversArray = response.drivers;
             } else if (Array.isArray(response)) {
-                // Array structure: [...]
                 driversArray = response;
             } else if (response && response.data && Array.isArray(response.data)) {
-                // Data array structure: { data: [...] }
                 driversArray = response.data;
             }
-
-            console.log('🚗 RemittancePage: Loaded', driversArray.length, 'drivers');
             setDrivers(driversArray);
         } catch (error) {
             console.error('❌ RemittancePage: Error loading drivers:', error);
@@ -165,18 +139,11 @@ const RemittancePage = () => {
         }
     }, []);
 
-    // Load comprehensive remittance statistics
     const loadRemittanceStats = useCallback(async () => {
         try {
-            console.log('💰 RemittancePage: Loading remittance statistics...');
             const response = await apiService.getRemittanceStats();
-            console.log('💰 RemittancePage: Statistics response:', response);
-
             if (response && response.success) {
-                // Parse the correct nested structure from your backend
                 const statsData = response.data?.statistics || response.statistics || {};
-                console.log('💰 RemittancePage: Parsed statistics data:', statsData);
-
                 setStats({
                     pending: statsData.pendingRemittances || 0,
                     completed: statsData.completedRemittances || 0,
@@ -187,25 +154,21 @@ const RemittancePage = () => {
                     totalOverdue: statsData.totalOverdue || 0,
                     completionRate: statsData.completionRate || 0
                 });
-                console.log('✅ RemittancePage: Statistics loaded successfully');
             }
         } catch (error) {
             console.error('❌ RemittancePage: Error loading statistics:', error);
+            // Don't show error toast as stats might already be loaded from main response
         }
     }, []);
 
-    // Load data on component mount
     useEffect(() => {
-        console.log('🔄 RemittancePage: Component mounted, loading data...');
         loadRemittances();
         fetchDrivers();
         loadRemittanceStats();
     }, [loadRemittances, fetchDrivers, loadRemittanceStats]);
 
-    // Load detailed remittance information for a specific driver
-    const loadDriverRemittanceDetails = useCallback(async (driverId) => {
+    const loadDriverRemittanceDetails = useCallback(async (driverId, startDate = null, endDate = null) => {
         if (!driverId || driverId.trim() === '') {
-            console.log('🚗 RemittancePage: No driverId provided, clearing details');
             setSelectedDriverDetails(null);
             setDriverRemittanceDetails(null);
             return;
@@ -213,31 +176,51 @@ const RemittancePage = () => {
 
         try {
             setLoadingDriverDetails(true);
-            console.log('🚗 RemittancePage: Loading remittance details for driver:', driverId);
 
-            // Get driver remittance summary
+            // Use provided date range or default to current month
+            const today = new Date();
+            const defaultStartDate = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+            const defaultEndDate = today.toISOString().split('T')[0];
+
+            const calculateStartDate = startDate || defaultStartDate;
+            const calculateEndDate = endDate || defaultEndDate;
+
             const summaryResponse = await apiService.getDriverRemittanceSummary(driverId);
-            console.log('🚗 RemittancePage: Driver remittance summary:', summaryResponse);
-
-            // Get driver's remittances
             const remittancesResponse = await apiService.getDriverRemittancesForDetails(driverId);
-            console.log('🚗 RemittancePage: Driver remittances:', remittancesResponse);
-
-            // Get payment structure for calculations
             const paymentStructureResponse = await apiService.getPaymentStructure();
-            console.log('🚗 RemittancePage: Payment structure:', paymentStructureResponse);
 
-            // Find the selected driver
+            // Get calculate endpoint data for pending remittance amount
+            let calculateResponse = null;
+            try {
+                calculateResponse = await apiService.calculateDriverRemittance(driverId, calculateStartDate, calculateEndDate);
+            } catch (calculateError) {
+                console.warn('⚠️ Could not fetch calculate endpoint data:', calculateError);
+            }
+
             const driver = drivers.find(d => (d._id || d.id) === driverId);
             setSelectedDriverDetails(driver);
 
+            // Merge summary data with calculate data for accurate pending amount
+            const summaryData = summaryResponse.data || summaryResponse;
+            const calculateData = calculateResponse?.data || calculateResponse;
+
+            console.log('🔍 RemittancePage: Summary data received:', summaryData);
+            console.log('🔍 RemittancePage: Calculate data received:', calculateData);
+
+            const enhancedSummary = {
+                ...summaryData,
+                // Use calculate endpoint data for pending remittance if available
+                pendingAmount: calculateData?.remittanceAmount || summaryData.pendingAmount || 0,
+                totalDriverEarnings: calculateData?.totalDriverEarnings || summaryData.totalDriverEarnings || 0
+            };
+
+            console.log('🔍 RemittancePage: Enhanced summary data:', enhancedSummary);
+
             setDriverRemittanceDetails({
-                summary: summaryResponse.data || summaryResponse,
+                summary: enhancedSummary,
                 remittances: remittancesResponse.data?.remittances || remittancesResponse.remittances || [],
                 paymentStructure: paymentStructureResponse.data || paymentStructureResponse
             });
-
-            console.log('✅ RemittancePage: Driver remittance details loaded successfully');
         } catch (error) {
             console.error('❌ RemittancePage: Error loading driver remittance details:', error);
             setSelectedDriverDetails(null);
@@ -249,9 +232,8 @@ const RemittancePage = () => {
 
     const handleBulkGenerateRemittances = async () => {
         try {
-            console.log('💰 RemittancePage: Bulk generating remittances:', bulkFormData);
             await apiService.bulkGenerateRemittances(bulkFormData);
-            setToast({
+            setToastNotification({
                 show: true,
                 message: 'Bulk remittance generation completed successfully!',
                 type: 'success'
@@ -266,14 +248,28 @@ const RemittancePage = () => {
             loadRemittanceStats();
         } catch (error) {
             console.error('❌ RemittancePage: Error bulk generating remittances:', error);
-            toast.error('Bulk generation failed. Please try again.');
+
+            if (error.response?.data?.error) {
+                const errorMessage = error.response.data.error;
+
+                if (errorMessage.includes('No remittance amount to generate')) {
+                    toast.error('No pending cash deliveries found for any drivers in the selected date range.');
+                } else if (errorMessage.includes('Invalid date range')) {
+                    toast.error('Please select a valid date range for bulk generation.');
+                } else {
+                    toast.error(`Bulk generation failed: ${errorMessage}`);
+                }
+            } else if (error.response?.status === 400) {
+                toast.error('Invalid request data. Please check your input and try again.');
+            } else if (error.response?.status === 500) {
+                toast.error('Server error during bulk generation. Please try again later.');
+            } else {
+                toast.error('Bulk generation failed. Please try again.');
+            }
         }
     };
 
-
-
     const handleCreateRemittance = async () => {
-        // Validate required fields
         if (!formData.driverId || formData.driverId.trim() === '') {
             toast.error('Please select a driver');
             return;
@@ -289,54 +285,67 @@ const RemittancePage = () => {
             return;
         }
 
-        // Validate dates
         if (new Date(formData.endDate) < new Date(formData.startDate)) {
             toast.error('End date cannot be before start date');
             return;
         }
 
         try {
-            console.log('💰 RemittancePage: Creating remittance:', formData);
-            await apiService.createRemittance(formData);
-            setToast({
+            const remittanceData = {
+                driverId: formData.driverId,
+                startDate: formData.startDate,
+                endDate: formData.endDate
+            };
+
+            await apiService.createRemittance(remittanceData);
+            setToastNotification({
                 show: true,
                 message: 'Remittance created successfully',
                 type: 'success'
             });
             setShowCreateModal(false);
-            setFormData({ driverId: '', notes: '', startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] });
+            setFormData({ driverId: '', startDate: new Date().toISOString().split('T')[0], endDate: new Date().toISOString().split('T')[0] });
             loadRemittances();
         } catch (error) {
             console.error('❌ RemittancePage: Error creating remittance:', error);
-            console.error('❌ RemittancePage: Error details:', {
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-                message: error.message
-            });
 
-            // Show user-friendly error message
-            if (error.response?.status === 400) {
-                toast.error('Remittance creation failed: Invalid data.');
+            // Check for specific error messages and provide user-friendly feedback
+            if (error.response?.data?.error) {
+                const errorMessage = error.response.data.error;
+
+                if (errorMessage.includes('No remittance amount to generate')) {
+                    toast.error('No pending cash deliveries found for this driver in the selected date range. All deliveries may have been already remitted or cancelled.');
+                } else if (errorMessage.includes('Driver not found')) {
+                    toast.error('Selected driver not found. Please try selecting a different driver.');
+                } else if (errorMessage.includes('Invalid date range')) {
+                    toast.error('Please select a valid date range.');
+                } else if (errorMessage.includes('No deliveries found')) {
+                    toast.error('No deliveries found for this driver in the selected date range.');
+                } else {
+                    toast.error(`Remittance creation failed: ${errorMessage}`);
+                }
+            } else if (error.response?.status === 400) {
+                toast.error('Invalid request data. Please check your input and try again.');
             } else if (error.response?.status === 401) {
-                toast.error('Remittance creation failed: Authentication required.');
+                toast.error('Authentication required. Please log in again.');
             } else if (error.response?.status === 403) {
-                toast.error('Remittance creation failed: Permission denied.');
+                toast.error('Permission denied. You do not have access to create remittances.');
             } else if (error.response?.status === 404) {
-                toast.error('Remittance creation failed: Endpoint not found.');
+                toast.error('Service not found. Please contact support.');
             } else if (error.response?.status === 500) {
-                toast.error('Remittance creation failed: Server error. Please try again later.');
+                toast.error('Server error. Please try again later.');
+            } else if (error.code === 'ERR_NETWORK') {
+                toast.error('Network error. Please check your connection and try again.');
             } else {
-                toast.error('Failed to create remittance');
+                toast.error('Failed to create remittance. Please try again.');
             }
         }
     };
 
     const handleCompleteRemittance = async () => {
         try {
-            console.log('💰 RemittancePage: Completing remittance:', selectedRemittance._id);
             await apiService.completeRemittance(selectedRemittance._id);
-            setToast({
+            setToastNotification({
                 show: true,
                 message: 'Remittance completed successfully',
                 type: 'success'
@@ -346,35 +355,26 @@ const RemittancePage = () => {
             loadRemittances();
         } catch (error) {
             console.error('❌ RemittancePage: Error completing remittance:', error);
-            console.error('❌ RemittancePage: Error details:', {
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-                message: error.message
-            });
 
-            // Show user-friendly error message
-            if (error.response?.status === 400) {
-                toast.error('Remittance completion failed: Invalid data.');
-            } else if (error.response?.status === 401) {
-                toast.error('Remittance completion failed: Authentication required.');
-            } else if (error.response?.status === 403) {
-                toast.error('Remittance completion failed: Permission denied.');
+            if (error.response?.data?.error) {
+                const errorMessage = error.response.data.error;
+                toast.error(`Failed to complete remittance: ${errorMessage}`);
+            } else if (error.response?.status === 400) {
+                toast.error('Invalid request. Please check the remittance status.');
             } else if (error.response?.status === 404) {
-                toast.error('Remittance completion failed: Endpoint not found.');
+                toast.error('Remittance not found.');
             } else if (error.response?.status === 500) {
-                toast.error('Remittance completion failed: Server error. Please try again later.');
+                toast.error('Server error. Please try again later.');
             } else {
-                toast.error('Failed to complete remittance');
+                toast.error('Failed to complete remittance. Please try again.');
             }
         }
     };
 
     const handleCancelRemittance = async () => {
         try {
-            console.log('💰 RemittancePage: Cancelling remittance:', selectedRemittance._id, 'with reason:', cancelReason);
             await apiService.cancelRemittance(selectedRemittance._id, cancelReason);
-            setToast({
+            setToastNotification({
                 show: true,
                 message: 'Remittance cancelled successfully',
                 type: 'success'
@@ -385,26 +385,23 @@ const RemittancePage = () => {
             loadRemittances();
         } catch (error) {
             console.error('❌ RemittancePage: Error cancelling remittance:', error);
-            console.error('❌ RemittancePage: Error details:', {
-                status: error.response?.status,
-                statusText: error.response?.statusText,
-                data: error.response?.data,
-                message: error.message
-            });
 
-            // Show user-friendly error message
-            if (error.response?.status === 400) {
-                toast.error('Remittance cancellation failed: Invalid data.');
-            } else if (error.response?.status === 401) {
-                toast.error('Remittance cancellation failed: Authentication required.');
-            } else if (error.response?.status === 403) {
-                toast.error('Remittance cancellation failed: Permission denied.');
+            if (error.response?.data?.error) {
+                const errorMessage = error.response.data.error;
+
+                if (errorMessage.includes('reason') && errorMessage.includes('not allowed to be empty')) {
+                    toast.error('Please provide a reason for cancelling the remittance.');
+                } else {
+                    toast.error(`Failed to cancel remittance: ${errorMessage}`);
+                }
+            } else if (error.response?.status === 400) {
+                toast.error('Invalid request. Please check the remittance status and reason.');
             } else if (error.response?.status === 404) {
-                toast.error('Remittance cancellation failed: Endpoint not found.');
+                toast.error('Remittance not found.');
             } else if (error.response?.status === 500) {
-                toast.error('Remittance cancellation failed: Server error. Please try again later.');
+                toast.error('Server error. Please try again later.');
             } else {
-                toast.error('Failed to cancel remittance');
+                toast.error('Failed to cancel remittance. Please try again.');
             }
         }
     };
@@ -451,120 +448,159 @@ const RemittancePage = () => {
 
     return (
         <>
-            <div className="min-h-screen bg-gray-50">
-                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                    <div className="space-y-4">
-                        {/* Toast Notification */}
-                        {toast.show && (
-                            <div className={`fixed top-4 right-4 z-50 p-3 rounded-lg shadow-lg text-xs ${toast.type === 'success'
-                                ? 'bg-green-500 text-white'
-                                : 'bg-red-500 text-white'
-                                }`}>
-                                <div className="flex items-center">
-                                    <span className="mr-2">
-                                        {toast.type === 'success' ? '✅' : '❌'}
-                                    </span>
-                                    <span>{toast.message}</span>
-                                    <button
-                                        onClick={() => setToast({ ...toast, show: false })}
-                                        className="ml-3 text-white hover:text-gray-200"
-                                    >
-                                        ×
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+            <div className="h-screen bg-gray-50 flex flex-col">
+                {/* Toast Notification */}
+                {toastNotification.show && (
+                    <div className={`fixed top-4 right-4 z-50 p-3 rounded-lg shadow-lg text-xs ${toastNotification.type === 'success'
+                        ? 'bg-green-500 text-white'
+                        : 'bg-red-500 text-white'
+                        }`}>
+                        <div className="flex items-center">
+                            <span className="mr-2">
+                                {toastNotification.type === 'success' ? '✅' : '❌'}
+                            </span>
+                            <span>{toastNotification.message}</span>
+                            <button
+                                onClick={() => setToastNotification({ ...toastNotification, show: false })}
+                                className="ml-3 text-white hover:text-gray-200"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    </div>
+                )}
 
-                        {/* Header */}
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Remittance Management</h1>
-                                <p className="text-sm text-gray-600">Automatically calculate remittances from completed deliveries</p>
-                            </div>
-                            <div className="flex space-x-2">
-                                {/* Refresh button removed - WebSocket provides real-time updates */}
+                {/* Header - Compact */}
+                <div className="bg-white border-b border-gray-200 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h1 className="text-lg font-bold text-gray-900">Remittance Management</h1>
+                            <p className="text-xs text-gray-600">Automatically calculate remittances from completed deliveries</p>
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={async () => {
+                                    setRefreshing(true);
+                                    try {
+                                        await Promise.all([loadRemittances(), loadRemittanceStats()]);
+                                        toast.success('Data refreshed successfully');
+                                    } catch (error) {
+                                        console.error('Error refreshing data:', error);
+                                    } finally {
+                                        setRefreshing(false);
+                                    }
+                                }}
+                                disabled={refreshing}
+                                className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                <ArrowPathIcon className={`h-3 w-3 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                                {refreshing ? 'Refreshing...' : 'Refresh'}
+                            </button>
+                            <button
+                                onClick={() => setShowCreateModal(true)}
+                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
+                            >
+                                <PlusIcon className="h-3 w-3 mr-1" />
+                                Calculate
+                            </button>
+                            <button
+                                onClick={() => setShowBulkGenerateModal(true)}
+                                className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            >
+                                📊 Bulk
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-                                <button
-                                    onClick={() => setShowCreateModal(true)}
-                                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-1 focus:ring-green-500"
-                                >
-                                    <PlusIcon className="h-3 w-3 mr-1" />
-                                    Calculate Remittance
-                                </button>
-                                <button
-                                    onClick={() => setShowBulkGenerateModal(true)}
-                                    className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                >
-                                    📊 Bulk Generate
-                                </button>
+                {/* Summary Stats Bar */}
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-200 px-4 py-2">
+                    <div className="flex items-center justify-between text-xs">
+                        <div className="flex items-center space-x-6">
+                            <div className="flex items-center space-x-2">
+                                <span className="text-gray-600">Total Amount:</span>
+                                <span className="font-semibold text-gray-900">₺{(stats.totalAmount || 0).toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-gray-600">Completed:</span>
+                                <span className="font-semibold text-green-700">{stats.completed || 0}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-gray-600">Pending:</span>
+                                <span className="font-semibold text-yellow-700">{stats.pending || 0}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-gray-600">Cancelled:</span>
+                                <span className="font-semibold text-red-700">{stats.cancelled || 0}</span>
                             </div>
                         </div>
+                        <div className="flex items-center space-x-2">
+                            <span className="text-gray-600">Completion Rate:</span>
+                            <span className="font-semibold text-blue-700">{(stats.completionRate || 0).toFixed(1)}%</span>
+                        </div>
+                    </div>
+                </div>
 
-                        {/* Stats Cards */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div className="bg-white rounded-lg shadow-sm p-4">
-                                <div className="flex items-center">
-                                    <div className="p-2 bg-yellow-100 rounded-lg">
-                                        <ClockIcon className="h-4 w-4 text-yellow-600" />
+                {/* Main Content - Single VH Layout */}
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Left Panel - Stats and Driver Details */}
+                    <div className="w-1/3 flex flex-col border-r border-gray-200">
+                        {/* Stats Cards - Compact */}
+                        <div className="bg-white p-3 border-b border-gray-200">
+                            <div className="grid grid-cols-3 gap-2">
+                                <div className="bg-yellow-50 rounded p-2">
+                                    <div className="flex items-center">
+                                        <ClockIcon className="h-3 w-3 text-yellow-600 mr-1" />
+                                        <span className="text-xs text-yellow-800">Pending</span>
                                     </div>
-                                    <div className="ml-3">
-                                        <p className="text-xs font-medium text-gray-600">Pending</p>
-                                        <p className="text-lg font-bold text-gray-900">{stats.pending || 0}</p>
-                                        <p className="text-xs text-gray-500">₺{(stats.totalPending || 0).toLocaleString()}</p>
-                                    </div>
+                                    <p className="text-sm font-bold text-yellow-900">{stats.pending || 0}</p>
+                                    <p className="text-xs text-yellow-700">₺{(stats.totalPending || 0).toLocaleString()}</p>
                                 </div>
-                            </div>
-
-                            <div className="bg-white rounded-lg shadow-sm p-4">
-                                <div className="flex items-center">
-                                    <div className="p-2 bg-green-100 rounded-lg">
-                                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                                <div className="bg-green-50 rounded p-2">
+                                    <div className="flex items-center">
+                                        <CheckCircleIcon className="h-3 w-3 text-green-600 mr-1" />
+                                        <span className="text-xs text-green-800">Completed</span>
                                     </div>
-                                    <div className="ml-3">
-                                        <p className="text-xs font-medium text-gray-600">Completed</p>
-                                        <p className="text-lg font-bold text-gray-900">{stats.completed || 0}</p>
-                                        <p className="text-xs text-gray-500">₺{(stats.totalPaid || 0).toLocaleString()}</p>
-                                    </div>
+                                    <p className="text-sm font-bold text-green-900">{stats.completed || 0}</p>
+                                    <p className="text-xs text-green-700">₺{(stats.totalPaid || 0).toLocaleString()}</p>
                                 </div>
-                            </div>
-
-                            <div className="bg-white rounded-lg shadow-sm p-4">
-                                <div className="flex items-center">
-                                    <div className="p-2 bg-red-100 rounded-lg">
-                                        <XCircleIcon className="h-4 w-4 text-red-600" />
+                                <div className="bg-red-50 rounded p-2">
+                                    <div className="flex items-center">
+                                        <XCircleIcon className="h-3 w-3 text-red-600 mr-1" />
+                                        <span className="text-xs text-red-800">Cancelled</span>
                                     </div>
-                                    <div className="ml-3">
-                                        <p className="text-xs font-medium text-gray-600">Cancelled</p>
-                                        <p className="text-lg font-bold text-gray-900">{stats.cancelled || 0}</p>
-                                        <p className="text-xs text-gray-500">Cancelled remittances</p>
-                                    </div>
+                                    <p className="text-sm font-bold text-red-900">{stats.cancelled || 0}</p>
                                 </div>
-                            </div>
-
-                            <div className="bg-white rounded-lg shadow-sm p-4">
-                                <div className="flex items-center">
-                                    <div className="p-2 bg-blue-100 rounded-lg">
-                                        <CurrencyDollarIcon className="h-4 w-4 text-blue-600" />
+                                <div className="bg-blue-50 rounded p-2">
+                                    <div className="flex items-center">
+                                        <CurrencyDollarIcon className="h-3 w-3 text-blue-600 mr-1" />
+                                        <span className="text-xs text-blue-800">Total</span>
                                     </div>
-                                    <div className="ml-3">
-                                        <p className="text-xs font-medium text-gray-600">Total Amount</p>
-                                        <p className="text-lg font-bold text-gray-900">₺{(stats.totalAmount || 0).toLocaleString()}</p>
-                                        <p className="text-xs text-gray-500">{stats.completionRate || 0}% completion rate</p>
+                                    <p className="text-sm font-bold text-blue-900">₺{(stats.totalAmount || 0).toLocaleString()}</p>
+                                </div>
+                                <div className="bg-purple-50 rounded p-2">
+                                    <div className="flex items-center">
+                                        <CurrencyDollarIcon className="h-3 w-3 text-purple-600 mr-1" />
+                                        <span className="text-xs text-purple-800">Completion</span>
                                     </div>
+                                    <p className="text-sm font-bold text-purple-900">{(stats.completionRate || 0).toFixed(1)}%</p>
                                 </div>
                             </div>
                         </div>
-
-
 
                         {/* Driver Selection and Details */}
-                        <div className="bg-white rounded-lg shadow-sm p-4">
-                            <div className="flex items-center justify-between mb-4">
-                                <h3 className="text-sm font-semibold text-gray-900">Driver Remittance Details</h3>
-                                <select
+                        <div className="flex-1 bg-white p-3 overflow-y-auto">
+                            <div className="mb-3">
+                                <h3 className="text-xs font-semibold text-gray-900 mb-2">Driver Details</h3>
+                                <SearchableDropdown
+                                    options={drivers.map(driver => ({
+                                        value: driver._id || driver.id,
+                                        label: `${capitalizeName(driver.name)} (${driver.email})`,
+                                        name: capitalizeName(driver.name),
+                                        email: driver.email
+                                    }))}
                                     value={selectedDriverForDetails || ''}
-                                    onChange={(e) => {
-                                        const driverId = e.target.value;
+                                    onChange={(driverId) => {
                                         setSelectedDriverForDetails(driverId);
                                         if (driverId) {
                                             loadDriverRemittanceDetails(driverId);
@@ -572,176 +608,134 @@ const RemittancePage = () => {
                                             setDriverRemittanceDetails(null);
                                         }
                                     }}
-                                    className="px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                                >
-                                    <option value="">Select a driver to view details</option>
-                                    {drivers.map(driver => (
-                                        <option key={driver._id || driver.id} value={driver._id || driver.id}>
-                                            {driver.name} ({driver.email})
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="Select driver"
+                                    searchPlaceholder="Search drivers..."
+                                    className="text-xs"
+                                    allowClear={true}
+                                    renderOption={(option, isSelected) => (
+                                        <div className="flex flex-col">
+                                            <span className="font-medium text-xs">{option.name}</span>
+                                            <span className="text-xs text-gray-500">{option.email}</span>
+                                        </div>
+                                    )}
+                                />
                             </div>
 
                             {/* Driver Details Panel */}
                             {selectedDriverForDetails && (
-                                <div className="border-t border-gray-200 pt-4">
+                                <div className="space-y-3">
                                     {loadingDriverDetails ? (
-                                        <div className="flex items-center justify-center py-8">
-                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
-                                            <span className="ml-2 text-sm text-gray-600">Loading driver details...</span>
+                                        <div className="flex items-center justify-center py-4">
+                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
+                                            <span className="ml-2 text-xs text-gray-600">Loading...</span>
                                         </div>
                                     ) : driverRemittanceDetails ? (
-                                        <div className="space-y-4">
-                                            {/* Driver Summary Cards */}
-                                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                                <div className="bg-blue-50 rounded-lg p-3">
-                                                    <div className="flex items-center">
-                                                        <div className="p-2 bg-blue-100 rounded-lg">
-                                                            <CurrencyDollarIcon className="h-4 w-4 text-blue-600" />
-                                                        </div>
-                                                        <div className="ml-3">
-                                                            <p className="text-xs font-medium text-blue-800">Total Earnings</p>
-                                                            <p className="text-lg font-bold text-blue-900">
-                                                                ₺{(driverRemittanceDetails.summary?.totalEarnings || 0).toLocaleString()}
-                                                            </p>
-                                                        </div>
-                                                    </div>
+                                        <div className="space-y-3">
+                                            {/* Driver Summary Cards - Compact */}
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div className="bg-blue-50 rounded p-2">
+                                                    <p className="text-xs text-blue-600 font-medium">Total Earnings</p>
+                                                    <p className="text-sm font-bold text-blue-900">
+                                                        ₺{(driverRemittanceDetails.summary?.totalEarnings || 0).toLocaleString()}
+                                                    </p>
                                                 </div>
-
-                                                <div className="bg-green-50 rounded-lg p-3">
-                                                    <div className="flex items-center">
-                                                        <div className="p-2 bg-green-100 rounded-lg">
-                                                            <CurrencyDollarIcon className="h-4 w-4 text-green-600" />
-                                                        </div>
-                                                        <div className="ml-3">
-                                                            <p className="text-xs font-medium text-green-800">Driver Share</p>
-                                                            <p className="text-lg font-bold text-green-900">
-                                                                ₺{(driverRemittanceDetails.summary?.driverShare || 0).toLocaleString()}
-                                                            </p>
-                                                        </div>
-                                                    </div>
+                                                <div className="bg-green-50 rounded p-2">
+                                                    <p className="text-xs text-green-600 font-medium">Pending</p>
+                                                    <p className="text-sm font-bold text-green-900">
+                                                        ₺{(driverRemittanceDetails.summary?.pendingAmount || 0).toLocaleString()}
+                                                    </p>
                                                 </div>
-
-                                                <div className="bg-orange-50 rounded-lg p-3">
-                                                    <div className="flex items-center">
-                                                        <div className="p-2 bg-orange-100 rounded-lg">
-                                                            <CurrencyDollarIcon className="h-4 w-4 text-orange-600" />
-                                                        </div>
-                                                        <div className="ml-3">
-                                                            <p className="text-xs font-medium text-orange-800">Company Share</p>
-                                                            <p className="text-lg font-bold text-orange-900">
-                                                                ₺{(driverRemittanceDetails.summary?.companyShare || 0).toLocaleString()}
-                                                            </p>
-                                                        </div>
-                                                    </div>
+                                                <div className="bg-purple-50 rounded p-2">
+                                                    <p className="text-xs text-purple-600 font-medium">Completed</p>
+                                                    <p className="text-sm font-bold text-purple-900">
+                                                        {driverRemittanceDetails.summary?.completedCount || 0}
+                                                    </p>
                                                 </div>
-
-                                                <div className="bg-purple-50 rounded-lg p-3">
-                                                    <div className="flex items-center">
-                                                        <div className="p-2 bg-purple-100 rounded-lg">
-                                                            <ClockIcon className="h-4 w-4 text-purple-600" />
-                                                        </div>
-                                                        <div className="ml-3">
-                                                            <p className="text-xs font-medium text-purple-800">Cash Deliveries</p>
-                                                            <p className="text-lg font-bold text-purple-900">
-                                                                {driverRemittanceDetails.summary?.cashDeliveryCount || 0}
-                                                            </p>
-                                                        </div>
-                                                    </div>
+                                                <div className="bg-orange-50 rounded p-2">
+                                                    <p className="text-xs text-orange-600 font-medium">Pending Count</p>
+                                                    <p className="text-sm font-bold text-orange-900">
+                                                        {driverRemittanceDetails.summary?.pendingCount || 0}
+                                                    </p>
                                                 </div>
                                             </div>
 
-                                            {/* Payment Structure Info */}
-                                            {driverRemittanceDetails.paymentStructure && (
-                                                <div className="bg-gray-50 rounded-lg p-3">
-                                                    <h4 className="text-xs font-semibold text-gray-700 mb-2">Payment Structure Applied</h4>
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-xs">
-                                                        <div className="bg-white rounded p-2">
-                                                            <span className="font-medium">₺0-100:</span> 60% Driver, 40% Company
-                                                        </div>
-                                                        <div className="bg-white rounded p-2">
-                                                            <span className="font-medium">₺101-150:</span> ₺100 flat for Driver
-                                                        </div>
-                                                        <div className="bg-white rounded p-2">
-                                                            <span className="font-medium">₺151+:</span> 60% Driver, 40% Company
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* Driver's Remittances Table */}
+                                            {/* Recent Remittances - Compact */}
                                             <div>
-                                                <h4 className="text-xs font-semibold text-gray-700 mb-2">Remittance History</h4>
-                                                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                                                    <div className="overflow-x-auto">
-                                                        <table className="min-w-full divide-y divide-gray-200">
-                                                            <thead className="bg-gray-50">
-                                                                <tr>
-                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-                                                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="bg-white divide-y divide-gray-200">
-                                                                {driverRemittanceDetails.remittances.map((remittance) => (
-                                                                    <tr key={remittance._id} className="hover:bg-gray-50">
-                                                                        <td className="px-3 py-2 whitespace-nowrap">
-                                                                            <div className="text-sm font-medium text-gray-900">
-                                                                                ₺{remittance.amount?.toLocaleString() || '0'}
-                                                                            </div>
-                                                                            <div className="text-xs text-gray-500">
-                                                                                {remittance.deliveryIds?.length || 0} deliveries
-                                                                            </div>
-                                                                        </td>
-                                                                        <td className="px-3 py-2 whitespace-nowrap">
-                                                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(remittance.status)}`}>
-                                                                                {getStatusIcon(remittance.status)}
-                                                                                <span className="ml-1 capitalize">{remittance.status}</span>
-                                                                            </span>
-                                                                        </td>
-                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
-                                                                            {remittance.startDate && remittance.endDate ? (
-                                                                                <div>
-                                                                                    <div className="text-xs">{formatDate(remittance.startDate)}</div>
-                                                                                    <div className="text-xs text-gray-500">to {formatDate(remittance.endDate)}</div>
-                                                                                </div>
-                                                                            ) : '-'}
-                                                                        </td>
-                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
-                                                                            {formatDate(remittance.createdAt)}
-                                                                        </td>
-                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
-                                                                            {remittance.dueDate ? formatDate(remittance.dueDate) : '-'}
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    </div>
+                                                <h4 className="text-xs font-semibold text-gray-700 mb-2">Recent Remittances</h4>
+                                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                                    {driverRemittanceDetails.remittances.slice(0, 5).map((remittance, index) => (
+                                                        <div key={index} className="flex items-center justify-between text-xs bg-gray-50 rounded p-2">
+                                                            <div>
+                                                                <span className="text-gray-600">
+                                                                    {new Date(remittance.createdAt).toLocaleDateString()}
+                                                                </span>
+                                                                <span className={`ml-2 px-1 py-0.5 rounded text-xs ${remittance.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                                    remittance.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                                        'bg-red-100 text-red-800'
+                                                                    }`}>
+                                                                    {remittance.status}
+                                                                </span>
+                                                            </div>
+                                                            <span className="font-medium text-gray-900">
+                                                                ₺{remittance.amount || 0}
+                                                            </span>
+                                                        </div>
+                                                    ))}
                                                     {driverRemittanceDetails.remittances.length === 0 && (
-                                                        <div className="text-center py-4 text-sm text-gray-500">
-                                                            No remittances found for this driver
+                                                        <div className="text-center py-2 text-xs text-gray-500">
+                                                            No remittances found
+                                                        </div>
+                                                    )}
+
+                                                    {/* Helpful message when no remittances exist */}
+                                                    {driverRemittanceDetails.remittances.length === 0 && (
+                                                        <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                                            <div className="flex items-start">
+                                                                <div className="flex-shrink-0">
+                                                                    <CurrencyDollarIcon className="h-3 w-3 text-blue-600 mt-0.5" />
+                                                                </div>
+                                                                <div className="ml-2">
+                                                                    <p className="text-blue-800 font-medium">No Remittances Yet</p>
+                                                                    <p className="text-blue-700">This driver has no remittance history. Remittances are created from completed cash deliveries.</p>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     )}
                                                 </div>
+
+                                                {/* Helpful message about remittance creation */}
+                                                {driverRemittanceDetails.remittances.length > 0 &&
+                                                    driverRemittanceDetails.remittances.every(r => r.status === 'cancelled') && (
+                                                        <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                                                            <div className="flex items-start">
+                                                                <div className="flex-shrink-0">
+                                                                    <ClockIcon className="h-3 w-3 text-yellow-600 mt-0.5" />
+                                                                </div>
+                                                                <div className="ml-2">
+                                                                    <p className="text-yellow-800 font-medium">No Pending Deliveries</p>
+                                                                    <p className="text-yellow-700">All remittances are cancelled. New remittances can only be created from pending cash deliveries.</p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="text-center py-8 text-sm text-gray-500">
+                                        <div className="text-center py-4 text-xs text-gray-500">
                                             No driver details available
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
+                    </div>
 
-                        {/* Filters */}
-                        <div className="bg-white rounded-lg shadow-sm p-4">
-                            <div className="flex items-center space-x-3">
-                                <FunnelIcon className="h-4 w-4 text-gray-400" />
+                    {/* Right Panel - Filters and Table */}
+                    <div className="w-2/3 flex flex-col">
+                        {/* Filters - Compact */}
+                        <div className="bg-white p-3 border-b border-gray-200">
+                            <div className="flex items-center space-x-2 flex-wrap gap-2">
+                                <FunnelIcon className="h-3 w-3 text-gray-400" />
                                 <span className="text-xs font-medium text-gray-700">Filters:</span>
                                 <select
                                     value={filters.status}
@@ -753,16 +747,35 @@ const RemittancePage = () => {
                                     <option value="completed">Completed</option>
                                     <option value="cancelled">Cancelled</option>
                                 </select>
-                                <select
-                                    value={filters.driverId}
-                                    onChange={(e) => setFilters({ ...filters, driverId: e.target.value })}
-                                    className="px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 focus:border-green-500"
-                                >
-                                    <option value="">All Drivers</option>
-                                    {drivers.map(driver => (
-                                        <option key={driver._id || driver.id} value={driver._id || driver.id}>{driver.name}</option>
-                                    ))}
-                                </select>
+                                <div className="w-32">
+                                    <SearchableDropdown
+                                        options={[
+                                            { value: '', label: 'All Drivers' },
+                                            ...drivers.map(driver => ({
+                                                value: driver._id || driver.id,
+                                                label: capitalizeName(driver.name),
+                                                email: driver.email
+                                            }))
+                                        ]}
+                                        value={filters.driverId}
+                                        onChange={(driverId) => setFilters({ ...filters, driverId })}
+                                        placeholder="All Drivers"
+                                        searchPlaceholder="Search drivers..."
+                                        className="text-xs"
+                                        showSearch={drivers.length > 5}
+                                        maxHeight="max-h-40"
+                                        renderOption={(option, isSelected) => (
+                                            option.value === '' ? (
+                                                <span className="text-gray-700 text-xs">{option.label}</span>
+                                            ) : (
+                                                <div className="flex flex-col">
+                                                    <span className="font-medium text-xs">{option.label}</span>
+                                                    <span className="text-xs text-gray-500">{option.email}</span>
+                                                </div>
+                                            )
+                                        )}
+                                    />
+                                </div>
                                 <input
                                     type="date"
                                     value={filters.startDate}
@@ -778,113 +791,140 @@ const RemittancePage = () => {
                             </div>
                         </div>
 
-                        {/* Remittances Table */}
-                        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="min-w-full divide-y divide-gray-200">
-                                    <thead className="bg-gray-50">
-                                        <tr>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Driver
-                                            </th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Amount
-                                            </th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Status
-                                            </th>
-                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Created
-                                            </th>
-                                            <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                                Actions
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {/* Ensure remittances is always an array */}
-                                        {(Array.isArray(remittances) ? remittances : []).map((remittance) => (
-                                            <tr key={remittance._id} className="hover:bg-gray-50">
-                                                <td className="px-4 py-2 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        {remittance.driverName || remittance.driver?.name || 'Unknown Driver'}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {remittance.driverEmail || remittance.driver?.email || 'No email'}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap">
-                                                    <div className="text-sm font-medium text-gray-900">
-                                                        ₺{remittance.amount?.toLocaleString() || '0'}
-                                                    </div>
-                                                    <div className="text-xs text-gray-500">
-                                                        {remittance.deliveryIds?.length || 0} deliveries
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(remittance.status)}`}>
-                                                        {getStatusIcon(remittance.status)}
-                                                        <span className="ml-1 capitalize">{remittance.status}</span>
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
-                                                    {formatDate(remittance.createdAt)}
-                                                </td>
-                                                <td className="px-4 py-2 whitespace-nowrap text-right text-sm font-medium">
-                                                    <div className="flex items-center justify-end space-x-1">
-                                                        {remittance.status === 'pending' && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setSelectedRemittance(remittance);
-                                                                        setShowCompleteModal(true);
-                                                                    }}
-                                                                    className="text-green-600 hover:text-green-900 p-1"
-                                                                    title="Complete"
-                                                                >
-                                                                    <CheckCircleIcon className="w-3 h-3" />
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setSelectedRemittance(remittance);
-                                                                        setShowCancelModal(true);
-                                                                    }}
-                                                                    className="text-red-600 hover:text-red-900 p-1"
-                                                                    title="Cancel"
-                                                                >
-                                                                    <XCircleIcon className="w-3 h-3" />
-                                                                </button>
-
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                </td>
+                        {/* Remittances Table - Compact */}
+                        <div className="flex-1 bg-white overflow-hidden">
+                            <div className="h-full flex flex-col">
+                                <div className="flex-1 overflow-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50 sticky top-0">
+                                            <tr>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Driver</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            {/* Pagination */}
-                            {Array.isArray(remittances) && remittances.length > 0 && (
-                                <div className="px-4 py-3 border-t border-gray-200">
-                                    <Pagination
-                                        currentPage={currentPage}
-                                        totalPages={totalPages}
-                                        onPageChange={setCurrentPage}
-                                        itemsPerPage={itemsPerPage}
-                                        onItemsPerPageChange={setItemsPerPage}
-                                        totalItems={totalItems}
-                                        startIndex={(currentPage - 1) * itemsPerPage + 1}
-                                        endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
-                                    />
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {(Array.isArray(remittances) ? remittances : []).length > 0 ? (
+                                                (Array.isArray(remittances) ? remittances : []).map((remittance) => (
+                                                    <tr key={remittance._id} className="hover:bg-gray-50">
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <div className="text-xs font-medium text-gray-900">
+                                                                {remittance.referenceNumber || 'N/A'}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {remittance.description || 'No description'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <div className="text-xs font-medium text-gray-900">
+                                                                {capitalizeName(remittance.driverName || remittance.driverId?.fullName || remittance.driver?.name || 'Unknown Driver')}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {remittance.driverEmail || remittance.driverId?.email || remittance.driver?.email || 'No email'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <div className="text-xs font-medium text-gray-900">
+                                                                ₺{(remittance.amount || 0).toLocaleString()}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {remittance.deliveryIds?.length || 0} deliveries
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <div className="text-xs font-medium text-gray-900 capitalize">
+                                                                {remittance.paymentMethod || 'N/A'}
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {remittance.handledByName || 'Not handled'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(remittance.status)}`}>
+                                                                {getStatusIcon(remittance.status)}
+                                                                <span className="ml-1 capitalize">{remittance.status}</span>
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap">
+                                                            <div className="text-xs text-gray-900 max-w-xs truncate" title={remittance.notes || remittance.adminNotes || 'No notes'}>
+                                                                {remittance.notes || remittance.adminNotes || 'No notes'}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
+                                                            {formatDate(remittance.createdAt)}
+                                                        </td>
+                                                        <td className="px-3 py-2 whitespace-nowrap text-right text-xs font-medium">
+                                                            <div className="flex items-center justify-end space-x-1">
+                                                                {remittance.status === 'pending' && (
+                                                                    <>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setSelectedRemittance(remittance);
+                                                                                setShowCompleteModal(true);
+                                                                            }}
+                                                                            className="text-green-600 hover:text-green-900 p-1"
+                                                                            title="Complete"
+                                                                        >
+                                                                            <CheckCircleIcon className="w-3 h-3" />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => {
+                                                                                setSelectedRemittance(remittance);
+                                                                                setShowCancelModal(true);
+                                                                            }}
+                                                                            className="text-red-600 hover:text-red-900 p-1"
+                                                                            title="Cancel"
+                                                                        >
+                                                                            <XCircleIcon className="w-3 h-3" />
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan="6" className="px-3 py-8 text-center text-gray-500">
+                                                        <div className="flex flex-col items-center">
+                                                            <CurrencyDollarIcon className="h-8 w-8 text-gray-400 mb-2" />
+                                                            <p className="text-sm font-medium">No remittances found</p>
+                                                            <p className="text-xs text-gray-400">Create a new remittance to get started</p>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
                                 </div>
-                            )}
+
+                                {/* Pagination - Compact */}
+                                {Array.isArray(remittances) && remittances.length > 0 && (
+                                    <div className="px-3 py-2 border-t border-gray-200">
+                                        <Pagination
+                                            currentPage={currentPage}
+                                            totalPages={totalPages}
+                                            onPageChange={setCurrentPage}
+                                            itemsPerPage={itemsPerPage}
+                                            onItemsPerPageChange={setItemsPerPage}
+                                            totalItems={totalItems}
+                                            startIndex={(currentPage - 1) * itemsPerPage + 1}
+                                            endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
+            {/* Modals - Keep existing modal code */}
             {/* Create Remittance Modal */}
             {showCreateModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -896,30 +936,43 @@ const RemittancePage = () => {
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Form Section */}
                                 <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Driver</label>
-                                        <select
-                                            value={formData.driverId}
-                                            onChange={(e) => {
-                                                setFormData({ ...formData, driverId: e.target.value });
-                                                loadDriverRemittanceDetails(e.target.value);
-                                            }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                        >
-                                            <option value="">Select Driver</option>
-                                            {drivers.map(driver => (
-                                                <option key={driver._id || driver.id} value={driver._id || driver.id}>
-                                                    {driver.name} ({driver.email})
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                    <SearchableDropdown
+                                        label="Driver"
+                                        required={true}
+                                        options={drivers.map(driver => ({
+                                            value: driver._id || driver.id,
+                                            label: `${capitalizeName(driver.name)} (${driver.email})`,
+                                            name: capitalizeName(driver.name),
+                                            email: driver.email
+                                        }))}
+                                        value={formData.driverId}
+                                        onChange={(driverId) => {
+                                            setFormData({ ...formData, driverId });
+                                            loadDriverRemittanceDetails(driverId, formData.startDate, formData.endDate);
+                                        }}
+                                        placeholder="Select Driver"
+                                        searchPlaceholder="Search drivers..."
+                                        allowClear={true}
+                                        renderOption={(option, isSelected) => (
+                                            <div className="flex flex-col">
+                                                <span className="font-medium">{option.name}</span>
+                                                <span className="text-xs text-gray-500">{option.email}</span>
+                                            </div>
+                                        )}
+                                    />
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Start Date</label>
                                         <input
                                             type="date"
                                             value={formData.startDate}
-                                            onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
+                                            onChange={(e) => {
+                                                const newStartDate = e.target.value;
+                                                setFormData({ ...formData, startDate: newStartDate });
+                                                // Reload driver details with new date range if driver is selected
+                                                if (formData.driverId) {
+                                                    loadDriverRemittanceDetails(formData.driverId, newStartDate, formData.endDate);
+                                                }
+                                            }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                         />
                                     </div>
@@ -929,18 +982,15 @@ const RemittancePage = () => {
                                             type="date"
                                             value={formData.endDate}
                                             min={formData.startDate}
-                                            onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
+                                            onChange={(e) => {
+                                                const newEndDate = e.target.value;
+                                                setFormData({ ...formData, endDate: newEndDate });
+                                                // Reload driver details with new date range if driver is selected
+                                                if (formData.driverId) {
+                                                    loadDriverRemittanceDetails(formData.driverId, formData.startDate, newEndDate);
+                                                }
+                                            }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                                        <textarea
-                                            value={formData.notes}
-                                            onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                            rows={3}
-                                            placeholder="Optional notes for this remittance..."
                                         />
                                     </div>
                                 </div>
@@ -978,25 +1028,25 @@ const RemittancePage = () => {
                                                 <div className="bg-green-50 rounded-lg p-3">
                                                     <p className="text-xs text-green-600 font-medium">Total Earnings</p>
                                                     <p className="text-lg font-bold text-green-700">
-                                                        ₺{driverRemittanceDetails.summary?.totalEarnings || 0}
+                                                        ₺{driverRemittanceDetails.summary?.totalPaid || driverRemittanceDetails.summary?.totalEarnings || 0}
                                                     </p>
                                                 </div>
                                                 <div className="bg-blue-50 rounded-lg p-3">
                                                     <p className="text-xs text-blue-600 font-medium">Pending Remittance</p>
                                                     <p className="text-lg font-bold text-blue-700">
-                                                        ₺{driverRemittanceDetails.summary?.pendingAmount || 0}
+                                                        ₺{driverRemittanceDetails.summary?.pendingAmount || (driverRemittanceDetails.summary?.totalAmount - driverRemittanceDetails.summary?.totalPaid) || 0}
                                                     </p>
                                                 </div>
                                                 <div className="bg-purple-50 rounded-lg p-3">
                                                     <p className="text-xs text-purple-600 font-medium">Completed Remittances</p>
                                                     <p className="text-lg font-bold text-purple-700">
-                                                        {driverRemittanceDetails.summary?.completedCount || 0}
+                                                        {driverRemittanceDetails.summary?.completedRemittances || driverRemittanceDetails.summary?.completedCount || 0}
                                                     </p>
                                                 </div>
                                                 <div className="bg-orange-50 rounded-lg p-3">
                                                     <p className="text-xs text-orange-600 font-medium">Pending Remittances</p>
                                                     <p className="text-lg font-bold text-orange-700">
-                                                        {driverRemittanceDetails.summary?.pendingCount || 0}
+                                                        {driverRemittanceDetails.summary?.pendingRemittances || driverRemittanceDetails.summary?.pendingCount || 0}
                                                     </p>
                                                 </div>
                                             </div>

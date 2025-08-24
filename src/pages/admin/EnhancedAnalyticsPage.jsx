@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import {
     ChartBarIcon,
     CurrencyDollarIcon,
@@ -816,7 +817,7 @@ const EnhancedAnalyticsPage = () => {
                                                 {index + 1}
                                             </div>
                                             <div>
-                                                <div className="text-sm font-medium text-gray-900">{driver.name || `Driver ${index + 1}`}</div>
+                                                <div className="text-sm font-medium text-gray-900">{capitalizeName(driver.name) || `Driver ${index + 1}`}</div>
                                                 <div className="text-xs text-gray-600">{driver.role || 'Driver'}</div>
                                             </div>
                                         </div>
@@ -1363,7 +1364,7 @@ const EnhancedAnalyticsPage = () => {
                         {performance?.driverPerformance?.map((driver, index) => (
                             <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                                 <div>
-                                    <span className="text-sm font-medium text-gray-900">{driver.name}</span>
+                                    <span className="text-sm font-medium text-gray-900">{capitalizeName(driver.name)}</span>
                                     <p className="text-xs text-gray-600">{driver.role}</p>
                                 </div>
                                 <div className="text-right">
@@ -1415,7 +1416,7 @@ const EnhancedAnalyticsPage = () => {
                                         {performance?.driverPerformance?.slice(0, 10).map((driver, index) => (
                                             <tr key={index} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                    {driver.name || `Driver ${index + 1}`}
+                                                    {capitalizeName(driver.name) || `Driver ${index + 1}`}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     {driver.area || 'N/A'}

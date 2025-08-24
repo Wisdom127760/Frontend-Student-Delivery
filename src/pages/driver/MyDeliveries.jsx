@@ -14,7 +14,8 @@ import {
     Squares2X2Icon,
     ListBulletIcon,
     FunnelIcon,
-    ClipboardDocumentIcon
+    ClipboardDocumentIcon,
+    ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import apiService from '../../services/api';
 import { mapsUtils } from '../../utils/formMemory';
@@ -28,6 +29,17 @@ const MyDeliveries = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [statusFilter, setStatusFilter] = useState('all');
     const [viewMode, setViewMode] = useState('grid');
+    const [instructionsCollapsed, setInstructionsCollapsed] = useState(() => {
+        const saved = localStorage.getItem('deliveryInstructionsCollapsed');
+        return saved ? JSON.parse(saved) : false;
+    });
+
+    // Save collapsed state to localStorage
+    const toggleInstructions = () => {
+        const newState = !instructionsCollapsed;
+        setInstructionsCollapsed(newState);
+        localStorage.setItem('deliveryInstructionsCollapsed', JSON.stringify(newState));
+    };
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -268,6 +280,16 @@ const MyDeliveries = () => {
                         : d
                 ));
                 toast.success('🎉 Delivery completed successfully! Payment will be processed.');
+
+                // Trigger earnings calculation after delivery completion
+                try {
+                    console.log('💰 MyDeliveries: Triggering earnings calculation...');
+                    await apiService.calculateDriverEarnings();
+                    console.log('✅ MyDeliveries: Earnings calculation triggered successfully');
+                } catch (earningsError) {
+                    console.warn('⚠️ MyDeliveries: Earnings calculation failed, but delivery was completed:', earningsError);
+                    // Don't show error to user since delivery was successful
+                }
             } else {
                 console.error('🚚 MyDeliveries: Failed to complete delivery:', response);
                 if (response.error) {
@@ -395,76 +417,81 @@ const MyDeliveries = () => {
     return (
         <div className="space-y-6">
             {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900">My Deliveries</h1>
-                    <p className="text-gray-600 mt-1">Track and manage your delivery assignments</p>
+            <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Deliveries</h1>
+                        <p className="text-gray-600 mt-1 text-sm sm:text-base">Track and manage your delivery assignments</p>
+                    </div>
                 </div>
-                <div className="mt-4 sm:mt-0 flex items-center space-x-3">
-                    {/* Refresh button removed - WebSocket provides real-time updates */}
 
-                    {/* Quick link to Broadcast page */}
+                {/* Controls Row */}
+                <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                    {/* Left side - Available Deliveries link */}
                     <a
                         href="/driver/broadcasts"
-                        className="inline-flex items-center px-3 py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors"
+                        className="inline-flex items-center justify-center sm:justify-start px-3 py-2 border border-green-300 rounded-lg text-sm font-medium text-green-700 bg-green-50 hover:bg-green-100 transition-colors"
                     >
-                        <MegaphoneIcon className="w-4 h-4 mr-2" />
-                        Available Deliveries
+                        <MegaphoneIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                        <span className="truncate">Available Deliveries</span>
                     </a>
 
-                    {/* View Mode Toggle */}
-                    <div className="flex bg-gray-100 rounded-lg p-1">
-                        <button
-                            onClick={() => setViewMode('grid')}
-                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === 'grid'
-                                ? 'bg-white text-gray-900 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                        >
-                            <Squares2X2Icon className="w-4 h-4" />
-                        </button>
-                        <button
-                            onClick={() => setViewMode('list')}
-                            className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === 'list'
-                                ? 'bg-white text-gray-900 shadow-sm'
-                                : 'text-gray-600 hover:text-gray-900'
-                                }`}
-                        >
-                            <ListBulletIcon className="w-4 h-4" />
-                        </button>
-                    </div>
+                    {/* Right side - View Mode and Filter */}
+                    <div className="flex items-center space-x-3">
+                        {/* View Mode Toggle */}
+                        <div className="flex bg-gray-100 rounded-lg p-1">
+                            <button
+                                onClick={() => setViewMode('grid')}
+                                className={`px-2 sm:px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === 'grid'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                    }`}
+                            >
+                                <Squares2X2Icon className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={() => setViewMode('list')}
+                                className={`px-2 sm:px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === 'list'
+                                    ? 'bg-white text-gray-900 shadow-sm'
+                                    : 'text-gray-600 hover:text-gray-900'
+                                    }`}
+                            >
+                                <ListBulletIcon className="w-4 h-4" />
+                            </button>
+                        </div>
 
-                    {/* Status Filter */}
-                    <div className="relative">
-                        <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <select
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                            className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-                        >
-                            <option value="all">All Status</option>
-                            <option value="pending">Pending</option>
-                            <option value="assigned">Assigned</option>
-                            <option value="picked_up">In Progress</option>
-                            <option value="delivered">Delivered</option>
-                        </select>
+                        {/* Status Filter */}
+                        <div className="relative flex-shrink-0">
+                            <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="pl-10 pr-8 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white appearance-none min-w-0 w-full sm:w-auto"
+                            >
+                                <option value="all">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="assigned">Assigned</option>
+                                <option value="picked_up">In Progress</option>
+                                <option value="delivered">Delivered</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
 
             {/* Pending Deliveries Alert */}
             {stats.pending > 0 && (
-                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-6 mb-6">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                            <div className="p-3 bg-yellow-100 rounded-lg">
-                                <ExclamationTriangleIcon className="w-6 h-6 text-yellow-600" />
+                <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-xl p-4 sm:p-6 mb-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                        <div className="flex items-start sm:items-center space-x-3 sm:space-x-4">
+                            <div className="p-2 sm:p-3 bg-yellow-100 rounded-lg flex-shrink-0">
+                                <ExclamationTriangleIcon className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-600" />
                             </div>
-                            <div>
-                                <h3 className="text-lg font-semibold text-yellow-800 mb-1">
+                            <div className="min-w-0 flex-1">
+                                <h3 className="text-base sm:text-lg font-semibold text-yellow-800 mb-1">
                                     🚨 {stats.pending} Delivery{stats.pending > 1 ? 's' : ''} Pending Acceptance
                                 </h3>
-                                <p className="text-yellow-700">
+                                <p className="text-sm sm:text-base text-yellow-700">
                                     You have {stats.pending} delivery{stats.pending > 1 ? 's' : ''} waiting to be accepted.
                                     Click the <strong>"Accept Delivery"</strong> button on each card to start working on them.
                                 </p>
@@ -472,7 +499,7 @@ const MyDeliveries = () => {
                         </div>
                         <button
                             onClick={() => setStatusFilter('pending')}
-                            className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
+                            className="bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors font-medium text-sm sm:text-base whitespace-nowrap"
                         >
                             View Pending ({stats.pending})
                         </button>
@@ -487,44 +514,62 @@ const MyDeliveries = () => {
                         <TruckIcon className="w-6 h-6 text-blue-600" />
                     </div>
                     <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">How to Complete Deliveries</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div className="flex items-center space-x-2">
-                                <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
-                                <div>
-                                    <p className="font-medium text-gray-900">Accept Delivery</p>
-                                    <p className="text-gray-600">Click "Accept" for pending deliveries</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
-                                <div>
-                                    <p className="font-medium text-gray-900">Start Delivery</p>
-                                    <p className="text-gray-600">Click "Start" when you pick up the item</p>
-                                </div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                                <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
-                                <div>
-                                    <p className="font-medium text-gray-900">Complete Delivery</p>
-                                    <p className="text-gray-600">Click "Complete" when delivered</p>
-                                </div>
-                            </div>
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-lg font-semibold text-gray-900">How to Complete Deliveries</h3>
+                            <button
+                                onClick={toggleInstructions}
+                                className="p-1 hover:bg-blue-100 rounded-lg transition-colors"
+                                aria-label={instructionsCollapsed ? "Expand instructions" : "Collapse instructions"}
+                            >
+                                <ChevronDownIcon
+                                    className={`w-5 h-5 text-blue-600 transition-transform duration-200 ${instructionsCollapsed ? 'rotate-180' : ''
+                                        }`}
+                                />
+                            </button>
                         </div>
-                        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <div className="flex items-start space-x-2">
-                                <div className="p-1 bg-yellow-100 rounded">
-                                    <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600" />
+
+                        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${instructionsCollapsed ? 'max-h-0 opacity-0' : 'max-h-96 opacity-100'
+                            }`}>
+                            <>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs font-bold">1</div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Accept Delivery</p>
+                                            <p className="text-gray-600">Click "Accept" for pending deliveries</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs font-bold">2</div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Start Delivery</p>
+                                            <p className="text-gray-600">Click "Start" when you pick up the item</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <div className="w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs font-bold">3</div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">Complete Delivery</p>
+                                            <p className="text-gray-600">Click "Complete" when delivered</p>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="text-sm">
-                                    <p className="font-medium text-yellow-800 mb-1">💡 Delivery Types</p>
-                                    <p className="text-yellow-700">
-                                        <strong>Pending Acceptance:</strong> These are manually assigned deliveries. Accept them here to start working on them.
-                                        <br />
-                                        <strong>Broadcast Deliveries:</strong> Check the "Available Deliveries" page for new broadcast opportunities.
-                                    </p>
+                                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                                    <div className="flex items-start space-x-2">
+                                        <div className="p-1 bg-yellow-100 rounded">
+                                            <ExclamationTriangleIcon className="w-4 h-4 text-yellow-600" />
+                                        </div>
+                                        <div className="text-sm">
+                                            <p className="font-medium text-yellow-800 mb-1">💡 Delivery Types</p>
+                                            <p className="text-yellow-700">
+                                                <strong>Pending Acceptance:</strong> These are manually assigned deliveries. Accept them here to start working on them.
+                                                <br />
+                                                <strong>Broadcast Deliveries:</strong> Check the "Available Deliveries" page for new broadcast opportunities.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            </>
                         </div>
                     </div>
                 </div>

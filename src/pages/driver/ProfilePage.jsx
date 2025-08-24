@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import Avatar from '../../components/common/Avatar';
 import DocumentUpload from '../../components/common/DocumentUpload';
 import CapitalizedInput from '../../components/common/CapitalizedInput';
+import SearchableDropdown from '../../components/common/SearchableDropdown';
 import apiService from '../../services/api';
 import { ProfilePageSkeleton } from '../../components/common/SkeletonLoader';
 import { compressImage } from '../../services/cloudinaryService';
@@ -54,23 +55,11 @@ const DriverProfilePage = () => {
 
     const fetchProfileOptions = useCallback(async () => {
         try {
-            const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
-            const url = `${API_BASE_URL}/public/profile-options`;
-            console.log('Fetching profile options from:', url);
+            console.log('🔄 Fetching profile options...');
 
-            const response = await fetch(url);
-            console.log('Profile options response status:', response.status);
-
-            if (!response.ok) {
-                // If endpoint doesn't exist (404), use fallback options
-                if (response.status === 404) {
-                    console.log('Profile options endpoint not found, using fallback options...');
-                    throw new Error('ENDPOINT_NOT_FOUND');
-                }
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const data = await response.json();
+            // Use API service instead of direct fetch for proper error handling
+            const data = await apiService.getProfileOptions();
+            console.log('📋 Profile options data received:', data);
 
             if (data.success && data.data) {
                 if (data.data.addresses) {
@@ -78,6 +67,7 @@ const DriverProfilePage = () => {
                         { value: '', label: 'Select Service Area' },
                         ...data.data.addresses.map(addr => ({ value: addr, label: addr }))
                     ]);
+                    console.log('✅ Service areas loaded:', data.data.addresses);
                 }
 
                 if (data.data.transportationMethods) {
@@ -85,6 +75,7 @@ const DriverProfilePage = () => {
                         { value: '', label: 'Select Transportation Method' },
                         ...data.data.transportationMethods.map(method => ({ value: method, label: method }))
                     ]);
+                    console.log('✅ Transportation methods loaded:', data.data.transportationMethods);
                 }
 
                 if (data.data.universities) {
@@ -92,16 +83,17 @@ const DriverProfilePage = () => {
                         { value: '', label: 'Select University' },
                         ...data.data.universities.map(uni => ({ value: uni, label: uni }))
                     ]);
+                    console.log('✅ Universities loaded:', data.data.universities);
                 }
             }
         } catch (error) {
-            console.error('Error fetching profile options:', error);
+            console.error('❌ Error fetching profile options:', error);
 
             // Provide fallback options if API fails
-            console.log('Using fallback profile options...');
+            console.log('🔄 Using fallback profile options...');
 
             // Set fallback service areas
-            setServiceAreas([
+            const fallbackServiceAreas = [
                 { value: '', label: 'Select Service Area' },
                 { value: 'Kucuk', label: 'Kucuk' },
                 { value: 'Lefkosa', label: 'Lefkosa' },
@@ -109,10 +101,12 @@ const DriverProfilePage = () => {
                 { value: 'Iskele', label: 'Iskele' },
                 { value: 'Guzelyurt', label: 'Guzelyurt' },
                 { value: 'Lefke', label: 'Lefke' }
-            ]);
+            ];
+            setServiceAreas(fallbackServiceAreas);
+            console.log('✅ Fallback service areas set:', fallbackServiceAreas);
 
             // Set fallback transportation methods
-            setTransportationMethods([
+            const fallbackTransportationMethods = [
                 { value: '', label: 'Select Transportation Method' },
                 { value: 'Walking', label: 'Walking' },
                 { value: 'Bicycle', label: 'Bicycle' },
@@ -120,10 +114,12 @@ const DriverProfilePage = () => {
                 { value: 'Car', label: 'Car' },
                 { value: 'Public Transport', label: 'Public Transport' },
                 { value: 'Other', label: 'Other' }
-            ]);
+            ];
+            setTransportationMethods(fallbackTransportationMethods);
+            console.log('✅ Fallback transportation methods set:', fallbackTransportationMethods);
 
             // Set fallback universities
-            setUniversities([
+            const fallbackUniversities = [
                 { value: '', label: 'Select University' },
                 { value: 'Eastern Mediterranean University', label: 'Eastern Mediterranean University' },
                 { value: 'Cyprus West University', label: 'Cyprus West University' },
@@ -138,7 +134,9 @@ const DriverProfilePage = () => {
                 { value: 'American University of Cyprus', label: 'American University of Cyprus' },
                 { value: 'Cyprus Science University', label: 'Cyprus Science University' },
                 { value: 'University of Central Lancashire Cyprus', label: 'University of Central Lancashire Cyprus' }
-            ]);
+            ];
+            setUniversities(fallbackUniversities);
+            console.log('✅ Fallback universities set:', fallbackUniversities);
         }
     }, []);
 
@@ -148,8 +146,39 @@ const DriverProfilePage = () => {
         try {
             console.log('🔄 Fetching profile data...', { forceRefresh });
 
-            // Add cache-busting parameter if force refresh is requested
-            const data = await apiService.getDriverProfile();
+            // Fetch profile and documents separately
+            const [profileData, documentsData] = await Promise.allSettled([
+                apiService.getDriverProfile(),
+                apiService.getDriverDocuments()
+            ]);
+
+            console.log('📄 Profile fetch results:', {
+                profileStatus: profileData.status,
+                documentsStatus: documentsData.status,
+                profileValue: profileData.status === 'fulfilled' ? profileData.value : null,
+                documentsValue: documentsData.status === 'fulfilled' ? documentsData.value : null
+            });
+
+            // Use profile data regardless of documents fetch status
+            const data = profileData.status === 'fulfilled' ? profileData.value : null;
+            if (!data) {
+                throw new Error('Failed to fetch profile data');
+            }
+
+            // Merge documents into profile if available
+            if (documentsData.status === 'fulfilled' && documentsData.value?.success) {
+                const documents = documentsData.value.data?.documents || {};
+                console.log('📄 Merging documents into profile:', {
+                    documentsCount: Object.keys(documents).length,
+                    documentTypes: Object.keys(documents),
+                    documentsData: documents
+                });
+
+                // Add documents to profile data
+                data.data.documents = documents;
+            } else {
+                console.log('⚠️ Documents fetch failed or no documents found');
+            }
 
             if (data.success && data.data) {
                 console.log('✅ Profile data received:', {
@@ -172,6 +201,27 @@ const DriverProfilePage = () => {
                             profile_personalDetails_profilePicture: data.data.profile?.personalDetails?.profilePicture
                         }
                     }
+                });
+
+                // Enhanced document debugging
+                console.log('📄 Profile documents analysis:', {
+                    hasDocuments: !!data.data.documents,
+                    documentsType: typeof data.data.documents,
+                    documentsKeys: data.data.documents ? Object.keys(data.data.documents) : [],
+                    documentsCount: data.data.documents ? Object.keys(data.data.documents).length : 0,
+                    sampleDocument: data.data.documents ? Object.values(data.data.documents)[0] : null,
+                    allDocumentTypes: data.data.documents ? Object.keys(data.data.documents) : []
+                });
+
+                // Check if documents are in a different location in the response
+                console.log('🔍 Full profile data structure analysis:', {
+                    hasProfileData: !!data.data,
+                    profileDataKeys: data.data ? Object.keys(data.data) : [],
+                    hasDocumentsField: !!data.data?.documents,
+                    hasProfileField: !!data.data?.profile,
+                    profileKeys: data.data?.profile ? Object.keys(data.data.profile) : [],
+                    hasProfileDocuments: !!data.data?.profile?.documents,
+                    profileDocumentsKeys: data.data?.profile?.documents ? Object.keys(data.data.profile.documents) : []
                 });
 
                 setProfile(data.data);
@@ -204,9 +254,9 @@ const DriverProfilePage = () => {
 
         try {
             // Send flat structure instead of nested objects
+            // Remove email field as it's causing validation error
             const updateData = {
                 fullName: formData.fullName,
-                email: formData.email,
                 phone: formData.phone,
                 studentId: formData.studentId,
                 university: formData.university,
@@ -214,7 +264,10 @@ const DriverProfilePage = () => {
                 transportationArea: formData.transportationArea
             };
 
+            console.log('📤 Sending profile update data:', updateData);
+
             const result = await apiService.updateDriverProfile(updateData);
+            console.log('📥 Profile update response:', result);
 
             if (result.success) {
                 toast.success('Profile updated successfully!');
@@ -224,8 +277,17 @@ const DriverProfilePage = () => {
                 throw new Error(result.message || 'Update failed');
             }
         } catch (error) {
-            console.error('Error updating profile:', error);
-            toast.error('Failed to update profile');
+            console.error('❌ Error updating profile:', error);
+
+            // Show more specific error messages
+            let errorMessage = 'Failed to update profile';
+            if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
         } finally {
             setIsSaving(false);
         }
@@ -374,8 +436,18 @@ const DriverProfilePage = () => {
     }, [user?.id, isAuthenticated, fetchProfile]);
 
     useEffect(() => {
+        console.log('🔄 Component mounted, fetching profile options...');
         fetchProfileOptions();
     }, [fetchProfileOptions]);
+
+    // Debug: Log when dropdown options change
+    useEffect(() => {
+        console.log('📋 Transportation methods updated:', transportationMethods);
+    }, [transportationMethods]);
+
+    useEffect(() => {
+        console.log('📋 Service areas updated:', serviceAreas);
+    }, [serviceAreas]);
 
 
 
@@ -407,21 +479,21 @@ const DriverProfilePage = () => {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
                 {/* Modern Header */}
-                <div className="mb-8">
-                    <div className="flex items-center justify-between">
+                <div className="mb-6 sm:mb-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                         <div>
-                            <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-                            <p className="text-gray-600 mt-2">Manage your account and delivery preferences</p>
+                            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Profile</h1>
+                            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Manage your account and delivery preferences</p>
                         </div>
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center justify-center sm:justify-end">
                             {!isEditing && (
                                 <>
                                     {/* Refresh button removed - WebSocket provides real-time updates */}
                                     <button
                                         onClick={() => setIsEditing(true)}
-                                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 shadow-sm hover:shadow-md text-sm sm:text-base"
                                     >
                                         <PencilIcon className="w-4 h-4 mr-2" />
                                         Edit Profile
@@ -433,10 +505,10 @@ const DriverProfilePage = () => {
                 </div>
 
                 {/* Profile Overview Card */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
-                    <div className="flex flex-col lg:flex-row items-start space-y-6 lg:space-y-0 lg:space-x-8">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8">
+                    <div className="flex flex-col lg:flex-row items-center lg:items-start space-y-6 lg:space-y-0 lg:space-x-8">
                         {/* Profile Image Section */}
-                        <div className="relative">
+                        <div className="relative flex flex-col items-center">
                             <div className="relative">
                                 <Avatar
                                     user={user}
@@ -455,33 +527,31 @@ const DriverProfilePage = () => {
                                     />
                                     <label
                                         htmlFor="profile-image-upload"
-                                        className={`flex items-center justify-center p-3 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 cursor-pointer ${isUploadingImage ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
+                                        className={`flex items-center justify-center p-2 sm:p-3 bg-green-600 text-white rounded-full shadow-lg hover:bg-green-700 transition-all duration-200 cursor-pointer ${isUploadingImage ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105'}`}
                                     >
                                         {isUploadingImage ? (
-                                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                            <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                         ) : (
-                                            <CameraIcon className="w-5 h-5" />
+                                            <CameraIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                                         )}
                                     </label>
                                 </div>
-
-
                             </div>
 
                             {/* Status Badge */}
                             <div className="mt-4 flex justify-center">
-                                <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium shadow-sm ${isProfileComplete
+                                <div className={`inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium shadow-sm ${isProfileComplete
                                     ? 'bg-green-100 text-green-800 border border-green-200'
                                     : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
                                     }`}>
                                     {isProfileComplete ? (
                                         <>
-                                            <CheckCircleIcon className="w-4 h-4 mr-1" />
+                                            <CheckCircleIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                             Profile Complete
                                         </>
                                     ) : (
                                         <>
-                                            <ClockIcon className="w-4 h-4 mr-1" />
+                                            <ClockIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                             {completionPercentage}% Complete
                                         </>
                                     )}
@@ -490,34 +560,34 @@ const DriverProfilePage = () => {
                         </div>
 
                         {/* Profile Info */}
-                        <div className="flex-1">
-                            <div className="mb-6">
-                                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                        <div className="flex-1 w-full">
+                            <div className="mb-4 sm:mb-6 text-center lg:text-left">
+                                <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
                                     {profile?.profile?.personalDetails?.fullName ?
                                         capitalizeName(profile.profile.personalDetails.fullName) :
                                         'Student Delivery Partner'
                                     }
                                 </h2>
-                                <p className="text-gray-600 flex items-center">
-                                    <EnvelopeIcon className="w-4 h-4 mr-2" />
-                                    {profile?.profile?.personalDetails?.email}
+                                <p className="text-gray-600 flex items-center justify-center lg:justify-start text-sm sm:text-base">
+                                    <EnvelopeIcon className="w-4 h-4 mr-2 flex-shrink-0" />
+                                    <span className="truncate">{profile?.profile?.personalDetails?.email}</span>
                                 </p>
-                                <p className="text-gray-500 text-sm mt-1 flex items-center">
-                                    <IdentificationIcon className="w-4 h-4 mr-2" />
+                                <p className="text-gray-500 text-sm mt-1 flex items-center justify-center lg:justify-start">
+                                    <IdentificationIcon className="w-4 h-4 mr-2 flex-shrink-0" />
                                     ID: {profile?.profile?.studentInfo?.studentId}
                                 </p>
                             </div>
 
                             {/* Quick Stats */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-gray-50 rounded-xl p-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                                <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
                                     <div className="flex items-center">
-                                        <div className="p-2 bg-blue-100 rounded-lg">
-                                            <MapIcon className="w-5 h-5 text-blue-600" />
+                                        <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg flex-shrink-0">
+                                            <MapIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                                         </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm text-gray-600">Service Area</p>
-                                            <p className="font-semibold text-gray-900">
+                                        <div className="ml-2 sm:ml-3 min-w-0 flex-1">
+                                            <p className="text-xs sm:text-sm text-gray-600">Service Area</p>
+                                            <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                                                 {profile?.profile?.transportation?.area ?
                                                     capitalizeName(profile.profile.transportation.area) :
                                                     'Not Set'
@@ -527,14 +597,14 @@ const DriverProfilePage = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 rounded-xl p-4">
+                                <div className="bg-gray-50 rounded-xl p-3 sm:p-4">
                                     <div className="flex items-center">
-                                        <div className="p-2 bg-green-100 rounded-lg">
-                                            <TruckIcon className="w-5 h-5 text-green-600" />
+                                        <div className="p-1.5 sm:p-2 bg-green-100 rounded-lg flex-shrink-0">
+                                            <TruckIcon className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                                         </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm text-gray-600">Transport</p>
-                                            <p className="font-semibold text-gray-900">
+                                        <div className="ml-2 sm:ml-3 min-w-0 flex-1">
+                                            <p className="text-xs sm:text-sm text-gray-600">Transport</p>
+                                            <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                                                 {profile?.profile?.transportation?.method ?
                                                     capitalizeName(profile.profile.transportation.method) :
                                                     'Not Set'
@@ -544,14 +614,14 @@ const DriverProfilePage = () => {
                                     </div>
                                 </div>
 
-                                <div className="bg-gray-50 rounded-xl p-4">
+                                <div className="bg-gray-50 rounded-xl p-3 sm:p-4 sm:col-span-2 lg:col-span-1">
                                     <div className="flex items-center">
-                                        <div className="p-2 bg-purple-100 rounded-lg">
-                                            <AcademicCapIcon className="w-5 h-5 text-purple-600" />
+                                        <div className="p-1.5 sm:p-2 bg-purple-100 rounded-lg flex-shrink-0">
+                                            <AcademicCapIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                                         </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm text-gray-600">University</p>
-                                            <p className="font-semibold text-gray-900">
+                                        <div className="ml-2 sm:ml-3 min-w-0 flex-1">
+                                            <p className="text-xs sm:text-sm text-gray-600">University</p>
+                                            <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">
                                                 {profile?.profile?.studentInfo?.university ?
                                                     capitalizeName(profile.profile.studentInfo.university) :
                                                     'Not Set'
@@ -563,16 +633,16 @@ const DriverProfilePage = () => {
                             </div>
 
                             {/* Verification Status */}
-                            <div className="mt-6 flex flex-wrap gap-2">
+                            <div className="mt-4 sm:mt-6 flex flex-wrap gap-2 justify-center lg:justify-start">
                                 {profile?.verification?.studentVerified && (
-                                    <div className="inline-flex items-center px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                                        <ShieldCheckIcon className="w-4 h-4 mr-1" />
+                                    <div className="inline-flex items-center px-2 sm:px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs sm:text-sm">
+                                        <ShieldCheckIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                         Student Verified
                                     </div>
                                 )}
                                 {profile?.completion?.readyForDeliveries && (
-                                    <div className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                                        <CheckCircleIcon className="w-4 h-4 mr-1" />
+                                    <div className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs sm:text-sm">
+                                        <CheckCircleIcon className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                         Ready for Deliveries
                                     </div>
                                 )}
@@ -582,8 +652,8 @@ const DriverProfilePage = () => {
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="mb-6">
-                    <nav className="flex space-x-8">
+                <div className="mb-4 sm:mb-6">
+                    <nav className="flex space-x-2 sm:space-x-4 lg:space-x-8 overflow-x-auto scrollbar-hide">
                         {[
                             { id: 'overview', label: 'Overview', icon: UserIcon },
                             { id: 'personal', label: 'Personal Details', icon: IdentificationIcon },
@@ -596,12 +666,12 @@ const DriverProfilePage = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
+                                    className={`flex items-center space-x-1 sm:space-x-2 py-2 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm transition-colors whitespace-nowrap flex-shrink-0 ${activeTab === tab.id
                                         ? 'border-green-500 text-green-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                                         }`}
                                 >
-                                    <Icon className="w-4 h-4" />
+                                    <Icon className="w-3 h-3 sm:w-4 sm:h-4" />
                                     <span>{tab.label}</span>
                                 </button>
                             );
@@ -613,11 +683,11 @@ const DriverProfilePage = () => {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                     {/* Overview Tab */}
                     {activeTab === 'overview' && (
-                        <div className="p-8">
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="p-4 sm:p-6 lg:p-8">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
                                 {/* Profile Completion */}
-                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Completion</h3>
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 sm:p-6">
+                                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Profile Completion</h3>
                                     <div className="mb-4">
                                         <div className="flex justify-between text-sm text-gray-600 mb-2">
                                             <span>Overall Progress</span>
@@ -650,8 +720,8 @@ const DriverProfilePage = () => {
                                 </div>
 
                                 {/* Quick Actions */}
-                                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6">
-                                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+                                <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 sm:p-6">
+                                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Quick Actions</h3>
                                     <div className="space-y-3">
                                         <button
                                             onClick={() => setActiveTab('personal')}
@@ -699,14 +769,14 @@ const DriverProfilePage = () => {
 
                     {/* Personal Details Tab */}
                     {activeTab === 'personal' && (
-                        <div className="p-8">
-                            <div className="mb-6">
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Personal Details</h3>
-                                <p className="text-gray-600">Update your personal information and contact details</p>
+                        <div className="p-4 sm:p-6 lg:p-8">
+                            <div className="mb-4 sm:mb-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Personal Details</h3>
+                                <p className="text-gray-600 text-sm sm:text-base">Update your personal information and contact details</p>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
                                         {isEditing ? (
@@ -782,18 +852,18 @@ const DriverProfilePage = () => {
                                 </div>
 
                                 {isEditing && (
-                                    <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                                    <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4 sm:pt-6 border-t border-gray-200">
                                         <button
                                             type="button"
                                             onClick={handleCancelEdit}
-                                            className="px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                                            className="px-4 sm:px-6 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-sm sm:text-base"
                                         >
                                             Cancel
                                         </button>
                                         <button
                                             type="submit"
                                             disabled={isSaving}
-                                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                                            className="px-4 sm:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
                                         >
                                             {isSaving ? (
                                                 <>
@@ -815,14 +885,14 @@ const DriverProfilePage = () => {
 
                     {/* Academic Info Tab */}
                     {activeTab === 'academic' && (
-                        <div className="p-8">
-                            <div className="mb-6">
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Academic Information</h3>
-                                <p className="text-gray-600">Update your student details and university information</p>
+                        <div className="p-4 sm:p-6 lg:p-8">
+                            <div className="mb-4 sm:mb-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Academic Information</h3>
+                                <p className="text-gray-600 text-sm sm:text-base">Update your student details and university information</p>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-2">Student ID</label>
                                         {isEditing ? (
@@ -852,26 +922,26 @@ const DriverProfilePage = () => {
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">University</label>
                                         {isEditing ? (
-                                            <div className="relative">
-                                                <AcademicCapIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                                <select
-                                                    name="university"
-                                                    value={formData.university}
-                                                    onChange={handleInputChange}
-                                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                                                >
-                                                    {universities.map((uni, index) => (
-                                                        <option key={index} value={uni.value}>{uni.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            <SearchableDropdown
+                                                label="University"
+                                                options={universities}
+                                                value={formData.university}
+                                                onChange={(value) => setFormData(prev => ({ ...prev, university: value }))}
+                                                placeholder="Select University"
+                                                searchPlaceholder="Search universities..."
+                                                loading={universities.length === 0}
+                                                emptyMessage="No universities available"
+                                                allowClear={true}
+                                            />
                                         ) : (
-                                            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                                                <AcademicCapIcon className="w-5 h-5 text-gray-400 mr-3" />
-                                                <span className="text-gray-900">{profile?.profile?.studentInfo?.university || 'Not provided'}</span>
-                                            </div>
+                                            <>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">University</label>
+                                                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                                                    <AcademicCapIcon className="w-5 h-5 text-gray-400 mr-3" />
+                                                    <span className="text-gray-900">{profile?.profile?.studentInfo?.university || 'Not provided'}</span>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -910,69 +980,69 @@ const DriverProfilePage = () => {
 
                     {/* Transportation Tab */}
                     {activeTab === 'transportation' && (
-                        <div className="p-8">
-                            <div className="mb-6">
-                                <h3 className="text-xl font-semibold text-gray-900 mb-2">Transportation Settings</h3>
-                                <p className="text-gray-600">Configure your delivery preferences and service area</p>
+                        <div className="p-4 sm:p-6 lg:p-8">
+                            <div className="mb-4 sm:mb-6">
+                                <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Transportation Settings</h3>
+                                <p className="text-gray-600 text-sm sm:text-base">Configure your delivery preferences and service area</p>
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Transportation Method</label>
                                         {isEditing ? (
-                                            <div className="relative">
-                                                <TruckIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                                <select
-                                                    name="transportationMethod"
-                                                    value={formData.transportationMethod}
-                                                    onChange={handleInputChange}
-                                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                                                >
-                                                    {transportationMethods.map((method, index) => (
-                                                        <option key={index} value={method.value}>{method.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            <SearchableDropdown
+                                                label="Transportation Method"
+                                                options={transportationMethods}
+                                                value={formData.transportationMethod}
+                                                onChange={(value) => setFormData(prev => ({ ...prev, transportationMethod: value }))}
+                                                placeholder="Select Transportation Method"
+                                                searchPlaceholder="Search transportation methods..."
+                                                loading={transportationMethods.length === 0}
+                                                emptyMessage="No transportation methods available"
+                                                allowClear={true}
+                                            />
                                         ) : (
-                                            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                                                <TruckIcon className="w-5 h-5 text-gray-400 mr-3" />
-                                                <span className="text-gray-900">
-                                                    {profile?.profile?.transportation?.method ?
-                                                        capitalizeName(profile.profile.transportation.method) :
-                                                        'Not provided'
-                                                    }
-                                                </span>
-                                            </div>
+                                            <>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Transportation Method</label>
+                                                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                                                    <TruckIcon className="w-5 h-5 text-gray-400 mr-3" />
+                                                    <span className="text-gray-900">
+                                                        {profile?.profile?.transportation?.method ?
+                                                            capitalizeName(profile.profile.transportation.method) :
+                                                            'Not provided'
+                                                        }
+                                                    </span>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">Service Area</label>
                                         {isEditing ? (
-                                            <div className="relative">
-                                                <MapPinIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                                <select
-                                                    name="transportationArea"
-                                                    value={formData.transportationArea}
-                                                    onChange={handleInputChange}
-                                                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                                                >
-                                                    {serviceAreas.map((area, index) => (
-                                                        <option key={index} value={area.value}>{area.label}</option>
-                                                    ))}
-                                                </select>
-                                            </div>
+                                            <SearchableDropdown
+                                                label="Service Area"
+                                                options={serviceAreas}
+                                                value={formData.transportationArea}
+                                                onChange={(value) => setFormData(prev => ({ ...prev, transportationArea: value }))}
+                                                placeholder="Select Service Area"
+                                                searchPlaceholder="Search service areas..."
+                                                loading={serviceAreas.length === 0}
+                                                emptyMessage="No service areas available"
+                                                allowClear={true}
+                                            />
                                         ) : (
-                                            <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                                                <MapPinIcon className="w-5 h-5 text-gray-400 mr-3" />
-                                                <span className="text-gray-900">
-                                                    {profile?.profile?.transportation?.area ?
-                                                        capitalizeName(profile.profile.transportation.area) :
-                                                        'Not provided'
-                                                    }
-                                                </span>
-                                            </div>
+                                            <>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">Service Area</label>
+                                                <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                                                    <MapPinIcon className="w-5 h-5 text-gray-400 mr-3" />
+                                                    <span className="text-gray-900">
+                                                        {profile?.profile?.transportation?.area ?
+                                                            capitalizeName(profile.profile.transportation.area) :
+                                                            'Not provided'
+                                                        }
+                                                    </span>
+                                                </div>
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -1011,40 +1081,52 @@ const DriverProfilePage = () => {
 
                     {/* Documents Tab */}
                     {activeTab === 'documents' && (
-                        <div className="p-8">
-                            <div className="mb-6 flex items-center justify-between">
+                        <div className="p-4 sm:p-6 lg:p-8">
+                            <div className="mb-4 sm:mb-6">
                                 <div>
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-2">Document Verification</h3>
-                                    <p className="text-gray-600">Upload required documents for account verification</p>
+                                    <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">Document Verification</h3>
+                                    <p className="text-gray-600 text-sm sm:text-base">Upload required documents for account verification</p>
                                 </div>
-                                <button
-                                    onClick={async () => {
-                                        console.log('🔄 Manually refreshing profile data...');
-                                        await fetchProfile(true);
-                                        toast.success('Profile data refreshed!');
-                                    }}
-                                    className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                                >
-                                    <ArrowPathIcon className="w-4 h-4 mr-2" />
-                                    Refresh
-                                </button>
                             </div>
 
                             {/* Document Status Summary */}
-                            <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                                <h4 className="text-lg font-medium text-gray-900 mb-4">Document Status</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 sm:mb-4">
+                                    <h4 className="text-base sm:text-lg font-medium text-gray-900">Document Status</h4>
+                                    <button
+                                        onClick={async () => {
+                                            console.log('🔄 Manually refreshing document status...');
+                                            console.log('📋 Current documents state:', profile?.documents);
+                                            await fetchProfile(true);
+                                            toast.success('Document status refreshed!');
+                                        }}
+                                        className="inline-flex items-center px-3 py-1.5 border border-green-300 rounded-md shadow-sm text-xs font-medium text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                                    >
+                                        <ArrowPathIcon className="w-3 h-3 mr-1" />
+                                        Refresh Status
+                                    </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                                     {[
                                         { key: 'studentId', label: 'Student ID', required: true },
                                         { key: 'profilePhoto', label: 'Profile Photo', required: true },
                                         { key: 'universityEnrollment', label: 'University Enrollment', required: true },
-                                        { key: 'identityCard', label: 'Identity Card', required: true },
-                                        { key: 'transportationLicense', label: 'Transportation License', required: false }
+                                        { key: 'identityCard', label: 'Identity Card', required: true }
                                     ].map((doc) => {
                                         const document = profile?.documents?.[doc.key];
                                         const isUploaded = document && document.status !== 'missing';
                                         const isVerified = document?.status === 'verified';
                                         const isPending = document?.status === 'pending';
+
+                                        // Debug logging for document status
+                                        console.log(`📄 Document ${doc.key}:`, {
+                                            document,
+                                            status: document?.status,
+                                            isUploaded,
+                                            isVerified,
+                                            isPending,
+                                            uploadDate: document?.uploadDate
+                                        });
 
                                         return (
                                             <div key={doc.key} className="flex items-center p-3 border border-gray-200 rounded-lg">
@@ -1085,17 +1167,55 @@ const DriverProfilePage = () => {
                                         // Show success message
                                         toast.success(`${documentType} uploaded successfully!`);
 
-                                        // Refresh profile data to get updated document information
-                                        await fetchProfile(true);
+                                        // Log the document data structure to debug admin visibility
+                                        console.log('🔍 Document data structure for admin:', {
+                                            documentType,
+                                            documentData,
+                                            hasFileUrl: !!documentData?.fileUrl,
+                                            hasDocumentUrl: !!documentData?.documentUrl,
+                                            hasUrl: !!documentData?.url,
+                                            hasImageUrl: !!documentData?.imageUrl,
+                                            hasCloudinaryUrl: !!documentData?.cloudinaryUrl,
+                                            allFields: Object.keys(documentData || {})
+                                        });
 
-                                        // Force a re-render to show updated document status
-                                        setProfile(prev => ({
-                                            ...prev,
-                                            documents: {
-                                                ...prev?.documents,
-                                                [documentType]: documentData
-                                            }
-                                        }));
+                                        // Enhanced analysis of the upload response
+                                        console.log('🔍 Document upload response analysis:', {
+                                            success: documentData?.success,
+                                            hasData: !!documentData?.data,
+                                            dataKeys: documentData?.data ? Object.keys(documentData.data) : [],
+                                            hasDocumentUrl: !!documentData?.data?.documentUrl,
+                                            hasFileUrl: !!documentData?.data?.fileUrl,
+                                            hasUrl: !!documentData?.data?.url,
+                                            hasImageUrl: !!documentData?.data?.imageUrl,
+                                            hasCloudinaryUrl: !!documentData?.data?.cloudinaryUrl,
+                                            status: documentData?.data?.status,
+                                            uploadDate: documentData?.data?.uploadDate,
+                                            fullResponse: documentData
+                                        });
+
+                                        // Immediately update the local state with the new document data
+                                        setProfile(prev => {
+                                            const updatedProfile = {
+                                                ...prev,
+                                                documents: {
+                                                    ...prev?.documents,
+                                                    [documentType]: documentData?.data || documentData
+                                                }
+                                            };
+                                            console.log('🔄 Updated profile with document data:', {
+                                                documentType,
+                                                updatedDocuments: updatedProfile.documents,
+                                                documentCount: Object.keys(updatedProfile.documents || {}).length
+                                            });
+                                            return updatedProfile;
+                                        });
+
+                                        // Then refresh profile data from server to ensure consistency
+                                        setTimeout(async () => {
+                                            console.log('🔄 Refreshing profile data after document upload...');
+                                            await fetchProfile(true);
+                                        }, 1000);
                                     }}
                                     user={user}
                                 />

@@ -3,9 +3,11 @@ import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
 import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
 
 const SimpleDriverNotifications = () => {
     const { user } = useAuth();
+    const navigate = useNavigate();
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
@@ -133,11 +135,21 @@ const SimpleDriverNotifications = () => {
         setNotifications(prev => prev.filter(n => n.id !== id));
     };
 
+    const handleNotificationClick = () => {
+        // On mobile, navigate to notifications page
+        // On desktop, toggle dropdown
+        if (window.innerWidth < 640) {
+            navigate('/driver/notifications');
+        } else {
+            setShowDropdown(!showDropdown);
+        }
+    };
+
     return (
         <div className="relative">
             {/* Notification Bell */}
             <button
-                onClick={() => setShowDropdown(!showDropdown)}
+                onClick={handleNotificationClick}
                 className="relative p-1.5 sm:p-2 text-gray-600 hover:text-gray-900 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 rounded-lg"
                 aria-label="Notifications"
             >
@@ -154,7 +166,7 @@ const SimpleDriverNotifications = () => {
 
             {/* Dropdown */}
             {showDropdown && (
-                <div ref={dropdownRef} className="absolute right-0 mt-2 w-72 sm:w-80 md:w-96 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] sm:max-h-96">
+                <div ref={dropdownRef} className="absolute mt-2 bg-white rounded-lg shadow-xl border border-gray-200 z-50 max-h-[80vh] sm:max-h-96 sm:right-0 sm:left-auto right-0 left-4 sm:left-auto sm:w-72 md:w-80 lg:w-96 hidden sm:block">
                     {/* Header */}
                     <div className="p-3 sm:p-4 border-b border-gray-200">
                         <div className="flex items-center justify-between">

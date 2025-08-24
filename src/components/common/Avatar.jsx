@@ -1,5 +1,6 @@
 import React from 'react';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
+import { isAdmin } from '../../utils/userHelpers';
 
 const Avatar = ({ user, profile, size = 'md', className = '' }) => {
     const sizeClasses = {
@@ -42,6 +43,9 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
 
     const initials = getInitials(userName);
 
+    // Check if user is admin - always show White.png logo for admin users
+    const isAdminUser = isAdmin(user);
+
     // Check for profile image in various possible locations
     let profileImage = user?.avatar ||
         user?.profileImage ||
@@ -62,6 +66,34 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
         profileImage = `${profileImage}?t=${Date.now()}`;
     }
 
+    // For admin users, always show the White.png logo
+    if (isAdminUser) {
+        return (
+            <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${className}`}>
+                <img
+                    src="/White.png"
+                    alt="Admin Profile"
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                        // Fallback to admin initials if logo fails to load
+                        e.target.style.display = 'none';
+                        e.target.parentElement.nextSibling.style.display = 'flex';
+                    }}
+                />
+                {/* Hidden fallback div that shows when logo fails to load */}
+                <div
+                    className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} absolute inset-0`}
+                    style={{ display: 'none' }}
+                >
+                    {initials !== '?' ? initials : (
+                        <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // For non-admin users, show their profile image if available
     if (profileImage) {
         return (
             <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${className}`}>

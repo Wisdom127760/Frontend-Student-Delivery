@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import { XMarkIcon, UserIcon, EnvelopeIcon, ShieldCheckIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 
 const AdminUserModal = ({ isOpen, onClose, onSubmit, mode, admin }) => {
@@ -34,7 +35,7 @@ const AdminUserModal = ({ isOpen, onClose, onSubmit, mode, admin }) => {
         if (isOpen) {
             if (mode === 'edit' && admin) {
                 setFormData({
-                    name: admin.name || '',
+                    name: capitalizeName(admin.name) || '',
                     email: admin.email || '',
                     role: admin.role || 'admin',
                     permissions: admin.permissions || [],
@@ -157,8 +158,8 @@ const AdminUserModal = ({ isOpen, onClose, onSubmit, mode, admin }) => {
                                             value={formData.name}
                                             onChange={handleInputChange}
                                             className={`block w-full pl-10 pr-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 sm:text-sm ${errors.name
-                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                                                    : 'border-gray-300 focus:ring-green-500 focus:border-green-500'
+                                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                                : 'border-gray-300 focus:ring-green-500 focus:border-green-500'
                                                 }`}
                                             placeholder="Enter full name"
                                         />
@@ -183,8 +184,8 @@ const AdminUserModal = ({ isOpen, onClose, onSubmit, mode, admin }) => {
                                             value={formData.email}
                                             onChange={handleInputChange}
                                             className={`block w-full pl-10 pr-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-1 sm:text-sm ${errors.email
-                                                    ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
-                                                    : 'border-gray-300 focus:ring-green-500 focus:border-green-500'
+                                                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                                                : 'border-gray-300 focus:ring-green-500 focus:border-green-500'
                                                 }`}
                                             placeholder="Enter email address"
                                         />
@@ -287,8 +288,8 @@ const AdminUserModal = ({ isOpen, onClose, onSubmit, mode, admin }) => {
                                                         onChange={(e) => handlePermissionChange(permission.id, e.target.checked)}
                                                         disabled={isDisabled}
                                                         className={`h-4 w-4 rounded focus:ring-green-500 ${isDisabled
-                                                                ? 'text-gray-300 border-gray-300'
-                                                                : 'text-green-600 border-gray-300'
+                                                            ? 'text-gray-300 border-gray-300'
+                                                            : 'text-green-600 border-gray-300'
                                                             }`}
                                                     />
                                                 </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import {
     PlusIcon,
     PencilIcon,
@@ -37,7 +38,7 @@ const AdminUsersTab = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [showPasswordResetModal, setShowPasswordResetModal] = useState(false);
+    const [showResendOTPModal, setShowResendOTPModal] = useState(false);
     const [selectedAdmin, setSelectedAdmin] = useState(null);
 
     // Statistics
@@ -113,14 +114,14 @@ const AdminUsersTab = () => {
         }
     };
 
-    const handlePasswordReset = async () => {
+    const handleResendOTP = async () => {
         try {
-            const response = await apiService.resetAdminPassword(selectedAdmin.id || selectedAdmin._id, { sendEmail: true });
-            toast.success('Password reset email sent successfully');
-            setShowPasswordResetModal(false);
+            await apiService.resendOTP(selectedAdmin.email);
+            toast.success('OTP sent to admin email successfully');
+            setShowResendOTPModal(false);
             setSelectedAdmin(null);
         } catch (error) {
-            toast.error('Failed to reset password');
+            toast.error('Failed to send OTP');
         }
     };
 
@@ -339,7 +340,7 @@ const AdminUsersTab = () => {
                                                 </div>
                                                 <div className="ml-4">
                                                     <div className="text-sm font-medium text-gray-900">
-                                                        {admin.name}
+                                                        {capitalizeName(admin.name)}
                                                     </div>
                                                     <div className="text-sm text-gray-500">
                                                         {admin.email}
@@ -373,9 +374,10 @@ const AdminUsersTab = () => {
                                                 <button
                                                     onClick={() => {
                                                         setSelectedAdmin(admin);
-                                                        setShowPasswordResetModal(true);
+                                                        setShowResendOTPModal(true);
                                                     }}
                                                     className="text-blue-600 hover:text-blue-900"
+                                                    title="Resend OTP"
                                                 >
                                                     <KeyIcon className="w-4 h-4" />
                                                 </button>
@@ -443,23 +445,23 @@ const AdminUsersTab = () => {
                     }}
                     onConfirm={handleDeleteAdmin}
                     title="Delete Admin User"
-                    message={`Are you sure you want to delete ${selectedAdmin.name}? This action cannot be undone.`}
+                    message={`Are you sure you want to delete ${capitalizeName(selectedAdmin.name)}? This action cannot be undone.`}
                     confirmText="Delete"
                     confirmColor="red"
                 />
             )}
 
-            {showPasswordResetModal && selectedAdmin && (
+            {showResendOTPModal && selectedAdmin && (
                 <ConfirmationModal
-                    isOpen={showPasswordResetModal}
+                    isOpen={showResendOTPModal}
                     onClose={() => {
-                        setShowPasswordResetModal(false);
+                        setShowResendOTPModal(false);
                         setSelectedAdmin(null);
                     }}
-                    onConfirm={handlePasswordReset}
-                    title="Reset Password"
-                    message={`Send a password reset email to ${selectedAdmin.email}?`}
-                    confirmText="Send Reset Email"
+                    onConfirm={handleResendOTP}
+                    title="Resend OTP"
+                    message={`Send a new OTP code to ${selectedAdmin.email}?`}
+                    confirmText="Send OTP"
                     confirmColor="blue"
                 />
             )}

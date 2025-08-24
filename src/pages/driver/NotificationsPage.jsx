@@ -35,6 +35,7 @@ const NotificationsPage = () => {
     const itemsPerPage = 10;
 
     useEffect(() => {
+        console.log('🔔 DriverNotificationsPage: Filter changed to:', filter);
         fetchNotifications();
         fetchUnreadCount();
     }, [currentPage, filter]);
@@ -238,16 +239,29 @@ const NotificationsPage = () => {
     const fetchNotifications = useCallback(async (silent = false) => {
         try {
             if (!silent) setLoading(true);
+
+            // Map frontend filter values to backend notification types
+            const typeMapping = {
+                'all': undefined,
+                'delivery': 'delivery_assigned',
+                'payment': 'payment_received',
+                'earnings': 'earnings_updated',
+                'account': 'account_updated',
+                'document': 'document_verified'
+            };
+
+            const mappedType = typeMapping[filter];
+
             console.log('🔔 DriverNotificationsPage: Fetching notifications with params:', {
                 page: currentPage,
                 limit: itemsPerPage,
-                status: filter === 'all' ? undefined : filter
+                type: mappedType
             });
 
             const response = await apiService.getDriverNotifications({
                 page: currentPage,
                 limit: itemsPerPage,
-                status: filter === 'all' ? undefined : filter
+                type: mappedType
             });
 
             console.log('🔔 DriverNotificationsPage: API response:', response);
@@ -685,43 +699,41 @@ const NotificationsPage = () => {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
             {/* Header */}
-            <div className="mb-8">
-                <div className="flex items-center justify-between">
+            <div className="mb-6 sm:mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Notifications</h1>
-                        <p className="mt-2 text-gray-600">
+                        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Notifications</h1>
+                        <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">
                             Stay updated with your delivery activities and account information
                         </p>
                     </div>
-                    <div className="flex items-center space-x-4">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
                         {/* Connection Status */}
                         <div className="flex items-center space-x-2">
                             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                            <span className="text-sm text-gray-600">
+                            <span className="text-xs sm:text-sm text-gray-600">
                                 {isConnected ? 'Connected' : 'Disconnected'}
                             </span>
                         </div>
 
-                        {/* Sound Test Button */}
-
-
                         {unreadCount > 0 && (
-                            <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                            <span className="inline-flex items-center px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-green-100 text-green-800">
                                 {unreadCount} unread
                             </span>
                         )}
                         <button
                             onClick={markAllAsRead}
                             disabled={unreadCount === 0}
-                            className={`inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors ${unreadCount === 0
+                            className={`inline-flex items-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${unreadCount === 0
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 : 'bg-green-600 text-white hover:bg-green-700'
                                 }`}
                         >
-                            <CheckIcon className="h-4 w-4 mr-2" />
-                            Mark all as read
+                            <CheckIcon className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                            <span className="hidden sm:inline">Mark all as read</span>
+                            <span className="sm:hidden">Mark read</span>
                         </button>
                     </div>
                 </div>
@@ -729,19 +741,31 @@ const NotificationsPage = () => {
 
             {/* Filter Tabs */}
             <div className="mb-6">
-                <div className="flex space-x-2 overflow-x-auto pb-2">
+                <div className="flex space-x-1 sm:space-x-2 overflow-x-auto scrollbar-hide pb-1 sm:pb-2">
                     {['all', 'delivery', 'payment', 'earnings', 'account', 'document'].map((filterOption) => (
                         <button
                             key={filterOption}
                             onClick={() => setFilter(filterOption)}
-                            className={`px-3 py-1 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${filter === filterOption
+                            className={`px-2 sm:px-3 py-1.5 sm:py-1 rounded-full text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0 min-w-[60px] ${filter === filterOption
                                 ? 'bg-green-100 text-green-700 border border-green-200'
                                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                 }`}
                         >
-                            {filterOption.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                            {filterOption === 'all' ? 'All' :
+                                filterOption === 'delivery' ? 'Delivery' :
+                                    filterOption === 'payment' ? 'Payment' :
+                                        filterOption === 'earnings' ? 'Earnings' :
+                                            filterOption === 'account' ? 'Account' :
+                                                filterOption === 'document' ? 'Documents' : filterOption}
                         </button>
                     ))}
+                </div>
+                {/* Filter Status */}
+                <div className="mt-2 text-xs text-gray-500">
+                    {filter === 'all' ?
+                        `Showing all notifications (${totalItems} total)` :
+                        `Showing ${filter} notifications (${paginatedNotifications.length} found)`
+                    }
                 </div>
             </div>
 
@@ -763,17 +787,17 @@ const NotificationsPage = () => {
                         {paginatedNotifications.map((notification) => (
                             <div
                                 key={notification._id}
-                                className={`p-6 hover:bg-gray-50 transition-colors ${getTypeColor(notification.type)} ${!notification.isRead ? 'border-l-4 border-l-green-500' : ''
+                                className={`p-4 sm:p-6 hover:bg-gray-50 transition-colors ${getTypeColor(notification.type)} ${!notification.isRead ? 'border-l-4 border-l-green-500' : ''
                                     } w-full`}
                             >
                                 <div className="flex items-start justify-between w-full">
-                                    <div className="flex items-start space-x-4 flex-1">
+                                    <div className="flex items-start space-x-3 sm:space-x-4 flex-1">
                                         <div className={`flex-shrink-0 ${getPriorityColor(notification.priority)}`}>
                                             {getNotificationIcon(notification.type)}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <div className="flex items-center space-x-3 mb-2">
-                                                <h3 className={`text-lg font-semibold ${notification.isRead ? 'text-gray-700' : 'text-gray-900'
+                                            <div className="flex flex-wrap items-center gap-2 mb-2">
+                                                <h3 className={`text-base sm:text-lg font-semibold ${notification.isRead ? 'text-gray-700' : 'text-gray-900'
                                                     }`}>
                                                     {notification.title}
                                                 </h3>
@@ -793,7 +817,7 @@ const NotificationsPage = () => {
                                                 }`}>
                                                 {renderNotificationMessage(notification.message, notification)}
                                             </p>
-                                            <div className="flex items-center justify-between w-full">
+                                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between w-full space-y-2 sm:space-y-0">
                                                 <div className="flex items-center space-x-4 text-xs text-gray-500">
                                                     <span className="flex items-center">
                                                         <ClockIcon className="h-3 w-3 mr-1" />
@@ -801,31 +825,33 @@ const NotificationsPage = () => {
                                                     </span>
                                                     <span className="capitalize">{notification.type}</span>
                                                 </div>
-                                                <div className="flex items-center space-x-2 ml-auto">
+                                                <div className="flex items-center space-x-2 sm:ml-auto">
                                                     <button
                                                         onClick={() => {
                                                             setSelectedNotification(notification);
                                                             setShowDetailsModal(true);
                                                         }}
-                                                        className="text-sm text-green-600 hover:text-green-700 font-medium"
+                                                        className="text-xs sm:text-sm text-green-600 hover:text-green-700 font-medium"
                                                     >
-                                                        View Details
+                                                        <span className="hidden sm:inline">View Details</span>
+                                                        <span className="sm:hidden">View</span>
                                                     </button>
                                                     {!notification.isRead && notification._id && (
                                                         <button
                                                             onClick={() => markAsRead(notification._id)}
                                                             disabled={markingAsRead.has(notification._id)}
-                                                            className={`text-sm ${markingAsRead.has(notification._id)
+                                                            className={`text-xs sm:text-sm ${markingAsRead.has(notification._id)
                                                                 ? 'text-gray-400 cursor-not-allowed'
                                                                 : 'text-gray-600 hover:text-gray-700'
                                                                 }`}
                                                         >
-                                                            {markingAsRead.has(notification._id) ? 'Marking...' : 'Mark as read'}
+                                                            {markingAsRead.has(notification._id) ? 'Marking...' :
+                                                                <span><span className="hidden sm:inline">Mark as read</span><span className="sm:hidden">Read</span></span>}
                                                         </button>
                                                     )}
                                                     <button
                                                         onClick={() => deleteNotification(notification._id)}
-                                                        className="text-sm text-red-600 hover:text-red-700"
+                                                        className="text-xs sm:text-sm text-red-600 hover:text-red-700"
                                                     >
                                                         Delete
                                                     </button>

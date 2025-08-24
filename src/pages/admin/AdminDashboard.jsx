@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { capitalizeName } from '../../utils/nameUtils';
 import { useNavigate } from 'react-router-dom';
+import VerifiedBadge from '../../components/common/VerifiedBadge';
+import { isDriverVerified } from '../../utils/verificationHelpers';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -59,7 +62,7 @@ const AdminDashboard = () => {
             topDrivers.slice(0, 5).forEach((driver, index) => {
                 const rank = index + 1;
                 const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
-                const name = driver.name || driver.fullNameComputed || 'Unknown Driver';
+                const name = capitalizeName(driver.name || driver.fullNameComputed || 'Unknown Driver');
                 const deliveries = driver.totalDeliveries || 0;
                 const earnings = formatCurrency(driver.totalEarnings || 0);
                 const avgEarnings = driver.avgEarningsPerDelivery ? `€${driver.avgEarningsPerDelivery}/delivery` : 'N/A';
@@ -478,8 +481,8 @@ const AdminDashboard = () => {
                         </div>
                         <div className="p-3">
                             {/* Debug info */}
-                            <div className="text-xs text-gray-500 mb-2">
-                                Debug: {topDrivers.length} drivers loaded | Period: {selectedPeriod}
+                            <div className="text-xs text-gray-500 font-italic mb-2">
+                                Info: {topDrivers.length} drivers loaded | Period: {selectedPeriod}
                             </div>
 
                             {topDrivers.length === 0 ? (
@@ -511,7 +514,12 @@ const AdminDashboard = () => {
                                                     </div>
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center space-x-2 mb-1">
-                                                            <p className="text-xs font-medium text-gray-900 truncate">{driver.name || driver.fullNameComputed}</p>
+                                                            <p className="text-xs font-medium text-gray-900 truncate">{capitalizeName(driver.name || driver.fullNameComputed)}</p>
+                                                            <VerifiedBadge
+                                                                isVerified={isDriverVerified(driver)}
+                                                                size="xs"
+                                                                className="flex-shrink-0"
+                                                            />
                                                             <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
                                                         </div>
                                                         <div className="flex items-center space-x-2 flex-wrap gap-1">

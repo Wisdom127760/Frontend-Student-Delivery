@@ -1,6 +1,14 @@
 import axios from 'axios';
 import rateLimiter from '../utils/rateLimiter';
 import requestDeduplicator from '../utils/requestDeduplicator';
+import toast from 'react-hot-toast';
+
+// Request deduplication to prevent duplicate API calls
+const pendingRequests = new Map();
+
+const createRequestKey = (method, url, data) => {
+    return `${method}:${url}:${JSON.stringify(data || {})}`;
+};
 
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -33,6 +41,28 @@ api.interceptors.request.use(
     }
 );
 
+// Response interceptor to handle deduplication
+api.interceptors.response.use(
+    (response) => {
+        const requestKey = response.config.requestKey;
+        if (requestKey && pendingRequests.has(requestKey)) {
+            const { resolve } = pendingRequests.get(requestKey);
+            pendingRequests.delete(requestKey);
+            resolve(response);
+        }
+        return response;
+    },
+    (error) => {
+        const requestKey = error.config?.requestKey;
+        if (requestKey && pendingRequests.has(requestKey)) {
+            const { reject } = pendingRequests.get(requestKey);
+            pendingRequests.delete(requestKey);
+            reject(error);
+        }
+        return Promise.reject(error);
+    }
+);
+
 // Response interceptor for error handling
 api.interceptors.response.use(
     (response) => {
@@ -51,21 +81,159 @@ api.interceptors.response.use(
             console.error('🌐 Backend server is not running or not accessible');
             console.error('🌐 Please ensure the backend server is running on localhost:3001');
             console.error('🌐 Error details:', error.message);
+
+            // Show toast for network errors
+            toast.error('Unable to connect to the server. Please check your internet connection and try again.', {
+                duration: 5000,
+            });
         }
 
         // Handle rate limiting (429 errors)
         if (error.response?.status === 429) {
             console.warn('⚠️ Rate limit exceeded. Request throttled.');
-            // Don't show user error for rate limiting, just log it
-            // The calling component should handle this gracefully
+            // Show toast for rate limiting
+            toast.error('Too many requests. Please wait a moment before trying again.', {
+                duration: 4000,
+            });
         }
 
+        // Handle server errors (500+)
+        if (error.response?.status >= 500) {
+            console.error('🔧 Server error:', error.response?.status, error.response?.data);
+            toast.error('Server error. Please try again later.', {
+                duration: 5000,
+            });
+        }
+
+        // Handle authentication errors
         if (error.response?.status === 401) {
+            console.warn('🔒 Authentication failed, redirecting to login');
             // Token expired or invalid
             localStorage.removeItem('token');
             localStorage.removeItem('user');
-            window.location.href = '/';
+
+            // Show toast before redirecting
+            toast.error('Session expired. Please log in again.', {
+                duration: 3000,
+            });
+
+            // Small delay to show the toast before redirect
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
         }
+
+        // Handle forbidden errors (403)
+        if (error.response?.status === 403) {
+            console.warn('🚫 Access forbidden');
+            const errorMessage = error.response?.data?.message;
+
+            if (errorMessage?.toLowerCase().includes('suspended')) {
+                toast.error('Your account has been suspended. Please contact support.', {
+                    duration: 8000,
+                });
+            } else if (errorMessage?.toLowerCase().includes('blocked')) {
+                toast.error('Your account has been blocked. Please contact support.', {
+                    duration: 8000,
+                });
+            } else if (errorMessage?.toLowerCase().includes('inactive')) {
+                toast.error('Your account is inactive. Please contact support to reactivate.', {
+                    duration: 6000,
+                });
+            } else {
+                toast.error('Access denied. You do not have permission to perform this action.', {
+                    duration: 4000,
+                });
+            }
+        }
+
+        // Handle not found errors (404) for API endpoints
+        if (error.response?.status === 404) {
+            console.warn('🔍 API endpoint not found:', error.config?.url);
+            const errorMessage = error.response?.data?.message;
+
+            // Only show toast for API 404s, not for user-specific 404s
+            if (error.config?.url && !error.config.url.includes('/auth/')) {
+                if (errorMessage?.toLowerCase().includes('user') || errorMessage?.toLowerCase().includes('driver')) {
+                    toast.error('User not found. The requested user may have been deleted or does not exist.', {
+                        duration: 5000,
+                    });
+                } else if (errorMessage?.toLowerCase().includes('delivery') || errorMessage?.toLowerCase().includes('order')) {
+                    toast.error('Delivery not found. The requested delivery may have been cancelled or does not exist.', {
+                        duration: 5000,
+                    });
+                } else {
+                    // Don't show "Service not available" for documents endpoint that's not implemented yet
+                    if (error.config?.url?.includes('/driver/documents')) {
+                        console.info('💡 Documents endpoint not implemented yet - this is expected');
+                    } else {
+                        console.error('🔴 Generic error handler triggered:', {
+                            status: error.response?.status,
+                            statusText: error.response?.statusText,
+                            url: error.config?.url,
+                            method: error.config?.method,
+                            data: error.response?.data
+                        });
+                        toast.error('Service not available. Please contact support.', {
+                            duration: 4000,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Handle conflict errors (409)
+        if (error.response?.status === 409) {
+            console.warn('⚠️ Conflict error:', error.response?.data?.message);
+            const errorMessage = error.response?.data?.message;
+
+            if (errorMessage?.toLowerCase().includes('already exists')) {
+                toast.error('This item already exists. Please try a different option.', {
+                    duration: 5000,
+                });
+            } else if (errorMessage?.toLowerCase().includes('duplicate')) {
+                toast.error('Duplicate entry detected. Please try a different value.', {
+                    duration: 5000,
+                });
+            } else {
+                toast.error('Conflict detected. Please try again with different data.', {
+                    duration: 5000,
+                });
+            }
+        }
+
+        // Handle validation errors (422)
+        if (error.response?.status === 422) {
+            console.warn('⚠️ Validation error:', error.response?.data?.message);
+            const errorMessage = error.response?.data?.message;
+
+            if (errorMessage?.toLowerCase().includes('email')) {
+                toast.error('Please enter a valid email address.', {
+                    duration: 5000,
+                });
+            } else if (errorMessage?.toLowerCase().includes('phone')) {
+                toast.error('Please enter a valid phone number.', {
+                    duration: 5000,
+                });
+            } else if (errorMessage?.toLowerCase().includes('password')) {
+                toast.error('Password does not meet requirements. Please try again.', {
+                    duration: 5000,
+                });
+            } else {
+                toast.error('Please check your input and try again.', {
+                    duration: 5000,
+                });
+            }
+        }
+
+        // Handle timeout errors
+        if (error.code === 'ECONNABORTED') {
+            console.error('⏱️ Request timeout');
+            toast.error('Request timed out. Please try again.', {
+                duration: 4000,
+            });
+        }
+
         return Promise.reject(error);
     }
 );
@@ -147,6 +315,11 @@ class ApiService {
         return response.data;
     }
 
+    async getAvailableReferralCodes() {
+        const response = await api.get('/admin/drivers/referral-codes');
+        return response.data;
+    }
+
     async getPendingInvitations(page = 1, limit = 20) {
         const response = await api.get(`/admin/drivers/invitations?page=${page}&limit=${limit}`);
         return response.data;
@@ -223,8 +396,113 @@ class ApiService {
         return response.data;
     }
 
+    // Get profile options
+    async getProfileOptions() {
+        try {
+            console.log('📋 API Service: Fetching profile options...');
+            const response = await api.get('/public/profile-options');
+            console.log('📋 API Service: Profile options response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('📋 API Service: Error fetching profile options:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            // Return fallback data if API fails
+            return {
+                success: true,
+                data: {
+                    addresses: ['Kucuk', 'Lefkosa', 'Girne', 'Iskele', 'Guzelyurt', 'Lefke'],
+                    transportationMethods: ['Walking', 'Bicycle', 'Motorcycle', 'Car', 'Public Transport', 'Other'],
+                    universities: [
+                        'Eastern Mediterranean University', 'Cyprus West University', 'Cyprus International University',
+                        'Near East University', 'Girne American University', 'European University of Lefke',
+                        'University of Kyrenia', 'Final International University', 'University of Mediterranean Karpasia',
+                        'Lefke European University', 'American University of Cyprus', 'Cyprus Science University',
+                        'University of Central Lancashire Cyprus'
+                    ]
+                }
+            };
+        }
+    }
+
+    // Get driver documents separately
+    async getDriverDocuments() {
+        try {
+            console.log('📄 API Service: Fetching driver documents...');
+            const response = await api.get('/driver/documents');
+            console.log('📄 API Service: Driver documents response:', response.data);
+
+            // Check if response has the expected structure
+            if (!response.data || !response.data.success) {
+                console.warn('⚠️ Documents API returned unexpected structure:', response.data);
+                return {
+                    success: true,
+                    data: {
+                        documents: {}
+                    }
+                };
+            }
+
+            return response.data;
+        } catch (error) {
+            console.error('📄 API Service: Error fetching driver documents:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            // Show specific error message for debugging
+            if (error.response?.status === 404) {
+                console.error('❌ Documents endpoint not found (404) - Backend documents API not implemented yet');
+                console.info('💡 This is expected if the backend documents endpoint is not yet integrated');
+            } else if (error.response?.status === 401) {
+                console.error('❌ Unauthorized access to documents (401)');
+            } else if (error.response?.status === 500) {
+                console.error('❌ Server error fetching documents (500)');
+            }
+
+            // Return empty documents structure if API fails
+            return {
+                success: true,
+                data: {
+                    documents: {}
+                }
+            };
+        }
+    }
+
     async getDashboardData(period = null) {
-        const params = period ? `?period=${period}` : '';
+        // Map frontend period values to backend expected values
+        const periodMapping = {
+            'today': 'today',
+            'week': 'week',
+            'thisWeek': 'thisWeek',
+            'month': 'month',
+            'monthly': 'month',
+            'thisMonth': 'thisMonth',  // Add thisMonth mapping
+            'currentPeriod': 'thisMonth',  // Map currentPeriod to thisMonth instead of month
+            'year': 'year',
+            'all': 'allTime',
+            'all-time': 'allTime',
+            'allTime': 'allTime',
+            'custom': 'custom'
+        };
+
+        const mappedPeriod = period ? (periodMapping[period] || period) : null;
+        const params = mappedPeriod ? `?period=${mappedPeriod}` : '';
+
+        console.log('📊 API Service - getDashboardData called with:', {
+            originalPeriod: period,
+            mappedPeriod: mappedPeriod,
+            params: params,
+            fullUrl: `/driver/dashboard${params}`
+        });
+
         const response = await api.get(`/driver/dashboard${params}`);
         return response.data;
     }
@@ -344,7 +622,23 @@ class ApiService {
     }
 
     async getDriverEarnings(period) {
-        const params = period ? `?period=${period}` : '';
+        // Map frontend period values to backend expected values
+        const periodMapping = {
+            'today': 'today',
+            'week': 'week',
+            'thisWeek': 'thisWeek',
+            'month': 'month',
+            'monthly': 'month',
+            'currentPeriod': 'currentPeriod',
+            'year': 'year',
+            'all': 'allTime',
+            'all-time': 'allTime',
+            'allTime': 'allTime',
+            'custom': 'custom'
+        };
+
+        const mappedPeriod = periodMapping[period] || period;
+        const params = mappedPeriod ? `?period=${mappedPeriod}` : '';
         const response = await api.get(`/driver/earnings${params}`);
         return response.data;
     }
@@ -357,6 +651,36 @@ class ApiService {
     async updateDeliveryStatus(deliveryId, status) {
         const response = await api.put(`/driver/deliveries/${deliveryId}/status`, { status });
         return response.data;
+    }
+
+    async calculateDriverEarnings() {
+        try {
+            console.log('💰 API Service: Triggering earnings calculation...');
+            const response = await api.post('/driver/earnings/calculate');
+            console.log('✅ API Service: Earnings calculation response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('❌ API Service: Earnings calculation failed:', error);
+
+            // Handle 404 error gracefully (endpoint not implemented yet)
+            if (error.response?.status === 404) {
+                console.warn('⚠️ API Service: Earnings calculation endpoint not implemented yet');
+                console.log('💡 To implement this endpoint, add the backend-earnings-calculation-endpoint.js to your backend');
+
+                // Return a mock success response to prevent frontend errors
+                return {
+                    success: true,
+                    message: 'Earnings calculation endpoint not implemented yet',
+                    data: {
+                        totalEarningsCalculated: 0,
+                        deliveriesProcessed: 0,
+                        note: 'Backend endpoint needs to be implemented'
+                    }
+                };
+            }
+
+            throw error;
+        }
     }
 
     // Public endpoints
@@ -396,6 +720,20 @@ class ApiService {
             });
 
             console.log('✅ Document upload successful:', response.data);
+
+            // Enhanced logging to debug the response structure
+            console.log('🔍 Document upload response analysis:', {
+                success: response.data?.success,
+                hasData: !!response.data?.data,
+                dataKeys: response.data?.data ? Object.keys(response.data.data) : [],
+                hasDocumentUrl: !!response.data?.data?.documentUrl,
+                hasFileUrl: !!response.data?.data?.fileUrl,
+                hasUrl: !!response.data?.data?.url,
+                hasImageUrl: !!response.data?.data?.imageUrl,
+                hasCloudinaryUrl: !!response.data?.data?.cloudinaryUrl,
+                fullResponse: response.data
+            });
+
             return response.data;
         } catch (error) {
             console.error('❌ Document upload failed:', {
@@ -533,36 +871,54 @@ class ApiService {
     // Communication endpoints
     async sendEmergencyAlert(message, location = null) {
         console.log('🚨 API Service: Sending emergency alert:', { message, location });
-        const payload = {
-            message
-        };
-        if (location) {
-            payload.location = location;
-        }
-        const response = await api.post('/notifications/emergency-alert', payload);
-        console.log('🚨 API Service: Emergency alert response:', response.data);
-        return response.data;
+
+        const requestKey = `sendEmergencyAlert:${message}:${JSON.stringify(location)}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            const payload = {
+                message
+            };
+            if (location) {
+                payload.location = location;
+            }
+            const response = await api.post('/notifications/emergency-alert', payload);
+            console.log('🚨 API Service: Emergency alert response:', response.data);
+            return response.data;
+        });
     }
 
     async sendMessageToAdmin(message) {
         console.log('💬 API Service: Sending message to admin:', message);
-        try {
-            const response = await api.post('/notifications/driver/send-message', {
-                message
-            });
-            console.log('💬 API Service: Send message response:', response.data);
-            return response.data;
-        } catch (error) {
-            console.log('💬 API Service: Send message failed, trying alternative endpoint');
-            console.log('💬 API Service: Error details:', error.response?.data || error.message);
-            // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
-            const response = await api.post('/notifications/emergency-alert', {
-                message: `Driver Message: ${message}`,
-                type: 'driver_message'
-            });
-            console.log('💬 API Service: Fallback response:', response.data);
-            return response.data;
-        }
+
+        const requestKey = `sendMessageToAdmin:${message}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.post('/notifications/driver/send-message', {
+                    message
+                });
+                console.log('💬 API Service: Send message response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Send message failed, trying alternative endpoint');
+                console.log('💬 API Service: Error details:', error.response?.data || error.message);
+
+                // Only use fallback if the primary endpoint truly failed (not just a validation error)
+                if (error.response?.status >= 500 || !error.response) {
+                    // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
+                    const response = await api.post('/notifications/emergency-alert', {
+                        message: `Driver Message: ${message}`,
+                        type: 'driver_message',
+                        preventDuplicate: true // Flag to prevent backend from sending duplicate socket events
+                    });
+                    console.log('💬 API Service: Fallback response:', response.data);
+                    return response.data;
+                } else {
+                    // If it's a client error (4xx), don't use fallback
+                    throw error;
+                }
+            }
+        });
     }
 
     async sendMessageToDriver(driverId, message) {
@@ -577,14 +933,22 @@ class ApiService {
         } catch (error) {
             console.log('💬 API Service: Send message failed, trying alternative endpoint');
             console.log('💬 API Service: Error details:', error.response?.data || error.message);
-            // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
-            const response = await api.post('/notifications/emergency-alert', {
-                message: `Admin Message to Driver: ${message}`,
-                driverId: driverId,
-                type: 'admin_message'
-            });
-            console.log('💬 API Service: Fallback response:', response.data);
-            return response.data;
+
+            // Only use fallback if the primary endpoint truly failed (not just a validation error)
+            if (error.response?.status >= 500 || !error.response) {
+                // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
+                const response = await api.post('/notifications/emergency-alert', {
+                    message: `Admin Message to Driver: ${message}`,
+                    driverId: driverId,
+                    type: 'admin_message',
+                    preventDuplicate: true // Flag to prevent backend from sending duplicate socket events
+                });
+                console.log('💬 API Service: Fallback response:', response.data);
+                return response.data;
+            } else {
+                // If it's a client error (4xx), don't use fallback
+                throw error;
+            }
         }
     }
 
@@ -600,14 +964,22 @@ class ApiService {
         } catch (error) {
             console.log('📢 API Service: System notification failed, trying alternative endpoint');
             console.log('📢 API Service: Error details:', error.response?.data || error.message);
-            // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
-            const response = await api.post('/notifications/emergency-alert', {
-                message: `System Notification: ${message}`,
-                type: 'system_notification',
-                priority: priority
-            });
-            console.log('📢 API Service: Fallback response:', response.data);
-            return response.data;
+
+            // Only use fallback if the primary endpoint truly failed (not just a validation error)
+            if (error.response?.status >= 500 || !error.response) {
+                // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
+                const response = await api.post('/notifications/emergency-alert', {
+                    message: `System Notification: ${message}`,
+                    type: 'system_notification',
+                    priority: priority,
+                    preventDuplicate: true // Flag to prevent backend from sending duplicate socket events
+                });
+                console.log('📢 API Service: Fallback response:', response.data);
+                return response.data;
+            } else {
+                // If it's a client error (4xx), don't use fallback
+                throw error;
+            }
         }
     }
 
@@ -643,9 +1015,9 @@ class ApiService {
     async verifyDocument(documentId, rejectionReason = null) {
         console.log('📄 API Service: Updating document status:', documentId, 'with reason:', rejectionReason);
 
+        // Send the correct format that the backend expects
         const requestBody = {
-            isVerified: !rejectionReason,
-            isRejected: !!rejectionReason
+            status: rejectionReason ? 'rejected' : 'verified'
         };
 
         if (rejectionReason) {
@@ -653,7 +1025,14 @@ class ApiService {
         }
 
         try {
-            const response = await api.put(`/admin/documents/${documentId}/status`, requestBody);
+            // Extract driverId and documentType from documentId (format: "driverId_documentType")
+            const [driverId, documentType] = documentId.split('_');
+
+            if (!driverId || !documentType) {
+                throw new Error('Invalid document ID format. Expected: "driverId_documentType"');
+            }
+
+            const response = await api.put(`/admin/drivers/${driverId}/documents/${documentType}`, requestBody);
             console.log('📄 API Service: Update document status response:', response.data);
             return response.data;
         } catch (error) {
@@ -1016,6 +1395,17 @@ class ApiService {
         console.log('💰 API Service: Getting payment structure');
         const response = await api.get('/admin/remittances/payment-structure');
         console.log('💰 API Service: Payment structure response:', response.data);
+        return response.data;
+    }
+
+    async calculateDriverRemittance(driverId, startDate, endDate) {
+        if (!driverId) {
+            console.error('💰 API Service: No driverId provided for remittance calculation');
+            throw new Error('Driver ID is required');
+        }
+        console.log('💰 API Service: Calculating driver remittance for:', driverId, 'from', startDate, 'to', endDate);
+        const response = await api.get(`/admin/remittances/calculate/${driverId}?startDate=${startDate}&endDate=${endDate}`);
+        console.log('💰 API Service: Driver remittance calculation response:', response.data);
         return response.data;
     }
 
@@ -1416,9 +1806,103 @@ class ApiService {
         return response.data;
     }
 
+    // Referral Rewards System endpoints
+    async getReferralRewardsConfiguration() {
+        const response = await api.get('/referral-rewards/configuration');
+        return response.data;
+    }
+
+    async getReferralRewardsStats() {
+        const response = await api.get('/referral-rewards/stats');
+        return response.data;
+    }
+
+    async getReferralRewardsProfitabilityAnalysis() {
+        const response = await api.get('/referral-rewards/admin/profitability-analysis');
+        return response.data;
+    }
+
+    async getReferralRewardsLeaderboard(month = null, year = null) {
+        let url = '/referral-rewards/admin/leaderboard/monthly';
+        if (month && year) {
+            url += `?month=${month}&year=${year}`;
+        }
+        const response = await api.get(url);
+        return response.data;
+    }
+
+    // Admin referral rewards management
+    async createReferralRewardsConfiguration(config) {
+        const response = await api.post('/referral-rewards/admin/configurations', config);
+        return response.data;
+    }
+
+    async updateReferralRewardsConfigurationStatus(configId, status) {
+        const response = await api.put(`/referral-rewards/admin/configurations/${configId}/status`, { status });
+        return response.data;
+    }
+
     // Public referral endpoints
     async getReferralLeaderboard(limit = 10) {
+        console.log('🏆 API Service: Getting referral leaderboard with limit:', limit);
         const response = await api.get(`/referral/leaderboard?limit=${limit}`);
+        console.log('🏆 API Service: Referral leaderboard response:', response.data);
+        return response.data;
+    }
+
+    // Leaderboard API endpoints
+    async getLeaderboard(category = 'overall', period = 'month', limit = 20) {
+        console.log('🏆 API Service: Getting leaderboard for category:', category, 'period:', period, 'limit:', limit);
+
+        // Map frontend period values to backend expected values (consistent with dashboardService)
+        const periodMapping = {
+            'today': 'today',
+            'thisWeek': 'thisWeek',
+            'currentPeriod': 'month',  // Map currentPeriod to month
+            'thisMonth': 'thisMonth',
+            'month': 'month', // Frontend now uses 'month' directly
+            'allTime': 'allTime'
+        };
+
+        const mappedPeriod = periodMapping[period] || 'month';
+        console.log('🏆 API Service: Mapped period:', period, 'to:', mappedPeriod);
+
+        // Use the real backend endpoint
+        console.log('🏆 API Service: Calling real leaderboard endpoint');
+        const response = await api.get(`/admin/leaderboard?category=${category}&period=${mappedPeriod}&limit=${limit}`);
+        console.log('🏆 API Service: Leaderboard response:', response.data);
+        return response.data;
+    }
+
+    // Calculate points based on category
+    calculatePoints(driver, category) {
+        switch (category) {
+            case 'overall':
+                return (driver.totalDeliveries * 10) +
+                    (driver.totalEarnings * 0.1) +
+                    (driver.rating * 10) +
+                    (driver.totalReferrals * 20);
+            case 'delivery':
+                return driver.totalDeliveries * 10;
+            case 'earnings':
+                return driver.totalEarnings * 0.1;
+            case 'referrals':
+                return driver.totalReferrals * 20;
+            case 'rating':
+                return driver.rating * 10;
+            case 'speed':
+                return driver.avgDeliveryTime ? (100 - driver.avgDeliveryTime) : 50;
+            default:
+                return (driver.totalDeliveries * 10) + (driver.totalEarnings * 0.1);
+        }
+    }
+
+    async getLeaderboardCategories() {
+        console.log('🏆 API Service: Getting leaderboard categories');
+
+        // Use the real backend endpoint
+        const response = await api.get('/admin/leaderboard/categories');
+        console.log('🏆 API Service: Leaderboard categories response:', response.data);
         return response.data;
     }
 
@@ -1439,6 +1923,45 @@ class ApiService {
 
     async cancelReferral(referralId) {
         const response = await api.put(`/referral/admin/referrals/${referralId}/cancel`);
+        return response.data;
+    }
+
+    // Driver-specific leaderboard methods
+    async getDriverLeaderboard(category = 'overall', period = 'month', limit = 10) {
+        console.log('🏆 Driver API Service: Getting driver leaderboard for category:', category, 'period:', period, 'limit:', limit);
+
+        // Check if we have a token
+        const token = localStorage.getItem('token');
+        console.log('🏆 Driver API Service: Token available:', !!token);
+
+        // Use the same period mapping as admin leaderboard for consistency
+        const periodMapping = {
+            'today': 'today',
+            'thisWeek': 'thisWeek',
+            'currentPeriod': 'month',  // Map currentPeriod to month
+            'thisMonth': 'thisMonth',
+            'month': 'month',
+            'allTime': 'allTime'
+        };
+        const mappedPeriod = periodMapping[period] || 'month';
+        console.log('🏆 Driver API Service: Mapped period:', period, 'to:', mappedPeriod);
+
+        console.log('🏆 Driver API Service: Calling driver leaderboard endpoint');
+        try {
+            const response = await api.get(`/driver/leaderboard?category=${category}&period=${mappedPeriod}&limit=${limit}`);
+            console.log('🏆 Driver API Service: Driver leaderboard response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('🏆 Driver API Service: Error calling driver leaderboard:', error);
+            console.error('🏆 Driver API Service: Error response:', error.response?.data);
+            throw error;
+        }
+    }
+
+    async getDriverLeaderboardCategories() {
+        console.log('🏆 Driver API Service: Getting driver leaderboard categories');
+        const response = await api.get('/driver/leaderboard/categories');
+        console.log('🏆 Driver API Service: Driver leaderboard categories response:', response.data);
         return response.data;
     }
 }

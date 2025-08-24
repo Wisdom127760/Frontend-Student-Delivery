@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { StatCardSkeleton, RemittanceItemSkeleton } from '../../components/common/SkeletonLoader';
 import apiService from '../../services/api';
 import Pagination from '../../components/common/Pagination';
+import RemittanceDetailsModal from '../../components/common/RemittanceDetailsModal';
 import { useSystemSettings } from '../../context/SystemSettingsContext';
 import {
     CurrencyDollarIcon,
@@ -26,6 +27,8 @@ const RemittancePage = () => {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [showRequestModal, setShowRequestModal] = useState(false);
+    const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [selectedRemittance, setSelectedRemittance] = useState(null);
     const [requestAmount, setRequestAmount] = useState('');
     const [filters, setFilters] = useState({
         status: ''
@@ -146,6 +149,16 @@ const RemittancePage = () => {
         }
     };
 
+    const handleViewRemittance = (remittance) => {
+        setSelectedRemittance(remittance);
+        setShowDetailsModal(true);
+    };
+
+    const handleCloseDetailsModal = () => {
+        setShowDetailsModal(false);
+        setSelectedRemittance(null);
+    };
+
     // Status helpers
     const getStatusConfig = (status) => {
         const configs = {
@@ -228,6 +241,13 @@ const RemittancePage = () => {
 
     return (
         <>
+            {/* Remittance Details Modal */}
+            <RemittanceDetailsModal
+                isOpen={showDetailsModal}
+                onClose={handleCloseDetailsModal}
+                remittance={selectedRemittance}
+            />
+
             <div className="min-h-screen bg-gray-50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     {/* Header */}
@@ -363,16 +383,16 @@ const RemittancePage = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {paginatedRemittances.map((remittance) => {
+                                        {paginatedRemittances.map((remittance, index) => {
                                             const statusConfig = getStatusConfig(remittance.status);
                                             const StatusIcon = statusConfig.icon;
 
                                             return (
-                                                <tr key={remittance.id} className="hover:bg-gray-50">
+                                                <tr key={remittance._id || remittance.id || remittance.referenceNumber || remittance.reference || `remittance-${index}`} className="hover:bg-gray-50">
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div>
                                                             <div className="text-sm font-medium text-gray-900">
-                                                                {remittance.reference}
+                                                                {remittance.referenceNumber || remittance.reference || 'N/A'}
                                                             </div>
                                                             <div className="text-xs text-gray-500">
                                                                 {remittance.description}
@@ -391,20 +411,24 @@ const RemittancePage = () => {
                                                         </span>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                                        {remittance.method === 'bank_transfer' ? 'Bank Transfer' :
-                                                            remittance.method === 'mobile_money' ? 'Mobile Money' :
-                                                                'Other'}
+                                                        {remittance.paymentMethod === 'bank_transfer' ? 'Bank Transfer' :
+                                                            remittance.paymentMethod === 'mobile_money' ? 'Mobile Money' :
+                                                                remittance.paymentMethod === 'cash' ? 'Cash' :
+                                                                    'Other'}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <div className="text-sm text-gray-900">
-                                                            {new Date(remittance.requestDate).toLocaleDateString()}
+                                                            {remittance.createdAt ? new Date(remittance.createdAt).toLocaleDateString() : 'N/A'}
                                                         </div>
                                                         <div className="text-xs text-gray-500">
-                                                            {new Date(remittance.requestDate).toLocaleTimeString()}
+                                                            {remittance.createdAt ? new Date(remittance.createdAt).toLocaleTimeString() : 'N/A'}
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                                        <button className="text-green-600 hover:text-green-900 flex items-center">
+                                                        <button
+                                                            onClick={() => handleViewRemittance(remittance)}
+                                                            className="text-green-600 hover:text-green-900 flex items-center"
+                                                        >
                                                             <EyeIcon className="w-4 h-4 mr-1" />
                                                             View
                                                         </button>

@@ -5,7 +5,7 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api
 export const getProfile = async (userId) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/profile/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/auth/profile/${userId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -25,7 +25,7 @@ export const getProfile = async (userId) => {
 export const updateProfile = async (userId, profileData) => {
   try {
     const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/profile/${userId}`, {
+    const response = await fetch(`${API_BASE_URL}/auth/profile/${userId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -50,7 +50,7 @@ export const uploadProfileImage = async (userId, imageFile) => {
     const formData = new FormData();
     formData.append('profilePicture', imageFile);
 
-    const response = await fetch(`${API_BASE_URL}/profile/${userId}/image`, {
+    const response = await fetch(`${API_BASE_URL}/auth/profile/${userId}/image`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`

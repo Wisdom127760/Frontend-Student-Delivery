@@ -61,22 +61,10 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             acceptedTypes: 'image/*', // Changed: Only images allowed
             fileTypeHint: 'JPEG, PNG, or WebP image'
         },
-        {
-            key: 'transportationLicense',
-            label: 'Transportation License',
-            description: 'Upload your driver\'s license (required for car/motorcycle)',
-            required: false,
-            icon: TruckIcon,
-            acceptedTypes: 'image/*', // Changed: Only images allowed
-            fileTypeHint: 'JPEG, PNG, or WebP image'
-        }
+
     ];
 
-    // Check if transportation license is required based on user's transportation method
-    const isTransportationLicenseRequired = () => {
-        const transportationMethod = user?.profile?.transportation?.method;
-        return ['car', 'motorcycle'].includes(transportationMethod);
-    };
+
 
     // Handle AI verification completion
     const handleAIVerificationComplete = (documentType, result) => {
@@ -133,7 +121,7 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                 }
 
                 const formData = new FormData();
-                formData.append('profilePicture', fileToUpload);
+                formData.append('file', fileToUpload);
 
                 const response = await apiService.uploadDriverDocument(documentType, formData);
 
@@ -247,14 +235,15 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
             }
 
             const formData = new FormData();
-            formData.append('profilePicture', fileToUpload); // Backend expects 'profilePicture' field
+            formData.append('file', fileToUpload); // Backend expects 'file' field
 
             console.log(`📤 Uploading ${documentType} document...`);
             console.log('📋 FormData contents:', {
-                hasProfilePicture: formData.has('profilePicture'),
-                documentName: fileToUpload.name,
-                documentSize: fileToUpload.size,
-                documentType: fileToUpload.type,
+                hasFile: formData.has('file'),
+                fileName: fileToUpload.name,
+                fileSize: fileToUpload.size,
+                fileType: fileToUpload.type,
+                documentType: documentType,
                 uploadEndpoint: `/driver/documents/${documentType}/upload`
             });
 
@@ -348,60 +337,58 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
     };
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                <div className="flex items-center justify-between mb-6">
+        <div className="space-y-4 sm:space-y-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4 sm:mb-6 space-y-4 lg:space-y-0">
                     <div>
-                        <h3 className="text-lg font-semibold text-gray-900">Document Verification</h3>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <h3 className="text-base sm:text-lg font-semibold text-gray-900">Document Verification</h3>
+                        <p className="text-xs sm:text-sm text-gray-600 mt-1">
                             Upload required documents to complete your verification
                         </p>
                     </div>
-                    <div className="text-right">
-                        <div className="flex items-center space-x-4">
-                            {/* AI Verification Toggle */}
-                            <div className="flex items-center space-x-2">
-                                <SparklesIcon className="w-5 h-5 text-purple-600" />
-                                <label className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={showAiVerification}
-                                        onChange={(e) => setShowAiVerification(e.target.checked)}
-                                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                                    />
-                                    <span className="text-sm font-medium text-gray-700">AI Verification</span>
-                                </label>
-                            </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center space-y-3 sm:space-y-0 sm:space-x-4">
+                        {/* AI Verification Toggle */}
+                        <div className="flex items-center space-x-2">
+                            <SparklesIcon className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
+                            <label className="flex items-center space-x-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={showAiVerification}
+                                    onChange={(e) => setShowAiVerification(e.target.checked)}
+                                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                                />
+                                <span className="text-xs sm:text-sm font-medium text-gray-700">AI Verification</span>
+                            </label>
+                        </div>
 
-                            {/* Upload All Button */}
-                            {Object.keys(selectedFiles).filter(key => selectedFiles[key]).length > 0 && (
-                                <button
-                                    onClick={handleUploadAll}
-                                    disabled={uploadingAll}
-                                    className="px-6 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-                                >
-                                    {uploadingAll ? (
-                                        <>
-                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                            <span>Uploading All...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <DocumentArrowUpIcon className="w-4 h-4" />
-                                            <span>Upload All ({Object.keys(selectedFiles).filter(key => selectedFiles[key]).length})</span>
-                                        </>
-                                    )}
-                                </button>
-                            )}
+                        {/* Upload All Button */}
+                        {Object.keys(selectedFiles).filter(key => selectedFiles[key]).length > 0 && (
+                            <button
+                                onClick={handleUploadAll}
+                                disabled={uploadingAll}
+                                className="px-4 sm:px-6 py-2 bg-green-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 w-full sm:w-auto"
+                            >
+                                {uploadingAll ? (
+                                    <>
+                                        <div className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <span>Uploading All...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <DocumentArrowUpIcon className="w-3 h-3 sm:w-4 sm:h-4" />
+                                        <span>Upload All ({Object.keys(selectedFiles).filter(key => selectedFiles[key]).length})</span>
+                                    </>
+                                )}
+                            </button>
+                        )}
 
-                            {/* Document Count */}
-                            <div>
-                                <p className="text-sm text-gray-600">Documents Verified</p>
-                                <p className="text-2xl font-bold text-green-600">
-                                    {Object.values(documents).filter(doc => doc?.status === 'verified').length}/
-                                    {documentTypes.filter(doc => doc.required || (doc.key === 'transportationLicense' && isTransportationLicenseRequired())).length}
-                                </p>
-                            </div>
+                        {/* Document Count */}
+                        <div className="text-center sm:text-right">
+                            <p className="text-xs sm:text-sm text-gray-600">Documents Verified</p>
+                            <p className="text-xl sm:text-2xl font-bold text-green-600">
+                                {Object.values(documents).filter(doc => doc?.status === 'verified').length}/
+                                {documentTypes.filter(doc => doc.required).length}
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -409,7 +396,7 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                 <div className="space-y-4">
                     {documentTypes.map((docType) => {
                         // Skip transportation license if not required
-                        if (docType.key === 'transportationLicense' && !isTransportationLicenseRequired()) {
+                        if (false) { // Removed transportation license logic
                             return null;
                         }
 
@@ -420,29 +407,31 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                         const IconComponent = docType.icon;
 
                         return (
-                            <div key={docType.key} className="border border-gray-200 rounded-lg p-4">
-                                <div className="flex items-start justify-between">
+                            <div key={docType.key} className="border border-gray-200 rounded-lg p-3 sm:p-4">
+                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between space-y-3 sm:space-y-0">
                                     <div className="flex items-start space-x-3 flex-1">
-                                        <div className="p-2 bg-gray-100 rounded-lg">
-                                            <IconComponent className="w-5 h-5 text-gray-600" />
+                                        <div className="p-1.5 sm:p-2 bg-gray-100 rounded-lg flex-shrink-0">
+                                            <IconComponent className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="flex items-center space-x-2 mb-1">
-                                                <h4 className="font-medium text-gray-900">{docType.label}</h4>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex flex-col sm:flex-row sm:items-center space-y-1 sm:space-y-0 sm:space-x-2 mb-1">
+                                                <h4 className="font-medium text-gray-900 text-sm sm:text-base">{docType.label}</h4>
                                                 {docType.required && (
-                                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full">
+                                                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full self-start">
                                                         Required
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-sm text-gray-600 mb-2">{docType.description}</p>
+                                            <p className="text-xs sm:text-sm text-gray-600 mb-2">{docType.description}</p>
 
                                             {/* Status Display */}
-                                            <div className="flex items-center space-x-2 mb-3">
-                                                {getStatusIcon(status)}
-                                                <span className={`text-sm px-2 py-1 rounded-full border ${getStatusColor(status)}`}>
-                                                    {getStatusText(status)}
-                                                </span>
+                                            <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-2 mb-3">
+                                                <div className="flex items-center space-x-2">
+                                                    {getStatusIcon(status)}
+                                                    <span className={`text-xs sm:text-sm px-2 py-0.5 sm:py-1 rounded-full border ${getStatusColor(status)}`}>
+                                                        {getStatusText(status)}
+                                                    </span>
+                                                </div>
                                                 {document?.uploadDate && (
                                                     <span className="text-xs text-gray-500">
                                                         Uploaded: {new Date(document.uploadDate).toLocaleDateString()}
@@ -452,8 +441,8 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
 
                                             {/* Rejection Reason */}
                                             {status === 'rejected' && document?.rejectionReason && (
-                                                <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
-                                                    <p className="text-sm text-red-700">
+                                                <div className="bg-red-50 border border-red-200 rounded-lg p-2 sm:p-3 mb-3">
+                                                    <p className="text-xs sm:text-sm text-red-700">
                                                         <strong>Rejection Reason:</strong> {document.rejectionReason}
                                                     </p>
                                                 </div>
@@ -461,23 +450,23 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
 
                                             {/* Upload Section - Show if not verified */}
                                             {status !== 'verified' && (
-                                                <div className="space-y-3">
-                                                    <div className="flex items-center space-x-3">
+                                                <div className="space-y-2 sm:space-y-3">
+                                                    <div className="flex flex-col space-y-2">
                                                         <input
                                                             type="file"
                                                             accept="image/*"
                                                             onChange={(e) => handleFileSelect(docType.key, e)}
-                                                            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                                                            className="block w-full text-xs sm:text-sm text-gray-500 file:mr-2 sm:file:mr-4 file:py-1.5 sm:file:py-2 file:px-2 sm:file:px-4 file:rounded-lg file:border-0 file:text-xs sm:file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
                                                             disabled={isUploading}
                                                         />
                                                     </div>
                                                     {hasSelectedFile && (
-                                                        <div className="flex items-center justify-between">
-                                                            <p className="text-xs text-gray-600">
+                                                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-1 sm:space-y-0">
+                                                            <p className="text-xs text-gray-600 truncate">
                                                                 Selected: {selectedFiles[docType.key]?.name}
                                                                 ({(selectedFiles[docType.key]?.size / 1024 / 1024).toFixed(2)} MB)
                                                             </p>
-                                                            <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                                            <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full self-start sm:self-auto">
                                                                 Ready to upload
                                                             </span>
                                                         </div>
@@ -490,9 +479,9 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
 
                                             {/* Success Message */}
                                             {status === 'verified' && (
-                                                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                                    <p className="text-sm text-green-700 flex items-center space-x-2">
-                                                        <CheckCircleIcon className="w-4 h-4" />
+                                                <div className="bg-green-50 border border-green-200 rounded-lg p-2 sm:p-3">
+                                                    <p className="text-xs sm:text-sm text-green-700 flex items-center space-x-2">
+                                                        <CheckCircleIcon className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
                                                         <span>Document verified successfully!</span>
                                                     </p>
                                                 </div>
@@ -518,12 +507,12 @@ const DocumentUpload = ({ documents = {}, onDocumentUploaded, user }) => {
                 </div>
 
                 {/* Help Text */}
-                <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-start space-x-2">
-                        <ExclamationTriangleIcon className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <ExclamationTriangleIcon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 mt-0.5 flex-shrink-0" />
                         <div>
-                            <p className="text-sm font-medium text-blue-800 mb-1">Document Upload Guidelines</p>
-                            <ul className="text-xs text-blue-700 space-y-1">
+                            <p className="text-xs sm:text-sm font-medium text-blue-800 mb-1 sm:mb-2">Document Upload Guidelines</p>
+                            <ul className="text-xs text-blue-700 space-y-0.5 sm:space-y-1">
                                 <li>• <strong>Accepted formats:</strong> JPEG, PNG, WebP images only</li>
                                 <li>• <strong>Not accepted:</strong> PDF files are not supported</li>
                                 <li>• <strong>Maximum file size:</strong> 5MB per document</li>

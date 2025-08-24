@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { capitalizeName } from '../../utils/nameUtils';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -276,7 +277,7 @@ const EnhancedAdminDashboard = () => {
                                                     <span className="text-sm font-bold text-green-600">#{index + 1}</span>
                                                 </div>
                                                 <div>
-                                                    <p className="font-medium text-gray-900">{driver.name}</p>
+                                                    <p className="font-medium text-gray-900">{capitalizeName(driver.name)}</p>
                                                     <p className="text-sm text-gray-600">{driver.email}</p>
                                                 </div>
                                             </div>
