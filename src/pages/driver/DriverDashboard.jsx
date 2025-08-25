@@ -13,8 +13,7 @@ import {
     CheckCircleIcon,
     StarIcon,
     FunnelIcon,
-    MegaphoneIcon,
-    UserGroupIcon
+    MegaphoneIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 
@@ -32,8 +31,6 @@ const DashboardContent = () => {
     const [loading, setLoading] = useState(true);
     const [selectedPeriod, setSelectedPeriod] = useState('today');
     const [dashboardData, setDashboardData] = useState(null);
-    const [referralData, setReferralData] = useState(null);
-    const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
 
     // Debug user object structure
     useEffect(() => {
@@ -59,7 +56,6 @@ const DashboardContent = () => {
                 console.log('📊 Received real-time dashboard update:', data);
                 if (data.period === selectedPeriod) {
                     setDashboardData(data.dashboardData);
-                    setIsWebSocketConnected(true);
                 }
             });
 
@@ -150,7 +146,6 @@ const DashboardContent = () => {
                 }
             } else {
                 console.log('📊 Dashboard data requested via WebSocket');
-                setIsWebSocketConnected(true);
 
                 // Add a timeout fallback in case WebSocket doesn't respond
                 setTimeout(async () => {
@@ -190,31 +185,7 @@ const DashboardContent = () => {
         }
     }, [selectedPeriod]);
 
-    // Load referral data
-    const loadReferralData = useCallback(async () => {
-        try {
-            const user = JSON.parse(localStorage.getItem('user') || '{}');
-            const driverId = user._id || user.id;
 
-            if (!driverId) {
-                console.warn('⚠️ No driver ID found for referral data');
-                return;
-            }
-
-            console.log('🎯 Loading referral data for driver:', driverId);
-            const response = await apiService.getDriverReferralCode(driverId);
-
-            if (response.success) {
-                setReferralData(response.data);
-                console.log('✅ Referral data loaded:', response.data);
-            } else {
-                console.warn('⚠️ Failed to load referral data:', response);
-            }
-        } catch (error) {
-            console.error('❌ Error loading referral data:', error);
-            // Don't show error toast for referral data as it's not critical
-        }
-    }, []);
 
     // Period change handler
     const handlePeriodChange = (period) => {
@@ -237,9 +208,6 @@ const DashboardContent = () => {
     }, [selectedPeriod, loadDashboardData]);
 
     useEffect(() => {
-        // Only load referral data on mount (dashboard data is loaded by period change effect)
-        loadReferralData();
-
         // Subscribe to WebSocket dashboard data updates
         const unsubscribe = dashboardWebSocketService.subscribe('dashboard-data-response', (data) => {
             console.log('📊 Received dashboard data via WebSocket:', data);
@@ -255,7 +223,7 @@ const DashboardContent = () => {
             unsubscribe();
             clearInterval(interval);
         };
-    }, [loadReferralData]); // Removed loadDashboardData dependency to avoid conflicts
+    }, [loadDashboardData]); // Added loadDashboardData dependency back
 
     // Get current period data based on selected filter
     const getCurrentPeriodData = () => {

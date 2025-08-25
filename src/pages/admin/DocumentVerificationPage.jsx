@@ -5,6 +5,7 @@ import { isDriverVerified } from '../../utils/verificationHelpers';
 import Pagination from '../../components/common/Pagination';
 import DocumentSkeleton from '../../components/common/DocumentSkeleton';
 import toast from 'react-hot-toast';
+import Button from '../../components/ui/Button';
 import {
     DocumentMagnifyingGlassIcon,
     ArrowPathIcon,
@@ -858,40 +859,32 @@ const DocumentVerificationPage = () => {
                                     </button>
                                     {selectedDocument.status === 'pending' && (
                                         <>
-                                            <button
+                                            <Button
                                                 onClick={() => {
                                                     handleVerifyDocument(selectedDocument._id || selectedDocument.id);
                                                     setShowDocumentModal(false);
                                                 }}
-                                                disabled={processingAction === (selectedDocument._id || selectedDocument.id)}
-                                                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+                                                loading={processingAction === (selectedDocument._id || selectedDocument.id)}
+                                                loadingText="Verifying..."
+                                                variant="primary"
+                                                size="sm"
+                                                className="px-4 py-2"
                                             >
-                                                {processingAction === (selectedDocument._id || selectedDocument.id) ? (
-                                                    <div className="flex items-center">
-                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                        Verifying...
-                                                    </div>
-                                                ) : (
-                                                    'Verify Document'
-                                                )}
-                                            </button>
-                                            <button
+                                                Verify Document
+                                            </Button>
+                                            <Button
                                                 onClick={() => {
                                                     handleRejectDocument(selectedDocument._id || selectedDocument.id, 'Document rejected');
                                                     setShowDocumentModal(false);
                                                 }}
-                                                disabled={processingAction === (selectedDocument._id || selectedDocument.id)}
-                                                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                                                loading={processingAction === (selectedDocument._id || selectedDocument.id)}
+                                                loadingText="Rejecting..."
+                                                variant="danger"
+                                                size="sm"
+                                                className="px-4 py-2"
                                             >
-                                                {processingAction === (selectedDocument._id || selectedDocument.id) ? (
-                                                    <div className="flex items-center">
-                                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                                        Rejecting...
-                                                    </div>
-                                                ) : (
-                                                    'Reject Document'
-                                                )}
-                                            </button>
+                                                Reject Document
+                                            </Button>
                                             <button
                                                 onClick={() => {
                                                     // TODO: Implement AI verification

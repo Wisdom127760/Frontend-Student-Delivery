@@ -38,6 +38,7 @@ import NotificationsPage from './pages/driver/NotificationsPage';
 import BroadcastPage from './pages/driver/BroadcastPage';
 import DriverActivationPage from './pages/DriverActivationPage';
 import NotFoundPage from './components/common/NotFoundPage';
+
 import './index.css';
 
 // Create a client
@@ -85,6 +86,7 @@ function App() {
                           </div>
                         </div>
                       } />
+
                       <Route path="/admin" element={
                         <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                           <AdminLayout>

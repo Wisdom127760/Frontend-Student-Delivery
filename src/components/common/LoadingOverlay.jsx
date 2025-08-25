@@ -1,12 +1,14 @@
 import React from 'react';
 import LoadingSpinner from './LoadingSpinner';
+import LottieLoader from './LottieLoader';
 
 const LoadingOverlay = ({
     isVisible = false,
     message = "Loading...",
     size = 'lg',
     backdrop = true,
-    className = ''
+    className = '',
+    useLottie = false
 }) => {
     if (!isVisible) return null;
 
@@ -24,11 +26,17 @@ const LoadingOverlay = ({
                 transition-all duration-300 ease-in-out
                 loading-scale-in
             ">
-                <LoadingSpinner size={size} color="green" />
-                {message && (
-                    <p className="text-gray-600 text-center font-medium loading-fade-in">
-                        {message}
-                    </p>
+                {useLottie ? (
+                    <LottieLoader size={size} showText={true} text={message} />
+                ) : (
+                    <>
+                        <LoadingSpinner size={size} color="green" />
+                        {message && (
+                            <p className="text-gray-600 text-center font-medium loading-fade-in">
+                                {message}
+                            </p>
+                        )}
+                    </>
                 )}
             </div>
         </div>

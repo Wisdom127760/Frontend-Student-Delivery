@@ -17,6 +17,21 @@ export const isDriverVerified = (driver) => {
         return true;
     }
 
+    // Check if driver has isVerified field
+    if (driver.isVerified === true) {
+        return true;
+    }
+
+    // Check if driver has verified field
+    if (driver.verified === true) {
+        return true;
+    }
+
+    // Check if driver has status field
+    if (driver.status === 'verified' || driver.status === 'active') {
+        return true;
+    }
+
     // Check individual verification fields
     const emailVerified = driver.isEmailVerified || driver.verification?.email;
     const documentsVerified = driver.isDocumentVerified ||
@@ -25,7 +40,16 @@ export const isDriverVerified = (driver) => {
             driver.documents?.universityEnrollment?.status === 'verified' &&
             driver.documents?.identityCard?.status === 'verified');
 
-    return emailVerified && documentsVerified;
+    if (emailVerified && documentsVerified) {
+        return true;
+    }
+
+    // Check if profile completion is 100%
+    if (driver.profileCompletion === 100 || driver.profileComplete === true) {
+        return true;
+    }
+
+    return false;
 };
 
 /**

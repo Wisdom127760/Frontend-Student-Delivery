@@ -1,17 +1,93 @@
-import React, { useState } from 'react';
-import { Mail, User, Truck, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, User, Truck, AlertCircle, ChevronLeft, ChevronRight, Instagram, Phone } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import LoadingSpinner from '../components/common/LoadingSpinner';
+import Button from '../components/ui/Button';
 
 const LoginPage = () => {
     const [email, setEmail] = useState('');
     const [userType, setUserType] = useState('admin');
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
+    const [currentAdIndex, setCurrentAdIndex] = useState(0);
     const { sendOTP } = useAuth();
     const navigate = useNavigate();
+
+    // Enhanced advertisement data with better messaging
+    const advertisements = [
+        {
+            id: 1,
+            title: "Earn While You Study",
+            subtitle: "GREEP DELIVERY",
+            description: "Flexible hours, competitive pay, and the freedom to work around your class schedule. Perfect for students who want to earn money while pursuing their education.",
+            image: "/Greep pay Carosel.png",
+            requirements: [
+                "Flexible schedule to work around classes",
+                "Reliable transportation method"
+            ],
+            cta: "Start earning today with flexible delivery opportunities!",
+            contact: {
+                instagram: "@greepit",
+                phone: "+90 533 832 97 85"
+            }
+        },
+        {
+            id: 2,
+            title: "Student Delivery Service",
+            subtitle: "GREEP DELIVERY",
+            description: "Looking for a way to work and make extra money on the side? Do you have a means of transportation (bicycle, scooter, e.t.c)? If you answered yes to all of these, we have something just for you!",
+            image: "/Greep pay Carosel.png",
+            requirements: [
+                "Must be a registered student at any university",
+                "Must have a means of transportation"
+            ],
+            cta: "Join our student delivery service today!",
+            contact: {
+                instagram: "@greepit",
+                phone: "+90 533 832 97 85"
+            }
+        },
+        {
+            id: 3,
+            title: "Join Our Growing Team",
+            subtitle: "GREEP DELIVERY",
+            description: "Be part of a community of student drivers who are making a difference in their communities while earning money for their education.",
+            image: "/Greep pay Carosel.png",
+            requirements: [
+                "Student status at any university",
+                "Valid transportation (bike, scooter, car)"
+            ],
+            cta: "Join our community of successful student drivers!",
+            contact: {
+                instagram: "@greepit",
+                phone: "+90 533 832 97 85"
+            }
+        }
+    ];
+
+    // Auto-advance carousel
+    useEffect(() => {
+        const interval = setInterval(() => {
+            setCurrentAdIndex((prev) => (prev + 1) % advertisements.length);
+        }, 5000); // Change ad every 5 seconds
+
+        return () => clearInterval(interval);
+    }, [advertisements.length]);
+
+    // Manual navigation
+    const goToAd = (index) => {
+        setCurrentAdIndex(index);
+    };
+
+    const nextAd = () => {
+        setCurrentAdIndex((prev) => (prev + 1) % advertisements.length);
+    };
+
+    const prevAd = () => {
+        setCurrentAdIndex((prev) => (prev - 1 + advertisements.length) % advertisements.length);
+    };
 
     // Email validation function
     const validateEmail = (email) => {
@@ -256,161 +332,257 @@ const LoginPage = () => {
         }
     };
 
+    const currentAd = advertisements[currentAdIndex];
+
     return (
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-            <div className="w-full max-w-md">
+        <div className="min-h-screen flex">
+            {/* Left Side - Advertisement Carousel */}
+            <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-green-800 to-green-900 relative overflow-hidden">
+                {/* Carousel Container */}
+                <div className="relative w-full h-full">
+                    {/* Background Image */}
+                    <div
+                        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+                        style={{
+                            backgroundImage: `url(${currentAd.image})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center'
+                        }}
+                    >
+                        {/* Enhanced overlay for better text readability */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/30 to-black/60"></div>
+                    </div>
 
-                {/* Header */}
-                <div className="text-center mb-8">
-                    <img
-                        src="/White.png"
-                        alt="Logo"
-                        className="w-12 h-12 mx-auto mb-4 rounded-lg shadow-sm"
-                    />
-                    <h1 className="text-2xl font-bold text-gray-900">Student Delivery</h1>
-                    <p className="text-gray-600 mt-1">Sign in to continue</p>
-                </div>
-
-                {/* Form */}
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <form onSubmit={handleSubmit} className="space-y-4">
-
-                        {/* Email */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Email
-                            </label>
-                            <div className="relative">
-                                <Mail className={`absolute left-3 top-3 h-4 w-4 ${errors.email ? 'text-red-400' : 'text-gray-400'}`} />
-                                <input
-                                    type="email"
-                                    value={email}
-                                    onChange={handleEmailChange}
-                                    placeholder="your@email.com"
-                                    className={`w-full pl-10 pr-3 py-2.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${errors.email
-                                        ? 'border-red-300 focus:ring-red-500'
-                                        : 'border-gray-300'
-                                        }`}
-                                />
-                            </div>
-                            {errors.email && (
-                                <div className="flex items-center mt-1 text-sm text-red-600">
-                                    <AlertCircle className="w-4 h-4 mr-1" />
-                                    {errors.email}
-                                </div>
-                            )}
+                    {/* Content */}
+                    <div className="relative z-10 flex flex-col h-full p-8 text-white">
+                        {/* Logo and Title */}
+                        <div className="mb-8">
+                            <h2 className="text-2xl font-bold text-green-300 mb-2">{currentAd.subtitle}</h2>
+                            <h1 className="text-5xl font-bold mb-6 leading-tight">{currentAd.title}</h1>
                         </div>
 
-                        {/* User Type */}
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                I am a
-                            </label>
-                            <div className="grid grid-cols-2 gap-3">
-                                {/* Admin */}
-                                <label className="relative">
-                                    <input
-                                        type="radio"
-                                        name="userType"
-                                        value="admin"
-                                        checked={userType === 'admin'}
-                                        onChange={handleUserTypeChange}
-                                        className="sr-only"
-                                    />
-                                    <div className={`
-                                        p-3 rounded-md border-2 cursor-pointer transition-all
-                                        ${userType === 'admin'
-                                            ? 'border-green-500 bg-green-50'
-                                            : errors.userType
-                                                ? 'border-red-300 bg-red-50'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                        }
-                                    `}>
-                                        <div className="flex flex-col items-center">
-                                            <User className={`h-5 w-5 mb-1 ${userType === 'admin'
-                                                ? 'text-green-600'
-                                                : errors.userType
-                                                    ? 'text-red-500'
-                                                    : 'text-gray-500'
-                                                }`} />
-                                            <span className={`text-sm font-medium ${userType === 'admin'
-                                                ? 'text-green-900'
-                                                : errors.userType
-                                                    ? 'text-red-700'
-                                                    : 'text-gray-700'
-                                                }`}>
-                                                Admin
-                                            </span>
-                                        </div>
-                                    </div>
-                                </label>
+                        {/* Description */}
+                        <div className="flex-1 mb-8">
+                            <p className="text-xl leading-relaxed mb-8 text-gray-100">{currentAd.description}</p>
 
-                                {/* Driver */}
-                                <label className="relative">
-                                    <input
-                                        type="radio"
-                                        name="userType"
-                                        value="driver"
-                                        checked={userType === 'driver'}
-                                        onChange={handleUserTypeChange}
-                                        className="sr-only"
-                                    />
-                                    <div className={`
-                                        p-3 rounded-md border-2 cursor-pointer transition-all
-                                        ${userType === 'driver'
-                                            ? 'border-green-500 bg-green-50'
-                                            : errors.userType
-                                                ? 'border-red-300 bg-red-50'
-                                                : 'border-gray-200 hover:border-gray-300'
-                                        }
-                                    `}>
-                                        <div className="flex flex-col items-center">
-                                            <Truck className={`h-5 w-5 mb-1 ${userType === 'driver'
-                                                ? 'text-green-600'
-                                                : errors.userType
-                                                    ? 'text-red-500'
-                                                    : 'text-gray-500'
-                                                }`} />
-                                            <span className={`text-sm font-medium ${userType === 'driver'
-                                                ? 'text-green-900'
-                                                : errors.userType
-                                                    ? 'text-red-700'
-                                                    : 'text-gray-700'
-                                                }`}>
-                                                Driver
-                                            </span>
-                                        </div>
-                                    </div>
-                                </label>
+                            {/* Enhanced Requirements Box */}
+                            <div className="bg-green-800/90 backdrop-blur-sm border-2 border-green-500/50 rounded-xl p-6 mb-8 shadow-2xl">
+                                <h3 className="font-bold text-green-300 mb-4 text-lg">REQUIREMENTS</h3>
+                                <ul className="space-y-3">
+                                    {currentAd.requirements.map((req, index) => (
+                                        <li key={index} className="flex items-start">
+                                            <span className="text-green-400 mr-3 text-lg">•</span>
+                                            <span className="text-base text-gray-100">{req}</span>
+                                        </li>
+                                    ))}
+                                </ul>
                             </div>
-                            {errors.userType && (
-                                <div className="flex items-center mt-1 text-sm text-red-600">
-                                    <AlertCircle className="w-4 h-4 mr-1" />
-                                    {errors.userType}
-                                </div>
-                            )}
                         </div>
 
-                        {/* Submit Button */}
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white py-2.5 px-4 rounded-md font-medium transition-colors disabled:cursor-not-allowed"
-                        >
-                            {loading ? (
-                                <LoadingSpinner size="sm" color="white" showText={true} text="Sending..." />
-                            ) : (
-                                'Continue'
-                            )}
-                        </button>
+                        {/* Enhanced Call to Action and Contact */}
+                        <div className="mb-8">
+                            <p className="text-xl font-bold mb-6 text-green-300">{currentAd.cta}</p>
+                            <div className="flex items-center space-x-8">
+                                <div className="flex items-center bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
+                                    <Instagram className="w-5 h-5 mr-2 text-green-300" />
+                                    <span className="text-sm font-medium">{currentAd.contact.instagram}</span>
+                                </div>
+                                <div className="flex items-center bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
+                                    <Phone className="w-5 h-5 mr-2 text-green-300" />
+                                    <span className="text-sm font-medium">{currentAd.contact.phone}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-                    </form>
+                    {/* Enhanced Carousel Navigation */}
+                    <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20">
+                        <div className="flex items-center space-x-6">
+                            {/* Previous Button */}
+                            <button
+                                onClick={prevAd}
+                                className="p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all duration-300 shadow-lg"
+                            >
+                                <ChevronLeft className="w-6 h-6 text-white" />
+                            </button>
+
+                            {/* Enhanced Indicators */}
+                            <div className="flex space-x-3">
+                                {advertisements.map((_, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => goToAd(index)}
+                                        className={`w-4 h-4 rounded-full transition-all duration-300 shadow-lg ${index === currentAdIndex
+                                            ? 'bg-white scale-110'
+                                            : 'bg-white/40 hover:bg-white/60 hover:scale-110'
+                                            }`}
+                                    />
+                                ))}
+                            </div>
+
+                            {/* Next Button */}
+                            <button
+                                onClick={nextAd}
+                                className="p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 transition-all duration-300 shadow-lg"
+                            >
+                                <ChevronRight className="w-6 h-6 text-white" />
+                            </button>
+                        </div>
+                    </div>
                 </div>
+            </div>
 
-                {/* Footer */}
-                <p className="text-center text-xs text-gray-500 mt-6">
-                    Secure OTP authentication
-                </p>
+            {/* Right Side - Login Form */}
+            <div className="flex-1 lg:w-1/2 flex items-center justify-center p-4 bg-gray-50">
+                <div className="w-full max-w-md">
+                    {/* Header */}
+                    <div className="text-center mb-8">
+                        <img
+                            src="/White.png"
+                            alt="Logo"
+                            className="w-12 h-12 mx-auto mb-4 rounded-lg shadow-sm"
+                        />
+                        <h1 className="text-2xl font-bold text-gray-900">Student Delivery</h1>
+                        <p className="text-gray-600 mt-1">Sign in to continue</p>
+                    </div>
+
+                    {/* Form */}
+                    <div className="bg-white rounded-lg shadow-sm border p-6">
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Email */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Email
+                                </label>
+                                <div className="relative">
+                                    <Mail className={`absolute left-3 top-3 h-4 w-4 ${errors.email ? 'text-red-400' : 'text-gray-400'}`} />
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={handleEmailChange}
+                                        placeholder="your@email.com"
+                                        className={`w-full pl-10 pr-3 py-2.5 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${errors.email
+                                            ? 'border-red-300 focus:ring-red-500'
+                                            : 'border-gray-300'
+                                            }`}
+                                    />
+                                </div>
+                                {errors.email && (
+                                    <div className="flex items-center mt-1 text-sm text-red-600">
+                                        <AlertCircle className="w-4 h-4 mr-1" />
+                                        {errors.email}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* User Type */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    I am a
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {/* Admin */}
+                                    <label className="relative">
+                                        <input
+                                            type="radio"
+                                            name="userType"
+                                            value="admin"
+                                            checked={userType === 'admin'}
+                                            onChange={handleUserTypeChange}
+                                            className="sr-only"
+                                        />
+                                        <div className={`
+                                            p-3 rounded-md border-2 cursor-pointer transition-all
+                                            ${userType === 'admin'
+                                                ? 'border-green-500 bg-green-50'
+                                                : errors.userType
+                                                    ? 'border-red-300 bg-red-50'
+                                                    : 'border-gray-200 hover:border-gray-300'
+                                            }
+                                        `}>
+                                            <div className="flex flex-col items-center">
+                                                <User className={`h-5 w-5 mb-1 ${userType === 'admin'
+                                                    ? 'text-green-600'
+                                                    : errors.userType
+                                                        ? 'text-red-500'
+                                                        : 'text-gray-500'
+                                                    }`} />
+                                                <span className={`text-sm font-medium ${userType === 'admin'
+                                                    ? 'text-green-900'
+                                                    : errors.userType
+                                                        ? 'text-red-700'
+                                                        : 'text-gray-700'
+                                                    }`}>
+                                                    Admin
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </label>
+
+                                    {/* Driver */}
+                                    <label className="relative">
+                                        <input
+                                            type="radio"
+                                            name="userType"
+                                            value="driver"
+                                            checked={userType === 'driver'}
+                                            onChange={handleUserTypeChange}
+                                            className="sr-only"
+                                        />
+                                        <div className={`
+                                            p-3 rounded-md border-2 cursor-pointer transition-all
+                                            ${userType === 'driver'
+                                                ? 'border-green-500 bg-green-50'
+                                                : errors.userType
+                                                    ? 'border-red-300 bg-red-50'
+                                                    : 'border-gray-200 hover:border-gray-300'
+                                            }
+                                        `}>
+                                            <div className="flex flex-col items-center">
+                                                <Truck className={`h-5 w-5 mb-1 ${userType === 'driver'
+                                                    ? 'text-green-600'
+                                                    : errors.userType
+                                                        ? 'text-red-500'
+                                                        : 'text-gray-500'
+                                                    }`} />
+                                                <span className={`text-sm font-medium ${userType === 'driver'
+                                                    ? 'text-green-900'
+                                                    : errors.userType
+                                                        ? 'text-red-700'
+                                                        : 'text-gray-700'
+                                                    }`}>
+                                                    Driver
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </label>
+                                </div>
+                                {errors.userType && (
+                                    <div className="flex items-center mt-1 text-sm text-red-600">
+                                        <AlertCircle className="w-4 h-4 mr-1" />
+                                        {errors.userType}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Submit Button */}
+                            <Button
+                                type="submit"
+                                loading={loading}
+                                loadingText="Sending..."
+                                fullWidth={true}
+                                className="w-full"
+                            >
+                                Continue
+                            </Button>
+                        </form>
+                    </div>
+
+                    {/* Footer */}
+                    <p className="text-center text-xs text-gray-500 mt-6">
+                        Secure OTP authentication
+                    </p>
+                </div>
             </div>
         </div>
     );

@@ -6,10 +6,6 @@ import toast from 'react-hot-toast';
 // Request deduplication to prevent duplicate API calls
 const pendingRequests = new Map();
 
-const createRequestKey = (method, url, data) => {
-    return `${method}:${url}:${JSON.stringify(data || {})}`;
-};
-
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 console.log('🔧 API Configuration - REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
@@ -332,6 +328,13 @@ class ApiService {
 
     async resendInvitation(invitationId) {
         const response = await api.post(`/admin/drivers/invitations/${invitationId}/resend`);
+        return response.data;
+    }
+
+    async resendOTP(email) {
+        console.log('📧 API Service: Resending OTP to admin:', email);
+        const response = await api.post('/auth/resend-otp', { email, userType: 'admin' });
+        console.log('📧 API Service: Resend OTP response:', response.data);
         return response.data;
     }
 
@@ -1934,6 +1937,11 @@ class ApiService {
         const token = localStorage.getItem('token');
         console.log('🏆 Driver API Service: Token available:', !!token);
 
+        if (!token) {
+            console.error('🏆 Driver API Service: No authentication token found');
+            throw new Error('Authentication required');
+        }
+
         // Use the same period mapping as admin leaderboard for consistency
         const periodMapping = {
             'today': 'today',
@@ -1950,11 +1958,53 @@ class ApiService {
         try {
             const response = await api.get(`/driver/leaderboard?category=${category}&period=${mappedPeriod}&limit=${limit}`);
             console.log('🏆 Driver API Service: Driver leaderboard response:', response.data);
-            return response.data;
+
+            // Validate response structure
+            if (!response.data) {
+                console.warn('🏆 Driver API Service: Empty response data');
+                return { success: false, data: { leaderboard: [] } };
+            }
+
+            // Handle different response structures
+            let leaderboardData = [];
+            if (response.data.success && response.data.data?.leaderboard) {
+                leaderboardData = response.data.data.leaderboard;
+            } else if (response.data.data?.leaderboard) {
+                leaderboardData = response.data.data.leaderboard;
+            } else if (response.data.leaderboard) {
+                leaderboardData = response.data.leaderboard;
+            } else if (Array.isArray(response.data)) {
+                leaderboardData = response.data;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+                leaderboardData = response.data.data;
+            }
+
+            console.log('🏆 Driver API Service: Processed leaderboard data:', leaderboardData);
+
+            return {
+                success: true,
+                data: {
+                    leaderboard: leaderboardData,
+                    period: mappedPeriod,
+                    category: category
+                }
+            };
         } catch (error) {
             console.error('🏆 Driver API Service: Error calling driver leaderboard:', error);
             console.error('🏆 Driver API Service: Error response:', error.response?.data);
-            throw error;
+
+            // Provide specific error information
+            if (error.response?.status === 401) {
+                throw new Error('Authentication failed - please log in again');
+            } else if (error.response?.status === 403) {
+                throw new Error('Access denied - insufficient permissions');
+            } else if (error.response?.status >= 500) {
+                throw new Error('Server error - please try again later');
+            } else if (error.message?.includes('Network Error')) {
+                throw new Error('Network error - please check your connection');
+            } else {
+                throw new Error(`API error: ${error.response?.status || 'Unknown'} - ${error.message}`);
+            }
         }
     }
 

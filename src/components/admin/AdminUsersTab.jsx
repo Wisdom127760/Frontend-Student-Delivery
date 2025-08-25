@@ -7,11 +7,8 @@ import {
     KeyIcon,
     MagnifyingGlassIcon,
     FunnelIcon,
-    EyeIcon,
-    EyeSlashIcon,
     CheckCircleIcon,
     XCircleIcon,
-    ClockIcon,
     UserIcon,
     ShieldCheckIcon
 } from '@heroicons/react/24/outline';
@@ -81,18 +78,49 @@ const AdminUsersTab = () => {
 
     const handleCreateAdmin = async (adminData) => {
         try {
-            await apiService.createAdminUser(adminData);
-            toast.success('Admin user created successfully');
+            console.log('📧 AdminUsersTab: Original admin data:', adminData);
+
+            // Extract sendInvitation and filter out isActive field
+            const { isActive, sendInvitation, ...adminDataForAPI } = adminData;
+
+            // Add sendInvitation back to the payload if it's true
+            if (sendInvitation) {
+                adminDataForAPI.sendInvitation = true;
+            }
+
+            console.log('📧 AdminUsersTab: Processed admin data for API:', adminDataForAPI);
+            console.log('📧 AdminUsersTab: sendInvitation value:', sendInvitation);
+
+            const result = await apiService.createAdminUser(adminDataForAPI);
+            console.log('📧 AdminUsersTab: Admin creation result:', result);
+
+            // If admin was created successfully and sendInvitation is true, send OTP
+            if (result.success && sendInvitation && result.data?.admin?.email) {
+                try {
+                    console.log('📧 AdminUsersTab: Sending OTP to new admin:', result.data.admin.email);
+                    await apiService.resendOTP(result.data.admin.email);
+                    toast.success('Admin user created successfully and OTP sent to email');
+                } catch (otpError) {
+                    console.error('❌ AdminUsersTab: Error sending OTP:', otpError);
+                    toast.success('Admin user created successfully, but OTP email failed to send');
+                }
+            } else {
+                toast.success('Admin user created successfully');
+            }
+
             setShowCreateModal(false);
             fetchAdmins();
         } catch (error) {
+            console.error('❌ AdminUsersTab: Error creating admin:', error);
             toast.error('Failed to create admin user');
         }
     };
 
     const handleUpdateAdmin = async (adminData) => {
         try {
-            await apiService.updateAdminUser(selectedAdmin.id || selectedAdmin._id, adminData);
+            // Filter out isActive field as it's not allowed by the backend
+            const { isActive, ...adminDataWithoutIsActive } = adminData;
+            await apiService.updateAdminUser(selectedAdmin.id || selectedAdmin._id, adminDataWithoutIsActive);
             toast.success('Admin user updated successfully');
             setShowEditModal(false);
             setSelectedAdmin(null);

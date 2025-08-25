@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import apiService from '../../services/api';
 import socketService from '../../services/socketService';
 import { useToast } from '../common/ToastProvider';
+import LottieLoader from '../common/LottieLoader';
 
 const ActiveStatusButton = () => {
     const { user } = useAuth();
@@ -128,7 +129,7 @@ const ActiveStatusButton = () => {
                     {/* Loading Spinner */}
                     {isLoading && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <LottieLoader size="xs" showText={false} />
                         </div>
                     )}
                 </div>

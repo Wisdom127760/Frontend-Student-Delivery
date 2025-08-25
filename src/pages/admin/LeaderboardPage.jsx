@@ -97,6 +97,12 @@ const LeaderboardPage = () => {
                 // The API response structure is: { data: { leaderboard: [...], period: "...", generatedAt: "..." } }
                 const leaderboardData = leaderboardResponse.data.leaderboard || leaderboardResponse.data;
 
+                // Validate that we have actual data
+                if (!leaderboardData || !Array.isArray(leaderboardData)) {
+                    console.warn('⚠️ Invalid leaderboard data structure:', leaderboardData);
+                    throw new Error('Invalid leaderboard data structure');
+                }
+
                 // Transform the data to match the expected format
                 const transformedData = {
                     overall: leaderboardData,
@@ -117,14 +123,50 @@ const LeaderboardPage = () => {
                 });
             } else {
                 console.error('❌ Invalid leaderboard response:', leaderboardResponse);
-                throw new Error('Invalid leaderboard response structure');
+
+                // Try to extract data from different response structures
+                let fallbackData = [];
+                if (leaderboardResponse.data && Array.isArray(leaderboardResponse.data)) {
+                    fallbackData = leaderboardResponse.data;
+                } else if (leaderboardResponse.leaderboard && Array.isArray(leaderboardResponse.leaderboard)) {
+                    fallbackData = leaderboardResponse.leaderboard;
+                } else if (Array.isArray(leaderboardResponse)) {
+                    fallbackData = leaderboardResponse;
+                }
+
+                if (fallbackData.length > 0) {
+                    console.log('✅ Using fallback data structure:', fallbackData);
+                    const transformedData = {
+                        overall: fallbackData,
+                        drivers: fallbackData,
+                        referrals: fallbackData,
+                        earnings: fallbackData,
+                        rating: fallbackData
+                    };
+                    setLeaderboardData(transformedData);
+                    setTotalParticipants(fallbackData.length);
+                } else {
+                    throw new Error('Invalid leaderboard response structure');
+                }
             }
 
         } catch (error) {
             console.error('❌ Error loading leaderboard data:', error);
-            toast.error('Failed to load leaderboard data. Please try again.');
 
-            // Set empty data on error
+            // Provide specific error messages
+            if (error.message?.includes('401')) {
+                toast.error('Session expired. Please log in again.');
+            } else if (error.message?.includes('403')) {
+                toast.error('Access denied. Please contact support.');
+            } else if (error.message?.includes('500')) {
+                toast.error('Server error. Please try again later.');
+            } else if (error.message?.includes('Network Error')) {
+                toast.error('Network error. Please check your connection.');
+            } else {
+                toast.error('Failed to load leaderboard data. Please try again.');
+            }
+
+            // Set empty data on error to prevent UI from breaking
             setLeaderboardData({
                 overall: [],
                 drivers: [],

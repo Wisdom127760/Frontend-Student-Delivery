@@ -3,6 +3,7 @@ import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
 // import { useAuth } from '../../context/AuthContext'; // Unused import
 import apiService from '../../services/api';
 import { useToast } from '../common/ToastProvider';
+import Button from '../ui/Button';
 
 const DriverMessageToAdmin = () => {
     // const { user } = useAuth(); // Unused variable
@@ -56,23 +57,16 @@ const DriverMessageToAdmin = () => {
                     disabled={isSending}
                 />
 
-                <button
+                <Button
                     onClick={sendMessage}
-                    disabled={!message.trim() || isSending}
-                    className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    loading={isSending}
+                    loadingText="Sending..."
+                    icon={PaperAirplaneIcon}
+                    fullWidth={true}
+                    disabled={!message.trim()}
                 >
-                    {isSending ? (
-                        <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                            Sending...
-                        </>
-                    ) : (
-                        <>
-                            <PaperAirplaneIcon className="h-4 w-4 mr-2" />
-                            Send Message
-                        </>
-                    )}
-                </button>
+                    Send Message
+                </Button>
             </div>
         </div>
     );

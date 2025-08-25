@@ -37,6 +37,7 @@ const DriverLeaderboard = ({ currentDriverId, dashboardPeriod = 'today' }) => {
 
             if (response.success && response.data?.leaderboard) {
                 const data = response.data.leaderboard;
+                console.log('✅ Leaderboard: Data loaded successfully:', data);
                 setLeaderboardData(data);
 
                 // Find current driver's rank
@@ -48,8 +49,33 @@ const DriverLeaderboard = ({ currentDriverId, dashboardPeriod = 'today' }) => {
                 }
             } else {
                 console.warn('⚠️ Leaderboard: Invalid response structure:', response);
-                setLeaderboardData([]);
-                setCurrentDriverRank(null);
+
+                // Try to extract data from different response structures
+                let fallbackData = [];
+                if (response.data && Array.isArray(response.data)) {
+                    fallbackData = response.data;
+                } else if (response.leaderboard && Array.isArray(response.leaderboard)) {
+                    fallbackData = response.leaderboard;
+                } else if (Array.isArray(response)) {
+                    fallbackData = response;
+                }
+
+                if (fallbackData.length > 0) {
+                    console.log('✅ Leaderboard: Using fallback data structure:', fallbackData);
+                    setLeaderboardData(fallbackData);
+
+                    // Find current driver's rank in fallback data
+                    const driverIndex = fallbackData.findIndex(driver => driver._id === currentDriverId);
+                    if (driverIndex !== -1) {
+                        setCurrentDriverRank(driverIndex + 1);
+                    } else {
+                        setCurrentDriverRank(null);
+                    }
+                } else {
+                    setLeaderboardData([]);
+                    setCurrentDriverRank(null);
+                    toast.error('No leaderboard data available');
+                }
             }
         } catch (error) {
             console.error('❌ Error loading leaderboard:', error);
@@ -61,10 +87,13 @@ const DriverLeaderboard = ({ currentDriverId, dashboardPeriod = 'today' }) => {
                 toast.error('Please log in again to view leaderboard data.');
             } else if (error.response?.status >= 500) {
                 toast.error('Server error. Please try again later.');
+            } else if (error.message?.includes('Network Error')) {
+                toast.error('Network error. Please check your connection.');
             } else {
                 toast.error('Failed to load leaderboard data. Please try again.');
             }
 
+            // Set fallback data to prevent UI from breaking
             setLeaderboardData([]);
             setCurrentDriverRank(null);
         } finally {

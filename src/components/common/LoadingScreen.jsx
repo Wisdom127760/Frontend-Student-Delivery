@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import Lottie from 'lottie-react';
-import loadingAnimation from '../../assets/loading-animation.json';
 
 const LoadingScreen = ({ message = "Loading..." }) => {
     const [isVisible, setIsVisible] = useState(false);
@@ -21,16 +19,18 @@ const LoadingScreen = ({ message = "Loading..." }) => {
             });
         }, 800);
 
+        // Set animation complete after a delay
+        const completeTimer = setTimeout(() => {
+            setAnimationComplete(true);
+            setProgress(100);
+        }, 3000);
+
         return () => {
             clearTimeout(entranceTimer);
+            clearTimeout(completeTimer);
             clearInterval(progressInterval);
         };
     }, []);
-
-    const handleAnimationComplete = () => {
-        setAnimationComplete(true);
-        setProgress(100);
-    };
 
     return (
         <div className={`
@@ -98,21 +98,15 @@ const LoadingScreen = ({ message = "Loading..." }) => {
                     </div>
                 </div>
 
-                {/* Enhanced Lottie Animation */}
+                {/* CSS-based Loading Spinner */}
                 <div className={`
                     mb-8 transition-all duration-1200 ease-out
                     ${isVisible ? 'scale-100 opacity-100' : 'scale-90 opacity-0'}
                 `} style={{ animationDelay: '0.5s' }}>
                     <div className="w-36 h-36 mx-auto relative">
                         <div className="absolute inset-0 bg-gradient-to-br from-green-100 to-green-200 rounded-full blur-sm opacity-50"></div>
-                        <div className="relative">
-                            <Lottie
-                                animationData={loadingAnimation}
-                                loop={true}
-                                autoplay={true}
-                                onComplete={handleAnimationComplete}
-                                style={{ width: '100%', height: '100%' }}
-                            />
+                        <div className="relative flex items-center justify-center">
+                            <div className="w-24 h-24 border-4 border-green-200 border-t-green-600 rounded-full animate-spin"></div>
                         </div>
                     </div>
                 </div>

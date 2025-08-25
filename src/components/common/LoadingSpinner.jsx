@@ -16,20 +16,18 @@ const LoadingSpinner = ({
     };
 
     const colorClasses = {
-        white: 'border-white border-t-transparent',
-        green: 'border-green-500 border-t-transparent',
-        blue: 'border-blue-500 border-t-transparent',
-        gray: 'border-gray-500 border-t-transparent'
+        green: 'border-green-500',
+        blue: 'border-blue-500',
+        red: 'border-red-500',
+        gray: 'border-gray-500',
+        white: 'border-white'
     };
 
     return (
         <div className={`flex items-center justify-center ${className}`}>
-            <div className={`
-                ${sizeClasses[size]} 
-                ${colorClasses[color]} 
-                border-2 rounded-full animate-spin
-                transition-all duration-300 ease-in-out
-            `}></div>
+            <div
+                className={`${sizeClasses[size]} ${colorClasses[color]} border-2 border-t-transparent rounded-full animate-spin`}
+            />
             {showText && (
                 <span className="ml-2 text-sm text-gray-600 animate-pulse">
                     {text}
