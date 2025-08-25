@@ -58,9 +58,25 @@ const OTPVerification = () => {
     }, []);
 
     const handleOTPChange = (index, value) => {
-        if (value.length > 1) return;
-
         const newOTP = otp.split('');
+        
+        // Handle paste event - if value is longer than 1 character, it's likely a paste
+        if (value.length > 1) {
+            // Clean the pasted value to only include digits
+            const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
+            
+            // Fill the OTP string with the pasted digits
+            const pastedOTP = cleanedValue.padEnd(6, '');
+            setOtp(pastedOTP);
+            
+            // Clear errors when user starts typing
+            if (errors.otp) {
+                setErrors(prev => ({ ...prev, otp: null }));
+            }
+            return;
+        }
+
+        // Handle single character input
         newOTP[index] = value;
         const otpString = newOTP.join('');
         setOtp(otpString);
@@ -329,6 +345,25 @@ const OTPVerification = () => {
         navigate('/');
     };
 
+    const handlePaste = (e) => {
+        e.preventDefault();
+        const pastedData = e.clipboardData.getData('text');
+        
+        // Clean the pasted data to only include digits
+        const cleanedValue = pastedData.replace(/\D/g, '').slice(0, 6);
+        
+        if (cleanedValue.length > 0) {
+            // Fill the OTP string with the pasted digits
+            const pastedOTP = cleanedValue.padEnd(6, '');
+            setOtp(pastedOTP);
+            
+            // Clear errors when user starts typing
+            if (errors.otp) {
+                setErrors(prev => ({ ...prev, otp: null }));
+            }
+        }
+    };
+
     const handleResendOTP = async () => {
         setIsResending(true);
         try {
@@ -378,6 +413,9 @@ const OTPVerification = () => {
                             <label className="block text-sm font-medium text-gray-700 mb-3">
                                 Enter the 6-digit code
                             </label>
+                            <p className="text-xs text-gray-500 mb-3">
+                                💡 Tip: You can paste the entire 6-digit code to auto-fill all fields
+                            </p>
                             <div className="flex justify-between space-x-2">
                                 {Array.from({ length: 6 }).map((_, index) => (
                                     <input
@@ -387,6 +425,7 @@ const OTPVerification = () => {
                                         maxLength={1}
                                         value={otp[index] || ''}
                                         onChange={(e) => handleOTPChange(index, e.target.value)}
+                                        onPaste={handlePaste}
                                         className={`w-10 h-12 text-center text-lg font-medium border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-colors ${errors.otp
                                             ? 'border-red-300 focus:ring-red-500'
                                             : 'border-gray-300'

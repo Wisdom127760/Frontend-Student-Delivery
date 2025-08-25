@@ -335,6 +335,13 @@ class ApiService {
         return response.data;
     }
 
+    async resendOTP(email) {
+        console.log('📧 API Service: Resending OTP to admin:', email);
+        const response = await api.post('/auth/resend-otp', { email, userType: 'admin' });
+        console.log('📧 API Service: Resend OTP response:', response.data);
+        return response.data;
+    }
+
     async updateDriver(id, driverData) {
         const response = await api.put(`/admin/drivers/${id}`, driverData);
         return response.data;

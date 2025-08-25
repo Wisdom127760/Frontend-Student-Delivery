@@ -79,7 +79,7 @@ const AdminUsersTab = () => {
         fetchAdmins();
     }, [fetchAdmins]);
 
-    const handleCreateAdmin = async (adminData) => {
+        const handleCreateAdmin = async (adminData) => {
         try {
             console.log('📧 AdminUsersTab: Original admin data:', adminData);
             
@@ -94,8 +94,23 @@ const AdminUsersTab = () => {
             console.log('📧 AdminUsersTab: Processed admin data for API:', adminDataForAPI);
             console.log('📧 AdminUsersTab: sendInvitation value:', sendInvitation);
             
-            await apiService.createAdminUser(adminDataForAPI);
-            toast.success('Admin user created successfully');
+            const result = await apiService.createAdminUser(adminDataForAPI);
+            console.log('📧 AdminUsersTab: Admin creation result:', result);
+            
+            // If admin was created successfully and sendInvitation is true, send OTP
+            if (result.success && sendInvitation && result.data?.admin?.email) {
+                try {
+                    console.log('📧 AdminUsersTab: Sending OTP to new admin:', result.data.admin.email);
+                    await apiService.resendOTP(result.data.admin.email);
+                    toast.success('Admin user created successfully and OTP sent to email');
+                } catch (otpError) {
+                    console.error('❌ AdminUsersTab: Error sending OTP:', otpError);
+                    toast.success('Admin user created successfully, but OTP email failed to send');
+                }
+            } else {
+                toast.success('Admin user created successfully');
+            }
+            
             setShowCreateModal(false);
             fetchAdmins();
         } catch (error) {
