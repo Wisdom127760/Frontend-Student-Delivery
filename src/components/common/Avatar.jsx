@@ -1,8 +1,10 @@
 import React from 'react';
 import { UserCircleIcon } from '@heroicons/react/24/outline';
 import { isAdmin } from '../../utils/userHelpers';
+import { isDriverVerified } from '../../utils/verificationHelpers';
+import VerifiedBadge from './VerifiedBadge';
 
-const Avatar = ({ user, profile, size = 'md', className = '' }) => {
+const Avatar = ({ user, profile, size = 'md', className = '', showVerifiedBadge = false }) => {
     const sizeClasses = {
         sm: 'h-8 w-8',
         md: 'h-10 w-10',
@@ -69,7 +71,7 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
     // For admin users, always show the White.png logo
     if (isAdminUser) {
         return (
-            <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${className}`}>
+            <div className={`${sizeClasses[size]} rounded-full overflow-hidden relative ${className}`}>
                 <img
                     src="/White.png"
                     alt="Admin Profile"
@@ -85,10 +87,18 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
                     className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} absolute inset-0`}
                     style={{ display: 'none' }}
                 >
-                    {initials !== '?' ? initials : (
+                    {initials !== '?' ? (
+                        <span className={`avatar-name ${size}`}>{initials}</span>
+                    ) : (
                         <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
                     )}
                 </div>
+                {/* Verified badge overlay */}
+                {showVerifiedBadge && isDriverVerified(user || profile) && (
+                    <div className="absolute -bottom-1 -right-1 z-10">
+                        <VerifiedBadge isVerified={true} size="xs" iconOnly={true} />
+                    </div>
+                )}
             </div>
         );
     }
@@ -96,7 +106,7 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
     // For non-admin users, show their profile image if available
     if (profileImage) {
         return (
-            <div className={`${sizeClasses[size]} rounded-full overflow-hidden ${className}`}>
+            <div className={`${sizeClasses[size]} rounded-full overflow-hidden relative ${className}`}>
                 <img
                     src={profileImage}
                     alt={userName || 'User avatar'}
@@ -112,18 +122,34 @@ const Avatar = ({ user, profile, size = 'md', className = '' }) => {
                     className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} absolute inset-0`}
                     style={{ display: 'none' }}
                 >
-                    {initials !== '?' ? initials : (
+                    {initials !== '?' ? (
+                        <span className={`avatar-name ${size}`}>{initials}</span>
+                    ) : (
                         <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
                     )}
                 </div>
+                {/* Verified badge overlay */}
+                {showVerifiedBadge && isDriverVerified(user || profile) && (
+                    <div className="absolute -bottom-1 -right-1 z-10">
+                        <VerifiedBadge isVerified={true} size="xs" iconOnly={true} />
+                    </div>
+                )}
             </div>
         );
     }
 
     return (
-        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} ${className}`}>
-            {initials !== '?' ? initials : (
+        <div className={`${sizeClasses[size]} rounded-full bg-gradient-to-r from-green-400 to-green-600 flex items-center justify-center text-white font-semibold ${textSizeClasses[size]} relative ${className}`}>
+            {initials !== '?' ? (
+                <span className={`avatar-name ${size}`}>{initials}</span>
+            ) : (
                 <UserCircleIcon className={`${sizeClasses[size]} text-gray-300`} />
+            )}
+            {/* Verified badge overlay */}
+            {showVerifiedBadge && isDriverVerified(user || profile) && (
+                <div className="absolute -bottom-1 -right-1 z-10">
+                    <VerifiedBadge isVerified={true} size="xs" iconOnly={true} />
+                </div>
             )}
         </div>
     );

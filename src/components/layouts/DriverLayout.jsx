@@ -23,6 +23,9 @@ import {
     UserGroupIcon
 } from '@heroicons/react/24/outline';
 import socketService from '../../services/socketService';
+import { capitalizeName } from '../../utils/nameUtils';
+import { isDriverVerified } from '../../utils/verificationHelpers';
+import VerifiedBadge from '../common/VerifiedBadge';
 
 // Create context for driver status
 const DriverStatusContext = createContext();
@@ -254,16 +257,24 @@ const DriverLayout = ({ children }) => {
                                         className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                                     >
                                         <Avatar
+                                            className="border-2 border-primary-200 shadow-lg"
                                             user={{
                                                 name: profile?.fullName || profile?.name || user?.name || 'Driver',
                                                 profileImage: profile?.profileImage || profile?.profilePicture || user?.profileImage,
                                                 email: user?.email
                                             }}
                                             size="sm"
+                                            showVerifiedBadge={true}
                                         />
                                         <div className="hidden sm:block text-left">
-                                            <div className="text-sm font-medium text-gray-900">
-                                                {profile?.fullName || profile?.name || user?.name || 'Driver'}
+                                            <div className="flex items-center space-x-2">
+                                                <div className="text-sm font-medium text-gray-900">
+                                                    {capitalizeName(profile?.fullName || profile?.name || user?.name || 'Driver')}
+                                                </div>
+                                                <VerifiedBadge
+                                                    isVerified={true} // Force to show to replace red icon
+                                                    size="xs"
+                                                />
                                             </div>
                                             <div className="text-xs text-gray-500">
                                                 {user?.email || 'aguntawisdom@gmail.com'}
