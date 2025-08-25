@@ -95,7 +95,7 @@ const Avatar = ({ user, profile, size = 'md', className = '', showVerifiedBadge 
                 </div>
                 {/* Verified badge overlay */}
                 {showVerifiedBadge && isDriverVerified(user || profile) && (
-                    <div className="absolute -bottom-1 -right-1 z-10">
+                    <div className="absolute -bottom-0.5 -right-0.5 z-10">
                         <VerifiedBadge isVerified={true} size="xs" iconOnly={true} />
                     </div>
                 )}
@@ -130,7 +130,7 @@ const Avatar = ({ user, profile, size = 'md', className = '', showVerifiedBadge 
                 </div>
                 {/* Verified badge overlay */}
                 {showVerifiedBadge && isDriverVerified(user || profile) && (
-                    <div className="absolute -bottom-1 -right-1 z-10">
+                    <div className="absolute -bottom-0.5 -right-0.5 z-10">
                         <VerifiedBadge isVerified={true} size="xs" iconOnly={true} />
                     </div>
                 )}
@@ -147,7 +147,7 @@ const Avatar = ({ user, profile, size = 'md', className = '', showVerifiedBadge 
             )}
             {/* Verified badge overlay */}
             {showVerifiedBadge && isDriverVerified(user || profile) && (
-                <div className="absolute -bottom-1 -right-1 z-10">
+                <div className="absolute -bottom-0.5 -right-0.5 z-10">
                     <VerifiedBadge isVerified={true} size="xs" iconOnly={true} />
                 </div>
             )}

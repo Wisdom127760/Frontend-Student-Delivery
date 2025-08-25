@@ -5,13 +5,13 @@ const VerifiedBadge = ({ isVerified, size = 'sm', className = '', iconOnly = fal
 
     const sizeClasses = {
         xs: 'text-xs px-1 py-0.5',
-        sm: 'text-xs px-2 py-1',
+        sm: 'text-xs px-1.5 py-0.5',
         md: 'text-sm px-2 py-1',
         lg: 'text-sm px-3 py-1.5'
     };
 
     const iconSizeClasses = {
-        xs: 'w-3 h-3',
+        xs: 'w-2.5 h-2.5',
         sm: 'w-3 h-3',
         md: 'w-4 h-4',
         lg: 'w-4 h-4'
@@ -30,7 +30,7 @@ const VerifiedBadge = ({ isVerified, size = 'sm', className = '', iconOnly = fal
                 title="Verified Driver"
             >
                 <svg
-                    className="w-2 h-2"
+                    className="w-1.5 h-1.5"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                 >
@@ -57,7 +57,7 @@ const VerifiedBadge = ({ isVerified, size = 'sm', className = '', iconOnly = fal
             title="Verified Driver"
         >
             <svg
-                className="w-3 h-3"
+                className="w-2 h-2"
                 fill="currentColor"
                 viewBox="0 0 20 20"
             >
@@ -67,7 +67,6 @@ const VerifiedBadge = ({ isVerified, size = 'sm', className = '', iconOnly = fal
                     clipRule="evenodd"
                 />
             </svg>
-
         </span>
     );
 };
