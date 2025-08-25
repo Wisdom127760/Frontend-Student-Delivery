@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { CameraIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { uploadProfileImage } from '../../services/profileService';
 import toast from 'react-hot-toast';
+import Button from '../ui/Button';
 
 const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -109,13 +110,15 @@ const ProfileImageUpload = ({ userId, currentImage, onImageUpdate }) => {
             </button>
 
             {previewImage && (
-              <button
+              <Button
                 onClick={handleUpload}
-                disabled={isUploading}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50"
+                loading={isUploading}
+                loadingText="Uploading..."
+                size="sm"
+                className="px-4 py-2"
               >
-                {isUploading ? 'Uploading...' : 'Upload'}
-              </button>
+                Upload
+              </Button>
             )}
           </div>
 

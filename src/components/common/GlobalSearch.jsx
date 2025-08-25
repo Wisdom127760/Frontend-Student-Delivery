@@ -51,6 +51,25 @@ const GlobalSearch = () => {
         console.log('🔍 GlobalSearch - Auth state:', { user, isAuthenticated });
     }, [user, isAuthenticated]);
 
+    // Listen for custom event to open global search - always attach listener regardless of auth state
+    useEffect(() => {
+        const handleOpenGlobalSearch = () => {
+            console.log('🔍 GlobalSearch: Received open-global-search event');
+            if (isAuthenticated && user) {
+                setIsOpen(true);
+            } else {
+                console.log('🔍 GlobalSearch: Search blocked - user not authenticated');
+                toast.error('Please log in to use search');
+            }
+        };
+
+        window.addEventListener('open-global-search', handleOpenGlobalSearch);
+
+        return () => {
+            window.removeEventListener('open-global-search', handleOpenGlobalSearch);
+        };
+    }, [isAuthenticated, user]);
+
     // Load recent searches from localStorage
     useEffect(() => {
         const saved = localStorage.getItem('globalSearchRecent');
@@ -448,8 +467,8 @@ const GlobalSearch = () => {
         try {
             console.log('🔍 Navigating to:', result.path);
 
-            // Validate the path before navigation
-            const validPaths = [
+            // Define valid base paths for navigation (without query parameters)
+            const validBasePaths = [
                 // Admin routes
                 '/admin',
                 '/admin/deliveries',
@@ -481,7 +500,10 @@ const GlobalSearch = () => {
                 '/driver-activation'
             ];
 
-            if (validPaths.includes(result.path)) {
+            // Extract the base path (without query parameters)
+            const basePath = result.path.split('?')[0];
+
+            if (validBasePaths.includes(basePath)) {
                 // Save the search term to recent searches
                 saveRecentSearch(query);
                 navigate(result.path);
@@ -490,7 +512,7 @@ const GlobalSearch = () => {
                 setResults([]);
                 setShowSuggestions(false);
             } else {
-                console.warn('🔍 Invalid path:', result.path);
+                console.warn('🔍 Invalid path:', result.path, 'Base path:', basePath);
                 toast.error('Invalid navigation path');
             }
         } catch (error) {
@@ -535,9 +557,9 @@ const GlobalSearch = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [isOpen]);
 
-    // Don't render if not authenticated
+    // Don't render the search input if not authenticated, but keep the component mounted for event listeners
     if (!isAuthenticated || !user) {
-        return null;
+        return <div className="flex-1 max-w-lg mx-4" />; // Return empty div to maintain layout
     }
 
     // Render the search input that's always visible

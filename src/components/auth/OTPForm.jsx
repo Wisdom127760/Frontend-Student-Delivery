@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import toast from 'react-hot-toast';
+import Button from '../common/Button';
 
 // API Configuration
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -29,19 +30,19 @@ const OTPForm = ({ email, userType, onBack }) => {
 
   const handleOtpChange = (index, value) => {
     const newOtp = [...otp];
-    
+
     // Handle paste event - if value is longer than 1 character, it's likely a paste
     if (value.length > 1) {
       // Clean the pasted value to only include digits
       const cleanedValue = value.replace(/\D/g, '').slice(0, 6);
-      
+
       // Fill the OTP array with the pasted digits
       for (let i = 0; i < 6; i++) {
         newOtp[i] = cleanedValue[i] || '';
       }
-      
+
       setOtp(newOtp);
-      
+
       // Focus the next empty input or the last input if all filled
       const nextEmptyIndex = newOtp.findIndex(digit => !digit);
       const focusIndex = nextEmptyIndex !== -1 ? nextEmptyIndex : 5;
@@ -71,20 +72,20 @@ const OTPForm = ({ email, userType, onBack }) => {
   const handlePaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text');
-    
+
     // Clean the pasted data to only include digits
     const cleanedValue = pastedData.replace(/\D/g, '').slice(0, 6);
-    
+
     if (cleanedValue.length > 0) {
       const newOtp = [...otp];
-      
+
       // Fill the OTP array with the pasted digits
       for (let i = 0; i < 6; i++) {
         newOtp[i] = cleanedValue[i] || '';
       }
-      
+
       setOtp(newOtp);
-      
+
       // Focus the next empty input or the last input if all filled
       const nextEmptyIndex = newOtp.findIndex(digit => !digit);
       const focusIndex = nextEmptyIndex !== -1 ? nextEmptyIndex : 5;
@@ -198,13 +199,16 @@ const OTPForm = ({ email, userType, onBack }) => {
             </div>
 
             <div className="space-y-3">
-              <button
+              <Button
                 type="submit"
-                disabled={isLoading || otp.join('').length !== 6}
-                className="w-full bg-gradient-to-r from-green-600 to-green-700 text-white py-3 px-4 rounded-xl font-semibold hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 disabled:opacity-50"
+                loading={isLoading}
+                loadingText="Verifying..."
+                disabled={otp.join('').length !== 6}
+                fullWidth={true}
+                className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
               >
-                {isLoading ? 'Verifying...' : 'Verify OTP'}
-              </button>
+                Verify OTP
+              </Button>
 
               <button
                 type="button"

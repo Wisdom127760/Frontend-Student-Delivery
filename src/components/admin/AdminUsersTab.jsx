@@ -7,11 +7,8 @@ import {
     KeyIcon,
     MagnifyingGlassIcon,
     FunnelIcon,
-    EyeIcon,
-    EyeSlashIcon,
     CheckCircleIcon,
     XCircleIcon,
-    ClockIcon,
     UserIcon,
     ShieldCheckIcon
 } from '@heroicons/react/24/outline';
@@ -79,24 +76,24 @@ const AdminUsersTab = () => {
         fetchAdmins();
     }, [fetchAdmins]);
 
-        const handleCreateAdmin = async (adminData) => {
+    const handleCreateAdmin = async (adminData) => {
         try {
             console.log('📧 AdminUsersTab: Original admin data:', adminData);
-            
+
             // Extract sendInvitation and filter out isActive field
             const { isActive, sendInvitation, ...adminDataForAPI } = adminData;
-            
+
             // Add sendInvitation back to the payload if it's true
             if (sendInvitation) {
                 adminDataForAPI.sendInvitation = true;
             }
-            
+
             console.log('📧 AdminUsersTab: Processed admin data for API:', adminDataForAPI);
             console.log('📧 AdminUsersTab: sendInvitation value:', sendInvitation);
-            
+
             const result = await apiService.createAdminUser(adminDataForAPI);
             console.log('📧 AdminUsersTab: Admin creation result:', result);
-            
+
             // If admin was created successfully and sendInvitation is true, send OTP
             if (result.success && sendInvitation && result.data?.admin?.email) {
                 try {
@@ -110,7 +107,7 @@ const AdminUsersTab = () => {
             } else {
                 toast.success('Admin user created successfully');
             }
-            
+
             setShowCreateModal(false);
             fetchAdmins();
         } catch (error) {

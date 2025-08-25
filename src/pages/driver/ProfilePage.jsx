@@ -9,6 +9,7 @@ import { ProfilePageSkeleton } from '../../components/common/SkeletonLoader';
 import { compressImage } from '../../services/cloudinaryService';
 import { capitalizeName } from '../../utils/capitalize';
 import toast from 'react-hot-toast';
+import Button from '../../components/ui/Button';
 import {
     CameraIcon,
     InformationCircleIcon,
@@ -860,23 +861,15 @@ const DriverProfilePage = () => {
                                         >
                                             Cancel
                                         </button>
-                                        <button
+                                        <Button
                                             type="submit"
-                                            disabled={isSaving}
-                                            className="px-4 sm:px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center space-x-2 text-sm sm:text-base"
+                                            loading={isSaving}
+                                            loadingText="Saving..."
+                                            icon={CheckIcon}
+                                            className="px-4 sm:px-6 text-sm sm:text-base"
                                         >
-                                            {isSaving ? (
-                                                <>
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                    <span>Saving...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CheckIcon className="w-4 h-4" />
-                                                    <span>Save Changes</span>
-                                                </>
-                                            )}
-                                        </button>
+                                            Save Changes
+                                        </Button>
                                     </div>
                                 )}
                             </form>
@@ -955,23 +948,15 @@ const DriverProfilePage = () => {
                                         >
                                             Cancel
                                         </button>
-                                        <button
+                                        <Button
                                             type="submit"
-                                            disabled={isSaving}
-                                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                                            loading={isSaving}
+                                            loadingText="Saving..."
+                                            icon={CheckIcon}
+                                            className="px-6"
                                         >
-                                            {isSaving ? (
-                                                <>
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                    <span>Saving...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CheckIcon className="w-4 h-4" />
-                                                    <span>Save Changes</span>
-                                                </>
-                                            )}
-                                        </button>
+                                            Save Changes
+                                        </Button>
                                     </div>
                                 )}
                             </form>
@@ -1056,23 +1041,15 @@ const DriverProfilePage = () => {
                                         >
                                             Cancel
                                         </button>
-                                        <button
+                                        <Button
                                             type="submit"
-                                            disabled={isSaving}
-                                            className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                                            loading={isSaving}
+                                            loadingText="Saving..."
+                                            icon={CheckIcon}
+                                            className="px-6"
                                         >
-                                            {isSaving ? (
-                                                <>
-                                                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                                    <span>Saving...</span>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CheckIcon className="w-4 h-4" />
-                                                    <span>Save Changes</span>
-                                                </>
-                                            )}
-                                        </button>
+                                            Save Changes
+                                        </Button>
                                     </div>
                                 )}
                             </form>

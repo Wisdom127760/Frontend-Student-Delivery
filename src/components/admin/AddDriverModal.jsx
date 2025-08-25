@@ -4,6 +4,7 @@ import SearchableDropdown from '../common/SearchableDropdown';
 import driverService from '../../services/driverService';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
+import Button from '../ui/Button';
 
 const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
     const [isLoading, setIsLoading] = useState(false);
@@ -269,24 +270,17 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
                         >
                             Cancel
                         </button>
-                        <button
+                        <Button
                             type="submit"
                             onClick={handleSubmit}
-                            disabled={isLoading}
-                            className="flex items-center px-4 py-1.5 text-xs font-medium bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                            loading={isLoading}
+                            loadingText="Sending..."
+                            icon={EnvelopeIcon}
+                            size="sm"
+                            className="px-4 py-1.5 text-xs"
                         >
-                            {isLoading ? (
-                                <>
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-                                    Sending...
-                                </>
-                            ) : (
-                                <>
-                                    <EnvelopeIcon className="w-3 h-3 mr-1" />
-                                    Send Invitation
-                                </>
-                            )}
-                        </button>
+                            Send Invitation
+                        </Button>
                     </div>
                 </div>
             </div>

@@ -6,6 +6,9 @@ import reportWebVitals from './reportWebVitals';
 import { Toaster } from 'react-hot-toast';
 import './utils/globalToast'; // Import to make toast available globally
 
+// Import earnings debugger for console access
+import './utils/earningsDebugger';
+
 // Global error handlers
 const handleUnhandledRejection = (event) => {
     console.error('🚨 Unhandled Promise Rejection:', event.reason);

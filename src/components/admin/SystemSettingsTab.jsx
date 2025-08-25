@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
+import Button from '../ui/Button';
 
 const SystemSettingsTab = () => {
     const [settings, setSettings] = useState({
@@ -208,8 +209,8 @@ const SystemSettingsTab = () => {
                                     key={section.id}
                                     onClick={() => setActiveSection(section.id)}
                                     className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive
-                                            ? 'bg-green-100 text-green-700 border-r-2 border-green-600'
-                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                                        ? 'bg-green-100 text-green-700 border-r-2 border-green-600'
+                                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                                         }`}
                                 >
                                     <Icon className={`mr-3 h-5 w-5 ${isActive ? 'text-green-600' : 'text-gray-400'}`} />
@@ -241,8 +242,8 @@ const SystemSettingsTab = () => {
                                                         onClick={() => handleCurrencyChange(currency.code)}
                                                         disabled={saving}
                                                         className={`p-3 border rounded-lg text-center transition-colors ${settings.display.currency === currency.code
-                                                                ? 'border-green-500 bg-green-50 text-green-700'
-                                                                : 'border-gray-300 hover:border-gray-400'
+                                                            ? 'border-green-500 bg-green-50 text-green-700'
+                                                            : 'border-gray-300 hover:border-gray-400'
                                                             } ${saving ? 'opacity-50 cursor-not-allowed' : ''}`}
                                                     >
                                                         <div className="text-lg font-semibold">{currency.symbol}</div>
@@ -290,13 +291,13 @@ const SystemSettingsTab = () => {
                                             </select>
                                         </div>
 
-                                        <button
+                                        <Button
                                             onClick={() => handleSaveSettings('display')}
-                                            disabled={saving}
-                                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            loading={saving}
+                                            loadingText="Saving..."
                                         >
-                                            {saving ? 'Saving...' : 'Save Display Settings'}
-                                        </button>
+                                            Save Display Settings
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -335,13 +336,14 @@ const SystemSettingsTab = () => {
                                             ))}
                                         </div>
 
-                                        <button
+                                        <Button
                                             onClick={() => handleSaveSettings('notifications')}
-                                            disabled={saving}
-                                            className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            loading={saving}
+                                            loadingText="Saving..."
+                                            className="mt-6"
                                         >
-                                            {saving ? 'Saving...' : 'Save Notification Settings'}
-                                        </button>
+                                            Save Notification Settings
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -398,13 +400,14 @@ const SystemSettingsTab = () => {
                                             </div>
                                         </div>
 
-                                        <button
+                                        <Button
                                             onClick={() => handleSaveSettings('security')}
-                                            disabled={saving}
-                                            className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            loading={saving}
+                                            loadingText="Saving..."
+                                            className="mt-6"
                                         >
-                                            {saving ? 'Saving...' : 'Save Security Settings'}
-                                        </button>
+                                            Save Security Settings
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -476,13 +479,14 @@ const SystemSettingsTab = () => {
                                             </div>
                                         </div>
 
-                                        <button
+                                        <Button
                                             onClick={() => handleSaveSettings('delivery')}
-                                            disabled={saving}
-                                            className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            loading={saving}
+                                            loadingText="Saving..."
+                                            className="mt-6"
                                         >
-                                            {saving ? 'Saving...' : 'Save Delivery Settings'}
-                                        </button>
+                                            Save Delivery Settings
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -539,13 +543,14 @@ const SystemSettingsTab = () => {
                                             </div>
                                         </div>
 
-                                        <button
+                                        <Button
                                             onClick={() => handleSaveSettings('earnings')}
-                                            disabled={saving}
-                                            className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            loading={saving}
+                                            loadingText="Saving..."
+                                            className="mt-6"
                                         >
-                                            {saving ? 'Saving...' : 'Save Earnings Settings'}
-                                        </button>
+                                            Save Earnings Settings
+                                        </Button>
                                     </div>
                                 </div>
                             )}
@@ -617,13 +622,14 @@ const SystemSettingsTab = () => {
                                             </div>
                                         </div>
 
-                                        <button
+                                        <Button
                                             onClick={() => handleSaveSettings('system')}
-                                            disabled={saving}
-                                            className="mt-6 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                            loading={saving}
+                                            loadingText="Saving..."
+                                            className="mt-6"
                                         >
-                                            {saving ? 'Saving...' : 'Save System Settings'}
-                                        </button>
+                                            Save System Settings
+                                        </Button>
                                     </div>
                                 </div>
                             )}

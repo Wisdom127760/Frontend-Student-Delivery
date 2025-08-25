@@ -3,6 +3,7 @@ import { capitalizeName } from '../../utils/nameUtils';
 import { useNavigate } from 'react-router-dom';
 import VerifiedBadge from '../../components/common/VerifiedBadge';
 import { isDriverVerified } from '../../utils/verificationHelpers';
+import { validateLeaderboardData, calculateLeaderboardStats } from '../../utils/leaderboardValidator';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -18,7 +19,8 @@ import {
     ClipboardDocumentIcon,
     ArrowPathIcon
 } from '@heroicons/react/24/outline';
-import { getDashboardData, getRecentDeliveries, getTopDrivers } from '../../services/dashboardService';
+import { getDashboardData, getRecentDeliveries } from '../../services/dashboardService';
+import apiService from '../../services/api';
 import { useSystemSettings } from '../../context/SystemSettingsContext';
 import RealTimeDriverStatus from '../../components/admin/RealTimeDriverStatus';
 // import RealTimeNotifications from '../../components/admin/RealTimeNotifications'; // Unused import
@@ -27,6 +29,7 @@ import RealTimeDriverStatus from '../../components/admin/RealTimeDriverStatus';
 import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
 import socketService from '../../services/socketService';
+import EarningsValidationService from '../../services/earningsValidationService';
 
 const AdminDashboard = () => {
     const { formatCurrency } = useSystemSettings();
@@ -93,9 +96,11 @@ const AdminDashboard = () => {
         }
     };
 
+
+
     const loadDashboardData = async (silent = false) => {
         try {
-            console.log('🔄 AdminDashboard: Loading dashboard data for period:', selectedPeriod, 'silent:', silent);
+            console.log('🔄 AdminDashboard: Loading dashboard data for period:', selectedPeriod, 'silent:', silent, 'at', new Date().toISOString());
 
             if (!silent) {
                 setIsLoading(true);
@@ -146,11 +151,43 @@ const AdminDashboard = () => {
                 // Set recent deliveries
                 setRecentDeliveries(recentDeliveries || []);
 
-                // Set top drivers
-                console.log('🏆 AdminDashboard: Setting top drivers:', topDrivers);
-                console.log('🏆 AdminDashboard: Top drivers count:', topDrivers?.length || 0);
-                console.log('🏆 AdminDashboard: Top drivers data structure:', JSON.stringify(topDrivers, null, 2));
-                setTopDrivers(topDrivers || []);
+                // Get top drivers from the dedicated leaderboard API
+                console.log('🏆 AdminDashboard: Fetching top drivers from leaderboard API');
+                try {
+                    const leaderboardResponse = await apiService.getLeaderboard('overall', selectedPeriod, 5);
+
+                    if (leaderboardResponse.success && leaderboardResponse.data) {
+                        const leaderboardData = leaderboardResponse.data.leaderboard || leaderboardResponse.data;
+
+                        if (Array.isArray(leaderboardData)) {
+                            console.log('✅ AdminDashboard: Leaderboard data received:', leaderboardData);
+
+                            // Use the validator to ensure data consistency
+                            const processedTopDrivers = validateLeaderboardData(leaderboardData);
+
+                            console.log('🏆 AdminDashboard: Validated leaderboard drivers:', processedTopDrivers);
+                            setTopDrivers(processedTopDrivers);
+                        } else {
+                            console.warn('⚠️ AdminDashboard: Invalid leaderboard data structure:', leaderboardData);
+                            setTopDrivers([]);
+                        }
+                    } else {
+                        console.warn('⚠️ AdminDashboard: Leaderboard API returned invalid response:', leaderboardResponse);
+                        setTopDrivers([]);
+                    }
+                } catch (leaderboardError) {
+                    console.error('❌ AdminDashboard: Error fetching leaderboard data:', leaderboardError);
+
+                    // Try to use dashboard data as fallback
+                    if (topDrivers && Array.isArray(topDrivers) && topDrivers.length > 0) {
+                        console.log('🔄 AdminDashboard: Using dashboard data as fallback');
+                        const processedTopDrivers = validateLeaderboardData(topDrivers);
+                        setTopDrivers(processedTopDrivers);
+                    } else {
+                        console.log('⚠️ AdminDashboard: No fallback data available, setting empty array');
+                        setTopDrivers([]);
+                    }
+                }
             } else {
                 // Fallback to the old structure if needed
                 setDashboardData(dashboardResponse);
@@ -159,9 +196,33 @@ const AdminDashboard = () => {
             }
         } catch (error) {
             console.error('❌ AdminDashboard: Error loading dashboard data:', error);
-            if (!silent) {
-                toast.error('Failed to load dashboard data');
+
+            // Provide specific error feedback
+            if (error.message?.includes('401')) {
+                toast.error('Session expired. Please log in again.');
+            } else if (error.message?.includes('403')) {
+                toast.error('Access denied. Please contact support.');
+            } else if (error.message?.includes('500')) {
+                toast.error('Server error. Please try again later.');
+            } else {
+                toast.error('Failed to load dashboard data. Please check your connection.');
             }
+
+            // Set fallback data to prevent UI from breaking
+            setDashboardData({
+                totalDeliveries: 0,
+                activeDrivers: 0,
+                totalRevenue: 0,
+                pendingDeliveries: 0,
+                completedDeliveries: 0,
+                totalDrivers: 0,
+                deliveryGrowth: '+0%',
+                driverGrowth: '+0%',
+                revenueGrowth: '+0%',
+                pendingGrowth: '+0%'
+            });
+            setRecentDeliveries([]);
+            setTopDrivers([]);
         } finally {
             if (!silent) {
                 setIsLoading(false);
@@ -172,10 +233,12 @@ const AdminDashboard = () => {
     };
 
     useEffect(() => {
+        console.log('🔄 AdminDashboard: useEffect triggered for period:', selectedPeriod, 'at', new Date().toISOString());
         loadDashboardData();
 
         // Set up auto-refresh every 60 seconds (reduced from 30)
         const interval = setInterval(() => {
+            console.log('🔄 AdminDashboard: Auto-refresh triggered for period:', selectedPeriod, 'at', new Date().toISOString());
             loadDashboardData(true); // Silent refresh
         }, 60000);
 
@@ -200,15 +263,25 @@ const AdminDashboard = () => {
             loadDashboardData(true); // Silent refresh
         };
 
+        const handleLeaderboardUpdate = (data) => {
+            console.log('🏆 AdminDashboard: Leaderboard update received:', data);
+            // Refresh leaderboard data specifically
+            if (data.period === selectedPeriod) {
+                loadDashboardData(true); // Silent refresh
+            }
+        };
+
         socket.on('driver-status-changed', handleDriverStatusChanged);
+        socket.on('leaderboard-update', handleLeaderboardUpdate);
 
         return () => {
             if (socket) {
                 console.log('🧹 AdminDashboard: Cleaning up socket event listeners');
                 socket.off('driver-status-changed', handleDriverStatusChanged);
+                socket.off('leaderboard-update', handleLeaderboardUpdate);
             }
         };
-    }, []); // Removed loadDashboardData dependency
+    }, [selectedPeriod]); // Added selectedPeriod dependency
 
     // Show skeleton loading state
     if (isLoading) {
@@ -321,14 +394,9 @@ const AdminDashboard = () => {
                                 value={selectedPeriod}
                                 onChange={(e) => {
                                     const newPeriod = e.target.value;
-                                    console.log('📊 AdminDashboard: Period changed from', selectedPeriod, 'to', newPeriod);
+                                    console.log('📊 AdminDashboard: Period changed from', selectedPeriod, 'to', newPeriod, 'at', new Date().toISOString());
                                     setSelectedPeriod(newPeriod);
-
-                                    // Explicitly trigger data reload with new period
-                                    setTimeout(() => {
-                                        console.log('🔄 AdminDashboard: Explicitly reloading data for new period:', newPeriod);
-                                        loadDashboardData();
-                                    }, 100);
+                                    // The useEffect with selectedPeriod dependency will automatically trigger loadDashboardData()
                                 }}
                                 className="px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-500 focus:border-green-500"
                             >
@@ -460,7 +528,16 @@ const AdminDashboard = () => {
                             <div className="flex items-center justify-between">
                                 <h2 className="text-xs font-semibold text-gray-900">🏆 Driver Leaderboard</h2>
                                 <div className="flex items-center space-x-2">
-                                    {/* Refresh button removed - WebSocket provides real-time updates */}
+                                    {/* Manual refresh button */}
+                                    <button
+                                        onClick={() => loadDashboardData(true)}
+                                        disabled={isRefreshing}
+                                        className="flex items-center space-x-1 text-xs text-green-600 hover:text-green-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Refresh leaderboard data"
+                                    >
+                                        <ArrowPathIcon className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+                                        <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+                                    </button>
                                     <button
                                         onClick={copyLeaderboardToClipboard}
                                         disabled={isCopying}
@@ -482,8 +559,36 @@ const AdminDashboard = () => {
                         <div className="p-3">
                             {/* Debug info */}
                             <div className="text-xs text-gray-500 font-italic mb-2">
-                                Info: {topDrivers.length} drivers loaded | Period: {selectedPeriod}
+                                Info: {topDrivers.length} drivers loaded | Period: {selectedPeriod} | Last updated: {new Date().toLocaleTimeString()}
                             </div>
+
+                            {/* Summary Statistics */}
+                            {topDrivers.length > 0 && (
+                                <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-green-50 rounded border border-green-200">
+                                    <div className="text-center">
+                                        <p className="text-xs font-semibold text-green-800">{topDrivers.length}</p>
+                                        <p className="text-xs text-green-600">Total Drivers</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-xs font-semibold text-green-800">
+                                            {calculateLeaderboardStats(topDrivers).totalDeliveries}
+                                        </p>
+                                        <p className="text-xs text-green-600">Total Deliveries</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-xs font-semibold text-green-800">
+                                            {formatCurrency(calculateLeaderboardStats(topDrivers).totalEarnings)}
+                                        </p>
+                                        <p className="text-xs text-green-600">Total Earnings</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-xs font-semibold text-green-800">
+                                            {calculateLeaderboardStats(topDrivers).averageRating.toFixed(1)}
+                                        </p>
+                                        <p className="text-xs text-green-600">Avg Rating</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {topDrivers.length === 0 ? (
                                 <div className="text-center py-4">
@@ -505,6 +610,8 @@ const AdminDashboard = () => {
 
                                         const rankBadge = getRankBadge(index);
                                         const isOnline = driver.isOnline || driver.isActive;
+                                        const points = driver.points || 0;
+                                        const rating = driver.rating || 0;
 
                                         return (
                                             <div key={driver._id || driver.id || `driver-${index}`} className="flex items-start justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
@@ -527,13 +634,16 @@ const AdminDashboard = () => {
                                                                 📦 {driver.totalDeliveries || 0}
                                                             </span>
                                                             <span className="text-xs text-gray-600">
-                                                                ⭐ {driver.avgEarningsPerDelivery || 'N/A'}
+                                                                ⭐ {rating.toFixed(1)}
                                                             </span>
                                                             {driver.avgDeliveryTime && (
                                                                 <span className="text-xs text-gray-600">
                                                                     ⏱️ {Math.round(driver.avgDeliveryTime)}m
                                                                 </span>
                                                             )}
+                                                            <span className="text-xs font-semibold text-green-600">
+                                                                🏆 {points} pts
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -616,7 +726,16 @@ const AdminDashboard = () => {
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => navigate('/admin/search')}
+                                    onClick={() => {
+                                        console.log('🔍 AdminDashboard: Dispatching open-global-search event');
+                                        if (typeof window !== 'undefined') {
+                                            const event = new CustomEvent('open-global-search');
+                                            window.dispatchEvent(event);
+                                            console.log('🔍 AdminDashboard: Event dispatched successfully');
+                                        } else {
+                                            console.error('🔍 AdminDashboard: Window is undefined');
+                                        }
+                                    }}
                                     className="p-2 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 transition-colors text-left"
                                 >
                                     <div className="flex items-center space-x-2">
@@ -640,3 +759,28 @@ const AdminDashboard = () => {
 
 export default AdminDashboard;
 
+// The endpoint '/admin/search' does not exist. 
+// If you want to provide a quick action for global search, you should open the global search modal instead of navigating to a non-existent route.
+// Example: If you have a global search modal context or function, trigger it here.
+// For demonstration, we'll show a placeholder function call:
+
+// Example: If you use a context or prop for opening the global search modal, e.g. openGlobalSearchModal()
+// You may need to import/use the correct context or prop in your component.
+// Here's a placeholder for the button's onClick:
+
+/*
+<button
+    onClick={openGlobalSearchModal}
+    className="p-2 bg-gradient-to-r from-[#0D965E] to-[#00683F] border border-green-200 rounded hover:from-[#13b87a] hover:to-[#00794a] transition-colors text-left"
+>
+    <div className="flex items-center space-x-2">
+        <MagnifyingGlassIcon className="w-3 h-3 text-white" />
+        <div>
+            <h3 className="text-xs font-medium text-white">Global Search</h3>
+            <p className="text-xs text-green-100">Search across all entities</p>
+        </div>
+    </div>
+</button>
+*/
+
+// If you do not have a modal yet, you may want to implement a global search modal and trigger it here.

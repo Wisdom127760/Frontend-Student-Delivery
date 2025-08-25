@@ -12,6 +12,7 @@ import {
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
 import { StatCardSkeleton } from '../common/SkeletonLoader';
+import Button from '../ui/Button';
 
 const BroadcastMonitor = () => {
     const [broadcastStats, setBroadcastStats] = useState({
@@ -339,13 +340,16 @@ const BroadcastMonitor = () => {
                                     </p>
                                 </div>
                             </div>
-                            <button
+                            <Button
                                 onClick={handleExpiredBroadcasts}
-                                disabled={processing}
-                                className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                loading={processing}
+                                loadingText="Processing..."
+                                variant="outline"
+                                size="sm"
+                                className="px-3 py-1 text-xs"
                             >
-                                {processing ? 'Processing...' : 'Run Now'}
-                            </button>
+                                Run Now
+                            </Button>
                         </div>
 
                         <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -362,13 +366,16 @@ const BroadcastMonitor = () => {
                                     </p>
                                 </div>
                             </div>
-                            <button
+                            <Button
                                 onClick={triggerBroadcastProcessing}
-                                disabled={processing}
-                                className="inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                                loading={processing}
+                                loadingText="Processing..."
+                                variant="outline"
+                                size="sm"
+                                className="px-3 py-1 text-xs"
                             >
-                                {processing ? 'Processing...' : 'Run Now'}
-                            </button>
+                                Run Now
+                            </Button>
                         </div>
                     </div>
                 </div>

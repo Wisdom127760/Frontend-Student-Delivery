@@ -12,6 +12,7 @@ import {
 import ConfirmationModal from '../common/ConfirmationModal';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
+import Button from '../ui/Button';
 
 const EarningsConfigTab = () => {
     const [configurations, setConfigurations] = useState([]);
@@ -596,14 +597,15 @@ const EarningsConfigModal = ({ isOpen, onClose, onSubmit, mode, configuration, s
                     </div>
 
                     <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                        <button
+                        <Button
                             type="button"
                             onClick={handleSubmit}
-                            disabled={saving}
-                            className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
+                            loading={saving}
+                            loadingText="Saving..."
+                            className="w-full sm:ml-3 sm:w-auto sm:text-sm"
                         >
-                            {saving ? 'Saving...' : (mode === 'create' ? 'Create Configuration' : 'Update Configuration')}
-                        </button>
+                            {mode === 'create' ? 'Create Configuration' : 'Update Configuration'}
+                        </Button>
                         <button
                             type="button"
                             onClick={onClose}

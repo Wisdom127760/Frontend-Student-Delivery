@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ExclamationTriangleIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
+import Button from '../ui/Button';
 
 const EmergencyAlert = () => {
     const { user } = useAuth();
@@ -90,8 +91,8 @@ const EmergencyAlert = () => {
                                 onChange={(e) => setMessage(e.target.value)}
                                 placeholder="Describe the emergency situation..."
                                 className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent ${message.trim() === '' && message !== ''
-                                        ? 'border-red-500'
-                                        : 'border-gray-300'
+                                    ? 'border-red-500'
+                                    : 'border-gray-300'
                                     }`}
                                 rows={4}
                                 maxLength={500}
@@ -107,19 +108,23 @@ const EmergencyAlert = () => {
                         </div>
 
                         <div className="flex space-x-3">
-                            <button
+                            <Button
                                 onClick={() => setShowModal(false)}
-                                className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                                variant="secondary"
+                                className="flex-1"
                             >
                                 Cancel
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                                 onClick={handleEmergencyAlert}
-                                disabled={loading || !message.trim()}
-                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                loading={loading}
+                                loadingText="Sending..."
+                                variant="danger"
+                                className="flex-1"
+                                disabled={!message.trim()}
                             >
-                                {loading ? 'Sending...' : 'Send Alert'}
-                            </button>
+                                Send Alert
+                            </Button>
                         </div>
                     </div>
                 </div>
