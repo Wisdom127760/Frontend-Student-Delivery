@@ -81,7 +81,9 @@ const AdminUsersTab = () => {
 
     const handleCreateAdmin = async (adminData) => {
         try {
-            await apiService.createAdminUser(adminData);
+            // Filter out isActive field as it's not allowed by the backend
+            const { isActive, ...adminDataWithoutIsActive } = adminData;
+            await apiService.createAdminUser(adminDataWithoutIsActive);
             toast.success('Admin user created successfully');
             setShowCreateModal(false);
             fetchAdmins();
@@ -92,7 +94,9 @@ const AdminUsersTab = () => {
 
     const handleUpdateAdmin = async (adminData) => {
         try {
-            await apiService.updateAdminUser(selectedAdmin.id || selectedAdmin._id, adminData);
+            // Filter out isActive field as it's not allowed by the backend
+            const { isActive, ...adminDataWithoutIsActive } = adminData;
+            await apiService.updateAdminUser(selectedAdmin.id || selectedAdmin._id, adminDataWithoutIsActive);
             toast.success('Admin user updated successfully');
             setShowEditModal(false);
             setSelectedAdmin(null);
