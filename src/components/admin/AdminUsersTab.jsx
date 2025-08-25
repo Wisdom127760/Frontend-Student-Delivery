@@ -81,13 +81,25 @@ const AdminUsersTab = () => {
 
     const handleCreateAdmin = async (adminData) => {
         try {
-            // Filter out isActive field as it's not allowed by the backend
-            const { isActive, ...adminDataWithoutIsActive } = adminData;
-            await apiService.createAdminUser(adminDataWithoutIsActive);
+            console.log('📧 AdminUsersTab: Original admin data:', adminData);
+            
+            // Extract sendInvitation and filter out isActive field
+            const { isActive, sendInvitation, ...adminDataForAPI } = adminData;
+            
+            // Add sendInvitation back to the payload if it's true
+            if (sendInvitation) {
+                adminDataForAPI.sendInvitation = true;
+            }
+            
+            console.log('📧 AdminUsersTab: Processed admin data for API:', adminDataForAPI);
+            console.log('📧 AdminUsersTab: sendInvitation value:', sendInvitation);
+            
+            await apiService.createAdminUser(adminDataForAPI);
             toast.success('Admin user created successfully');
             setShowCreateModal(false);
             fetchAdmins();
         } catch (error) {
+            console.error('❌ AdminUsersTab: Error creating admin:', error);
             toast.error('Failed to create admin user');
         }
     };
