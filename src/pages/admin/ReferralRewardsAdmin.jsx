@@ -16,6 +16,23 @@ import apiService from '../../services/api';
 import toast from 'react-hot-toast';
 
 const ReferralRewardsAdmin = () => {
+    // Helper function to format profit margin display
+    const formatProfitMargin = (profitMargin) => {
+        if (profitMargin === undefined || profitMargin === null) {
+            return '—';
+        }
+
+        if (typeof profitMargin === 'string') {
+            return profitMargin; // "N/A" or other string values
+        }
+
+        if (typeof profitMargin === 'number') {
+            return `${profitMargin.toFixed(1)}%`;
+        }
+
+        return '—';
+    };
+
     const [configurations, setConfigurations] = useState([]);
     const [profitabilityAnalysis, setProfitabilityAnalysis] = useState(null);
     const [leaderboard, setLeaderboard] = useState(null);
@@ -222,7 +239,7 @@ const ReferralRewardsAdmin = () => {
                             <div className="ml-4">
                                 <p className="text-sm font-medium text-purple-700">Profit Margin</p>
                                 <p className="text-2xl font-bold text-purple-900">
-                                    {profitabilityAnalysis?.profitMargin || 0}%
+                                    {formatProfitMargin(profitabilityAnalysis?.profitMargin)}
                                 </p>
                             </div>
                         </div>
@@ -456,7 +473,9 @@ const ReferralRewardsAdmin = () => {
                                             </div>
                                             <div className="flex justify-between">
                                                 <span className="text-gray-600">Profit Margin:</span>
-                                                <span className="font-medium text-green-600">{profitabilityAnalysis.profitMargin || 0}%</span>
+                                                <span className="font-medium text-green-600">
+                                                    {formatProfitMargin(profitabilityAnalysis?.profitMargin)}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>

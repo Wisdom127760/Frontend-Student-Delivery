@@ -289,8 +289,7 @@ const OTPVerification = () => {
         return { message: errorMessage, type: errorType };
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
         setErrors({});
 
         // Client-side validation
@@ -406,7 +405,7 @@ const OTPVerification = () => {
 
                 {/* Form */}
                 <div className="bg-white rounded-lg shadow-sm border p-6">
-                    <form onSubmit={handleSubmit} className="space-y-6">
+                    <div className="space-y-6">
 
                         {/* OTP Input */}
                         <div>
@@ -465,7 +464,8 @@ const OTPVerification = () => {
 
                         {/* Submit Button */}
                         <Button
-                            type="submit"
+                            type="button"
+                            onClick={handleSubmit}
                             loading={isSubmitting}
                             loadingText="Verifying..."
                             disabled={otp.length !== 6}
@@ -485,7 +485,7 @@ const OTPVerification = () => {
                             Back to Login
                         </button>
 
-                    </form>
+                    </div>
                 </div>
 
                 {/* Footer */}
