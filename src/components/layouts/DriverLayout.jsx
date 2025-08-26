@@ -24,7 +24,6 @@ import {
 } from '@heroicons/react/24/outline';
 import socketService from '../../services/socketService';
 import { capitalizeName } from '../../utils/nameUtils';
-import { isDriverVerified } from '../../utils/verificationHelpers';
 import VerifiedBadge from '../common/VerifiedBadge';
 
 // Create context for driver status

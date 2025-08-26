@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, User, Truck, AlertCircle, ChevronLeft, ChevronRight, Instagram, Phone } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { Mail, User, Truck, AlertCircle, ChevronLeft, ChevronRight, Instagram, Phone } from 'lucide-react';
 import toast from 'react-hot-toast';
-import LoadingSpinner from '../components/common/LoadingSpinner';
 import Button from '../components/ui/Button';
 
 const LoginPage = () => {

@@ -111,6 +111,37 @@ const DashboardContent = () => {
                             fullResponse: response
                         });
                         console.log('📊 RAW EARNINGS RESPONSE:', JSON.stringify(response, null, 2));
+
+                        // Check if the response has meaningful data
+                        const hasData = response.data?.summary && (
+                            response.data.summary.totalDeliveries > 0 ||
+                            response.data.summary.totalEarnings > 0 ||
+                            response.data.summary.completionRate > 0
+                        );
+
+                        // Check for rating data
+                        const hasRatingData = response.data?.performance?.rating > 0 ||
+                            response.data?.summary?.rating > 0 ||
+                            response.data?.rating > 0;
+
+                        console.log('📊 Rating data check:', {
+                            hasRatingData,
+                            performanceRating: response.data?.performance?.rating,
+                            summaryRating: response.data?.summary?.rating,
+                            directRating: response.data?.rating
+                        });
+
+                        if (!hasData) {
+                            console.warn('⚠️ Earnings API returned empty/zero data - this might indicate:');
+                            console.warn('   1. Driver has no delivery history');
+                            console.warn('   2. Backend endpoint needs implementation');
+                            console.warn('   3. Period filtering issue');
+                        }
+
+                        if (!hasRatingData) {
+                            console.warn('⚠️ No rating data found in API response');
+                        }
+
                         setDashboardData(response.data);
                         return;
                     }
@@ -233,6 +264,21 @@ const DashboardContent = () => {
         // Handle the new backend data structure
         if (dashboardData?.summary) {
             console.log('🔍 Using summary data from backend:', dashboardData.summary);
+            console.log('🔍 Completion rate from summary:', dashboardData.summary.completionRate);
+
+            // Check if all values are zero (backend issue)
+            const allZero = !dashboardData.summary.totalDeliveries &&
+                !dashboardData.summary.totalEarnings &&
+                !dashboardData.summary.completionRate;
+
+            if (allZero) {
+                console.warn('⚠️ Backend returned all zero values - this indicates a backend issue or new driver');
+                console.log('💡 This could mean:');
+                console.log('   1. Driver has no delivery history yet');
+                console.log('   2. Backend API endpoint needs implementation');
+                console.log('   3. Period filtering is not working correctly');
+            }
+
             return {
                 deliveries: dashboardData.summary.totalDeliveries,
                 totalDeliveries: dashboardData.summary.totalDeliveries,
@@ -249,18 +295,22 @@ const DashboardContent = () => {
 
             switch (selectedPeriod) {
                 case 'today':
+                    console.log('🔍 Today completion rate:', dashboardData.quickStats.today?.completionRate);
                     return dashboardData.quickStats.today;
                 case 'thisWeek':
+                    console.log('🔍 This week completion rate:', dashboardData.quickStats.thisWeek?.completionRate);
                     return dashboardData.quickStats.thisWeek;
                 case 'currentPeriod':
                     // Use analytics data as fallback if quickStats is empty
                     const currentPeriodData = dashboardData.quickStats.currentPeriod;
+                    console.log('🔍 Current period completion rate:', currentPeriodData?.completionRate);
                     if (currentPeriodData && (currentPeriodData.deliveries > 0 || currentPeriodData.totalDeliveries > 0)) {
                         return currentPeriodData;
                     }
                     // Fallback to analytics data
                     if (dashboardData.analytics?.current?.stats) {
                         console.log('🔍 Using analytics fallback for currentPeriod:', dashboardData.analytics.current.stats);
+                        console.log('🔍 Analytics completion rate:', dashboardData.analytics.current.stats.completionRate);
                         return {
                             deliveries: dashboardData.analytics.current.stats.totalDeliveries,
                             totalDeliveries: dashboardData.analytics.current.stats.totalDeliveries,
@@ -271,8 +321,10 @@ const DashboardContent = () => {
                     }
                     return currentPeriodData;
                 case 'allTime':
+                    console.log('🔍 All time completion rate:', dashboardData.quickStats.allTime?.completionRate);
                     return dashboardData.quickStats.allTime;
                 default:
+                    console.log('🔍 Default completion rate:', dashboardData.quickStats.today?.completionRate);
                     return dashboardData.quickStats.today;
             }
         }
@@ -284,6 +336,19 @@ const DashboardContent = () => {
 
     const currentData = getCurrentPeriodData();
     const rating = dashboardData?.performance?.rating || 0;
+
+    // Debug rating data
+    console.log('⭐ RATING DEBUG:', {
+        hasPerformance: !!dashboardData?.performance,
+        performanceData: dashboardData?.performance,
+        rating: rating,
+        alternativeRatingSources: {
+            summaryRating: dashboardData?.summary?.rating,
+            currentDataRating: currentData?.rating,
+            analyticsRating: dashboardData?.analytics?.rating,
+            quickStatsRating: dashboardData?.quickStats?.rating
+        }
+    });
 
     console.log('📊 CURRENT DATA BEING USED:', {
         selectedPeriod,
@@ -307,7 +372,34 @@ const DashboardContent = () => {
         },
         {
             title: 'Completion Rate',
-            value: currentData?.completionRate || 0,
+            value: (() => {
+                // Try to get completion rate from backend data
+                const backendCompletionRate = currentData?.completionRate;
+                if (backendCompletionRate !== undefined && backendCompletionRate !== null && backendCompletionRate > 0) {
+                    console.log('🔍 Using backend completion rate:', backendCompletionRate);
+                    return backendCompletionRate;
+                }
+
+                // Fallback calculation if backend doesn't provide it
+                const totalDeliveries = currentData?.deliveries || currentData?.totalDeliveries || 0;
+                const completedDeliveries = currentData?.completedDeliveries || 0;
+
+                if (totalDeliveries > 0) {
+                    const calculatedRate = Math.round((completedDeliveries / totalDeliveries) * 100);
+                    console.log('🔍 Calculated completion rate:', calculatedRate, 'from', completedDeliveries, '/', totalDeliveries);
+                    return calculatedRate;
+                }
+
+                // If no deliveries at all, this could be a new driver
+                if (totalDeliveries === 0 && completedDeliveries === 0) {
+                    console.log('🔍 New driver detected - no delivery history yet');
+                    // Return a placeholder value for new drivers
+                    return 0; // Keep as 0 for new drivers
+                }
+
+                console.log('🔍 No completion rate data available, defaulting to 0');
+                return 0;
+            })(),
             icon: CheckCircleIcon,
             color: 'text-green-600',
             bgColor: 'bg-green-50'
@@ -321,7 +413,31 @@ const DashboardContent = () => {
         },
         {
             title: 'Algorithm Rating',
-            value: rating || 0,
+            value: (() => {
+                // Try multiple possible sources for rating data
+                const possibleRatingSources = [
+                    dashboardData?.performance?.rating,
+                    dashboardData?.summary?.rating,
+                    currentData?.rating,
+                    dashboardData?.analytics?.rating,
+                    dashboardData?.quickStats?.rating,
+                    dashboardData?.rating
+                ];
+
+                // Find the first non-zero rating
+                const foundRating = possibleRatingSources.find(rating =>
+                    rating !== undefined && rating !== null && rating > 0
+                );
+
+                if (foundRating !== undefined) {
+                    console.log('⭐ Using rating from source:', foundRating);
+                    return foundRating;
+                }
+
+                // If no rating found, this could be a new driver
+                console.log('⭐ No rating data available - new driver or backend issue');
+                return 0; // Keep as 0 for new drivers
+            })(),
             icon: StarIcon,
             color: 'text-yellow-600',
             bgColor: 'bg-yellow-50'
@@ -423,6 +539,29 @@ const DashboardContent = () => {
                             </div>
                         ))}
                     </div>
+
+                    {/* Helpful message for new drivers or when data is missing */}
+                    {currentData && (
+                        (currentData.deliveries === 0 || currentData.totalDeliveries === 0) ||
+                        (dashboardData?.performance?.rating === 0 || dashboardData?.summary?.rating === 0)
+                    ) && (
+                            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="flex items-start space-x-3">
+                                    <div className="flex-shrink-0">
+                                        <svg className="h-5 w-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                        </svg>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-medium text-blue-900">No delivery history yet</h3>
+                                        <p className="text-sm text-blue-700 mt-1">
+                                            Your completion rate and algorithm rating will appear once you complete your first delivery.
+                                            Start accepting deliveries to see your performance metrics!
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                 </div>
 
                 {/* Content Grid */}

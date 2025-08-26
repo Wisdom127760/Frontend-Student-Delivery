@@ -23,7 +23,6 @@ import {
     IdentificationIcon,
     AcademicCapIcon,
     PhotoIcon,
-    TruckIcon
 } from '@heroicons/react/24/outline';
 
 const DocumentVerificationPage = () => {

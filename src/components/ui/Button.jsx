@@ -13,6 +13,7 @@ const Button = React.forwardRef(({
     children,
     disabled,
     useLottie = true,
+    fullWidth = false,
     ...props
 }, ref) => {
     const baseClasses = 'inline-flex items-center justify-center font-medium rounded-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
@@ -45,6 +46,7 @@ const Button = React.forwardRef(({
                 baseClasses,
                 variants[variant],
                 sizes[size],
+                fullWidth && 'w-full',
                 className
             )}
             disabled={disabled || loading}
