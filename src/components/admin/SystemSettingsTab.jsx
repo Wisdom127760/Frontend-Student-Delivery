@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Cog6ToothIcon,
+    CogIcon,
     BellIcon,
     ShieldCheckIcon,
-    GlobeAltIcon,
-    CurrencyDollarIcon,
-    TruckIcon,
-    ChartBarIcon,
-    CheckCircleIcon,
-    XCircleIcon
+    ExclamationTriangleIcon,
+    InformationCircleIcon,
+    ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
@@ -136,7 +133,7 @@ const SystemSettingsTab = () => {
         {
             id: 'display',
             name: 'Display Settings',
-            icon: GlobeAltIcon,
+            icon: CogIcon,
             description: 'Language, timezone, and currency settings'
         },
         {
@@ -154,19 +151,19 @@ const SystemSettingsTab = () => {
         {
             id: 'delivery',
             name: 'Delivery Settings',
-            icon: TruckIcon,
+            icon: ExclamationTriangleIcon,
             description: 'Auto-assignment and delivery configuration'
         },
         {
             id: 'earnings',
             name: 'Earnings',
-            icon: CurrencyDollarIcon,
+            icon: InformationCircleIcon,
             description: 'Commission rates and payout settings'
         },
         {
             id: 'system',
             name: 'System',
-            icon: Cog6ToothIcon,
+            icon: ArrowPathIcon,
             description: 'Maintenance mode and system controls'
         }
     ];

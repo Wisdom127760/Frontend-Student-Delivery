@@ -760,12 +760,14 @@ class ApiService {
                 }
             });
         }
-        const response = await api.get(`/driver/notifications?${params.toString()}`);
+        // Fix: Use the correct backend endpoint
+        const response = await api.get(`/notifications?${params.toString()}`);
         return response.data;
     }
 
     async getDriverUnreadNotificationsCount() {
-        const response = await api.get('/driver/notifications/unread-count');
+        // Fix: Use the correct backend endpoint
+        const response = await api.get('/notifications/unread-count');
         return response.data;
     }
 
@@ -790,8 +792,8 @@ class ApiService {
 
             // Try the driver-specific endpoint first
             try {
-                console.log('📖 API Service: Trying driver endpoint:', `/driver/notifications/${notificationId}/read`);
-                const response = await api.put(`/driver/notifications/${notificationId}/read`);
+                console.log('📖 API Service: Trying driver endpoint:', `/notifications/${notificationId}/read`);
+                const response = await api.put(`/notifications/${notificationId}/read`);
                 console.log('📖 API Service: Mark as read response (driver endpoint):', response.data);
                 return response.data;
             } catch (driverError) {
@@ -818,8 +820,8 @@ class ApiService {
 
                     // Try with notification ID in request body
                     try {
-                        console.log('📖 API Service: Trying body endpoint:', `/driver/notifications/read`);
-                        const response = await api.put(`/driver/notifications/read`, { id: notificationId });
+                        console.log('📖 API Service: Trying body endpoint:', `/notifications/read`);
+                        const response = await api.put(`/notifications/read`, { id: notificationId });
                         console.log('📖 API Service: Mark as read response (body endpoint):', response.data);
                         return response.data;
                     } catch (bodyError) {
@@ -1149,13 +1151,14 @@ class ApiService {
         });
 
         const queryString = params.toString();
-        const url = `/admin/notifications${queryString ? `?${queryString}` : ''}`;
+        // Fix: Use the correct backend endpoint
+        const url = `/notifications${queryString ? `?${queryString}` : ''}`;
 
         console.log('🔔 API Service: Admin notifications URL:', url);
 
         try {
             const response = await api.get(url);
-            //console.log('🔔 API Service: Admin notifications response:', response.data);
+            console.log('🔔 API Service: Admin notifications response:', response.data);
             return response.data;
         } catch (error) {
             console.error('🔔 API Service: Admin notifications error:', {
@@ -1170,8 +1173,8 @@ class ApiService {
             if (error.response?.status === 403) {
                 console.log('🔔 API Service: 403 error, trying alternative endpoints');
                 try {
-                    // Try without admin prefix
-                    const altResponse = await api.get(`/notifications${queryString ? `?${queryString}` : ''}`);
+                    // Try with admin prefix as fallback
+                    const altResponse = await api.get(`/admin/notifications${queryString ? `?${queryString}` : ''}`);
                     console.log('🔔 API Service: Alternative notifications response:', altResponse.data);
                     return altResponse.data;
                 } catch (altError) {
@@ -1209,14 +1212,14 @@ class ApiService {
         console.log('🔔 API Service: Marking admin notification as read:', cleanId);
         try {
             // Send ID in request body as expected by backend
-            const response = await api.put(`/admin/notifications/read`, { id: cleanId });
+            const response = await api.put(`/notifications/read`, { id: cleanId });
             console.log('🔔 API Service: Mark as read response:', response.data);
             return response.data;
         } catch (error) {
             console.log('🔔 API Service: Mark as read failed, trying alternative endpoint');
             try {
                 // Try alternative endpoint with ID in body
-                const response = await api.put(`/notifications/read`, { id: cleanId });
+                const response = await api.put(`/admin/notifications/read`, { id: cleanId });
                 console.log('🔔 API Service: Alternative mark as read response:', response.data);
                 return response.data;
             } catch (fallbackError) {
@@ -1230,14 +1233,15 @@ class ApiService {
     async markAllAdminNotificationsAsRead() {
         console.log('🔔 API Service: Marking all admin notifications as read');
         try {
-            const response = await api.put('/admin/notifications/mark-all-read');
+            // Fix: Use the correct backend endpoint
+            const response = await api.put('/notifications/mark-all-read');
             console.log('🔔 API Service: Mark all as read response:', response.data);
             return response.data;
         } catch (error) {
             console.log('🔔 API Service: Mark all as read failed, trying alternative endpoint');
             try {
                 // Try alternative endpoint
-                const response = await api.put('/notifications/mark-all-read');
+                const response = await api.put('/admin/notifications/mark-all-read');
                 console.log('🔔 API Service: Alternative mark all as read response:', response.data);
                 return response.data;
             } catch (fallbackError) {
@@ -1271,7 +1275,8 @@ class ApiService {
 
         console.log('🔔 API Service: Deleting admin notification:', cleanId);
         try {
-            const response = await api.delete(`/admin/notifications/${cleanId}`);
+            // Fix: Use the correct backend endpoint
+            const response = await api.delete(`/notifications/${cleanId}`);
             console.log('🔔 API Service: Delete notification response:', response.data);
             return response.data;
         } catch (error) {
@@ -1286,7 +1291,7 @@ class ApiService {
             if (error.response?.status === 403) {
                 console.log('🔔 API Service: 403 error, trying alternative delete endpoint');
                 try {
-                    const altResponse = await api.delete(`/notifications/${cleanId}`);
+                    const altResponse = await api.delete(`/admin/notifications/${cleanId}`);
                     console.log('🔔 API Service: Alternative delete response:', altResponse.data);
                     return altResponse.data;
                 } catch (altError) {

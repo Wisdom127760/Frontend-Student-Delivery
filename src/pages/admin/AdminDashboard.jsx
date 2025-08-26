@@ -1,35 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { capitalizeName } from '../../utils/nameUtils';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import VerifiedBadge from '../../components/common/VerifiedBadge';
-import { isDriverVerified } from '../../utils/verificationHelpers';
-import { validateLeaderboardData, calculateLeaderboardStats } from '../../utils/leaderboardValidator';
 import {
-    ChartBarIcon,
     TruckIcon,
     UserGroupIcon,
     CurrencyDollarIcon,
+    ClockIcon,
+    ChartBarIcon,
     ExclamationTriangleIcon,
     CheckCircleIcon,
-    ClockIcon,
-    // ArrowUpIcon, // Unused import
-    // ArrowDownIcon, // Unused import
-    MegaphoneIcon,
-    MagnifyingGlassIcon,
+    ArrowPathIcon,
     ClipboardDocumentIcon,
-    ArrowPathIcon
+    MegaphoneIcon,
+    MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
-import { getDashboardData, getRecentDeliveries } from '../../services/dashboardService';
+import { getDashboardData } from '../../services/dashboardService';
 import apiService from '../../services/api';
-import { useSystemSettings } from '../../context/SystemSettingsContext';
-import RealTimeDriverStatus from '../../components/admin/RealTimeDriverStatus';
-// import RealTimeNotifications from '../../components/admin/RealTimeNotifications'; // Unused import
-// import BroadcastMonitor from '../../components/admin/BroadcastMonitor'; // Unused import
-
-import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 import toast from 'react-hot-toast';
 import socketService from '../../services/socketService';
-import EarningsValidationService from '../../services/earningsValidationService';
+import { validateLeaderboardData, calculateLeaderboardStats } from '../../utils/leaderboardValidator';
+import { capitalizeName } from '../../utils/nameUtils';
+import { isDriverVerified } from '../../utils/verificationHelpers';
+import VerifiedBadge from '../../components/common/VerifiedBadge';
+import { useSystemSettings } from '../../context/SystemSettingsContext';
+import RealTimeDriverStatus from '../../components/admin/RealTimeDriverStatus';
+
+import { DashboardSkeleton } from '../../components/common/SkeletonLoader';
 
 const AdminDashboard = () => {
     const { formatCurrency } = useSystemSettings();
@@ -702,7 +697,7 @@ const AdminDashboard = () => {
                                     </div>
                                 </button>
                                 <button
-                                    onClick={() => navigate('/admin/analytics')}
+                                    onClick={() => navigate('/admin/enhanced-analytics')}
                                     className="p-2 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100 transition-colors text-left"
                                 >
                                     <div className="flex items-center space-x-2">

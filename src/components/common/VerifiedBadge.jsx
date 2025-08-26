@@ -47,9 +47,8 @@ const VerifiedBadge = ({ isVerified, size = 'sm', className = '', iconOnly = fal
     return (
         <span
             className={`
-        inline-flex items-center gap-1
-        bg-green-100 text-green-800
-        border border-green-200
+        inline-flex items-center justify-center
+        bg-green-500 text-white
         rounded-full font-medium
         ${sizeClasses[size]}
         ${className}
@@ -57,7 +56,7 @@ const VerifiedBadge = ({ isVerified, size = 'sm', className = '', iconOnly = fal
             title="Verified Driver"
         >
             <svg
-                className="w-2 h-2"
+                className="w-2 h-2 rounded-full"
                 fill="currentColor"
                 viewBox="0 0 20 20"
             >

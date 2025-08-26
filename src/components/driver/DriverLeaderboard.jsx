@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { TrophyIcon, StarIcon, FireIcon, ArrowUpIcon, ArrowDownIcon, MinusIcon } from '@heroicons/react/24/outline';
+import {
+    TrophyIcon,
+    StarIcon,
+    TruckIcon,
+    ArrowUpIcon
+} from '@heroicons/react/24/outline';
 import { capitalizeName } from '../../utils/nameUtils';
 import apiService from '../../services/api';
 import VerifiedBadge from '../common/VerifiedBadge';
@@ -305,7 +310,7 @@ const DriverLeaderboard = ({ currentDriverId, dashboardPeriod = 'today' }) => {
                                     <div className="flex-shrink-0 flex items-center space-x-1">
                                         {rank === 1 && <TrophyIcon className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-500" />}
                                         {driver.rating >= 4.8 && <StarIcon className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-400" />}
-                                        {driver.totalDeliveries >= 50 && <FireIcon className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500" />}
+                                        {driver.totalDeliveries >= 50 && <TruckIcon className="h-3 w-3 sm:h-4 sm:w-4 text-orange-500" />}
                                     </div>
                                 </div>
                             );
