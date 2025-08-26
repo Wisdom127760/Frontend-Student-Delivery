@@ -272,8 +272,7 @@ const LoginPage = () => {
         return { message: errorMessage, type: errorType };
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
         setErrors({});
 
         // Client-side validation
@@ -447,7 +446,7 @@ const LoginPage = () => {
 
                     {/* Form */}
                     <div className="bg-white rounded-lg shadow-sm border p-6">
-                        <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-4">
                             {/* Email */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -566,7 +565,8 @@ const LoginPage = () => {
 
                             {/* Submit Button */}
                             <Button
-                                type="submit"
+                                type="button"
+                                onClick={handleSubmit}
                                 loading={loading}
                                 loadingText="Sending..."
                                 fullWidth={true}
@@ -574,7 +574,7 @@ const LoginPage = () => {
                             >
                                 Continue
                             </Button>
-                        </form>
+                        </div>
                     </div>
 
                     {/* Footer */}

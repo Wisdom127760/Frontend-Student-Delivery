@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { XMarkIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, EnvelopeIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
 import SearchableDropdown from '../common/SearchableDropdown';
 import driverService from '../../services/driverService';
 import apiService from '../../services/api';
@@ -29,13 +29,35 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
     const fetchAvailableReferralCodes = async () => {
         setLoadingReferralCodes(true);
         try {
+            console.log('🔍 Fetching available referral codes...');
             const response = await apiService.getAvailableReferralCodes();
+            console.log('🔍 Referral codes response:', response);
+
+            console.log('🔍 Response structure:', {
+                success: response.success,
+                hasData: !!response.data,
+                dataType: typeof response.data,
+                isArray: Array.isArray(response.data),
+                keys: response.data ? Object.keys(response.data) : []
+            });
+
             if (response.success && response.data) {
-                setAvailableReferralCodes(response.data.referralCodes || []);
+                let codes = response.data.referralCodes || response.data || [];
+                // Ensure codes is always an array
+                if (!Array.isArray(codes)) {
+                    console.warn('🔍 Referral codes is not an array, converting:', codes);
+                    codes = [];
+                }
+                console.log('🔍 Available referral codes:', codes);
+                setAvailableReferralCodes(codes);
+            } else {
+                console.warn('🔍 No referral codes found in response:', response);
+                setAvailableReferralCodes([]);
             }
         } catch (error) {
             console.warn('Failed to fetch referral codes:', error);
             // Don't show error toast - this is not critical
+            setAvailableReferralCodes([]);
         } finally {
             setLoadingReferralCodes(false);
         }
@@ -48,9 +70,7 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
         }));
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
+    const handleSubmit = async () => {
         // Validation
         if (!formData.name || !formData.email) {
             toast.error('Please fill in all required fields');
@@ -131,7 +151,7 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
                 </div>
 
                 {/* Compact Form - Side by Side Layout */}
-                <form onSubmit={handleSubmit} className="flex-1 flex overflow-hidden">
+                <div className="flex-1 flex overflow-hidden">
                     <div className="flex w-full">
                         {/* Left Side - Form Fields */}
                         <div className="w-1/2 p-4 border-r border-gray-200">
@@ -164,36 +184,42 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
                                     />
                                 </div>
 
-                                <SearchableDropdown
-                                    label="Referral Code"
-                                    options={[
-                                        { value: '', label: 'No referral code' },
-                                        ...availableReferralCodes.map(code => ({
-                                            value: code.referralCode,
-                                            label: code.referralCode,
-                                            driverName: code.driverName
-                                        }))
-                                    ]}
-                                    value={formData.referralCode}
-                                    onChange={(value) => handleInputChange('referralCode', value)}
-                                    placeholder="Enter or select referral code"
-                                    searchPlaceholder="Search referral codes..."
-                                    loading={loadingReferralCodes}
-                                    emptyMessage="No referral codes available"
-                                    allowClear={true}
-                                    className="text-sm"
-                                    maxHeight="max-h-40"
-                                    renderOption={(option, isSelected) => (
-                                        option.value === '' ? (
-                                            <span className="text-gray-700 italic">{option.label}</span>
-                                        ) : (
-                                            <div className="flex flex-col">
-                                                <span className="font-medium text-gray-900">{option.label}</span>
-                                                <span className="text-xs text-gray-500">by {option.driverName}</span>
-                                            </div>
-                                        )
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                        Referral Code
+                                    </label>
+                                    <div className="relative">
+                                        <input
+                                            type="text"
+                                            value={formData.referralCode}
+                                            onChange={(e) => handleInputChange('referralCode', e.target.value)}
+                                            placeholder="Enter or select referral code"
+                                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                                        />
+                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                                            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+                                        </div>
+                                    </div>
+                                    {formData.referralCode && (
+                                        <div className="mt-1 text-xs">
+                                            {Array.isArray(availableReferralCodes) && availableReferralCodes.find(code => code.referralCode === formData.referralCode) ? (
+                                                <span className="text-green-600">
+                                                    ✅ Valid referral code by {availableReferralCodes.find(code => code.referralCode === formData.referralCode)?.driverName}
+                                                </span>
+                                            ) : (
+                                                <span className="text-blue-600">
+                                                    📝 Manual referral code entry - will be validated on submission
+                                                </span>
+                                            )}
+                                        </div>
                                     )}
-                                />
+                                    {Array.isArray(availableReferralCodes) && availableReferralCodes.length > 0 && (
+                                        <div className="mt-1 text-xs text-gray-500">
+                                            Available codes: {availableReferralCodes.slice(0, 3).map(code => code.referralCode).join(', ')}
+                                            {availableReferralCodes.length > 3 && ` and ${availableReferralCodes.length - 3} more`}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -254,7 +280,7 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
                             </div>
                         </div>
                     </div>
-                </form>
+                </div>
 
                 {/* Compact Actions */}
                 <div className="flex items-center justify-between p-4 border-t border-gray-200 bg-gray-50">
