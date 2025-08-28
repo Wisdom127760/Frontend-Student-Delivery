@@ -2,11 +2,42 @@
 class RateLimiter {
     constructor() {
         this.requestTimestamps = new Map();
-        this.minInterval = 1000; // Minimum 1 second between requests for the same endpoint (reduced for testing)
+        // Development mode: much shorter intervals for testing
+        this.minInterval = process.env.NODE_ENV === 'development' ? 100 : 1000; // 100ms for dev, 1s for prod
+        this.isDevelopment = process.env.NODE_ENV === 'development';
     }
 
     // Check if we can make a request to a specific endpoint
     canMakeRequest(endpoint) {
+        // In development, allow more frequent requests
+        if (this.isDevelopment) {
+            // For development, we can be more lenient
+            const now = Date.now();
+            const lastRequest = this.requestTimestamps.get(endpoint);
+
+            if (!lastRequest) {
+                this.requestTimestamps.set(endpoint, now);
+                return true;
+            }
+
+            const timeSinceLastRequest = now - lastRequest;
+
+            // In development, allow requests every 100ms instead of 1s
+            if (timeSinceLastRequest >= this.minInterval) {
+                this.requestTimestamps.set(endpoint, now);
+                return true;
+            }
+
+            // For development, we can also add some randomness to avoid exact timing
+            if (Math.random() < 0.1) { // 10% chance to allow even if too soon
+                this.requestTimestamps.set(endpoint, now);
+                return true;
+            }
+
+            return false;
+        }
+
+        // Production behavior
         const now = Date.now();
         const lastRequest = this.requestTimestamps.get(endpoint);
 
@@ -46,6 +77,24 @@ class RateLimiter {
     // Clear all timestamps
     clear() {
         this.requestTimestamps.clear();
+    }
+
+    // Development helper: force allow next request
+    forceAllowNext(endpoint) {
+        if (this.isDevelopment) {
+            this.requestTimestamps.delete(endpoint);
+            return true;
+        }
+        return false;
+    }
+
+    // Get current rate limit status
+    getStatus() {
+        return {
+            isDevelopment: this.isDevelopment,
+            minInterval: this.minInterval,
+            activeEndpoints: this.requestTimestamps.size
+        };
     }
 }
 
