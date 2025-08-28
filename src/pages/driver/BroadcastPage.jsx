@@ -943,7 +943,7 @@ const BroadcastPage = () => {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-xs sm:text-sm font-semibold text-gray-900 mb-1">Pickup</div>
-                                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">{broadcast.pickupLocation}</div>
+                                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">{broadcast.pickupLocationDescription || broadcast.pickupLocation}</div>
                                             </div>
                                         </div>
                                         <div className="flex items-start space-x-2">
@@ -952,7 +952,7 @@ const BroadcastPage = () => {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-xs sm:text-sm font-semibold text-gray-900 mb-1">Delivery</div>
-                                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">{broadcast.deliveryLocation}</div>
+                                                <div className="text-xs sm:text-sm text-gray-600 leading-relaxed">{broadcast.deliveryLocationDescription || broadcast.deliveryLocation}</div>
                                             </div>
                                         </div>
                                     </div>

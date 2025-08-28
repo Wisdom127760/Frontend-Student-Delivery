@@ -279,7 +279,7 @@ const BroadcastDeliveries = () => {
                                             <MapPinIcon className="w-4 h-4 text-green-500 mr-2" />
                                             <span className="text-xs font-medium text-gray-500">PICKUP</span>
                                         </div>
-                                        <p className="text-sm text-gray-900">{broadcast.pickupLocation}</p>
+                                        <p className="text-sm text-gray-900">{broadcast.pickupLocationDescription || broadcast.pickupLocation}</p>
                                     </div>
                                     <div className="flex justify-center">
                                         <div className="w-4 h-4 bg-gray-200 rounded-full flex items-center justify-center">
@@ -291,7 +291,7 @@ const BroadcastDeliveries = () => {
                                             <MapPinIcon className="w-4 h-4 text-red-500 mr-2" />
                                             <span className="text-xs font-medium text-gray-500">DELIVERY</span>
                                         </div>
-                                        <p className="text-sm text-gray-900">{broadcast.deliveryLocation}</p>
+                                        <p className="text-sm text-gray-900">{broadcast.deliveryLocationDescription || broadcast.deliveryLocation}</p>
                                     </div>
                                 </div>
 
