@@ -1,15 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { XMarkIcon, EnvelopeIcon, ChevronDownIcon } from '@heroicons/react/24/outline';
-import SearchableDropdown from '../common/SearchableDropdown';
+import React, { useState } from 'react';
+import { XMarkIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+// Removed SearchableDropdown import since we're not using it anymore
 import driverService from '../../services/driverService';
-import apiService from '../../services/api';
 import toast from 'react-hot-toast';
 import Button from '../ui/Button';
 
 const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
     const [isLoading, setIsLoading] = useState(false);
-    const [loadingReferralCodes, setLoadingReferralCodes] = useState(false);
-    const [availableReferralCodes, setAvailableReferralCodes] = useState([]);
 
     const [formData, setFormData] = useState({
         name: '',
@@ -17,51 +14,11 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
         referralCode: ''
     });
 
-    // Fetch available referral codes when modal opens
-    useEffect(() => {
-        if (isOpen) {
-            fetchAvailableReferralCodes();
-        }
-    }, [isOpen]);
 
 
 
-    const fetchAvailableReferralCodes = async () => {
-        setLoadingReferralCodes(true);
-        try {
-            console.log('🔍 Fetching available referral codes...');
-            const response = await apiService.getAvailableReferralCodes();
-            console.log('🔍 Referral codes response:', response);
 
-            console.log('🔍 Response structure:', {
-                success: response.success,
-                hasData: !!response.data,
-                dataType: typeof response.data,
-                isArray: Array.isArray(response.data),
-                keys: response.data ? Object.keys(response.data) : []
-            });
 
-            if (response.success && response.data) {
-                let codes = response.data.referralCodes || response.data || [];
-                // Ensure codes is always an array
-                if (!Array.isArray(codes)) {
-                    console.warn('🔍 Referral codes is not an array, converting:', codes);
-                    codes = [];
-                }
-                console.log('🔍 Available referral codes:', codes);
-                setAvailableReferralCodes(codes);
-            } else {
-                console.warn('🔍 No referral codes found in response:', response);
-                setAvailableReferralCodes([]);
-            }
-        } catch (error) {
-            console.warn('Failed to fetch referral codes:', error);
-            // Don't show error toast - this is not critical
-            setAvailableReferralCodes([]);
-        } finally {
-            setLoadingReferralCodes(false);
-        }
-    };
 
     const handleInputChange = (field, value) => {
         setFormData(prev => ({
@@ -193,30 +150,13 @@ const AddDriverModal = ({ isOpen, onClose, onDriverAdded }) => {
                                             type="text"
                                             value={formData.referralCode}
                                             onChange={(e) => handleInputChange('referralCode', e.target.value)}
-                                            placeholder="Enter or select referral code"
+                                            placeholder="Enter referral code"
                                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
                                         />
-                                        <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                                            <ChevronDownIcon className="h-4 w-4 text-gray-400" />
-                                        </div>
                                     </div>
                                     {formData.referralCode && (
-                                        <div className="mt-1 text-xs">
-                                            {Array.isArray(availableReferralCodes) && availableReferralCodes.find(code => code.referralCode === formData.referralCode) ? (
-                                                <span className="text-green-600">
-                                                    ✅ Valid referral code by {availableReferralCodes.find(code => code.referralCode === formData.referralCode)?.driverName}
-                                                </span>
-                                            ) : (
-                                                <span className="text-blue-600">
-                                                    📝 Manual referral code entry - will be validated on submission
-                                                </span>
-                                            )}
-                                        </div>
-                                    )}
-                                    {Array.isArray(availableReferralCodes) && availableReferralCodes.length > 0 && (
-                                        <div className="mt-1 text-xs text-gray-500">
-                                            Available codes: {availableReferralCodes.slice(0, 3).map(code => code.referralCode).join(', ')}
-                                            {availableReferralCodes.length > 3 && ` and ${availableReferralCodes.length - 3} more`}
+                                        <div className="mt-1 text-xs text-blue-600">
+                                            📝 Referral code will be validated on submission
                                         </div>
                                     )}
                                 </div>
