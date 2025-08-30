@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 import apiService from '../../services/api';
 import toast from 'react-hot-toast';
+import RecentActivityWidget from '../../components/admin/RecentActivityWidget';
 
 const ReferralRewardsAdmin = () => {
     // Helper function to format profit margin display
@@ -337,25 +338,7 @@ const ReferralRewardsAdmin = () => {
                                 </div>
                             </div>
 
-                            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                                <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900">New referral completed</p>
-                                            <p className="text-xs text-gray-500">2 minutes ago</p>
-                                        </div>
-                                        <span className="text-sm text-green-600">+20 points</span>
-                                    </div>
-                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900">Configuration updated</p>
-                                            <p className="text-xs text-gray-500">1 hour ago</p>
-                                        </div>
-                                        <span className="text-sm text-blue-600">Updated</span>
-                                    </div>
-                                </div>
-                            </div>
+                            <RecentActivityWidget limit={5} />
                         </div>
                     </div>
                 )}

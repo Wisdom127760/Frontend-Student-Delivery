@@ -430,9 +430,9 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 sm:gap-4 items-stretch">
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
                     {/* Enhanced Recent Deliveries */}
-                    <div className="lg:col-span-2">
+                    <div className="xl:col-span-2">
                         <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
                             <div className="px-3 py-2 border-b border-gray-200">
                                 <div className="flex items-center justify-between">
@@ -510,120 +510,125 @@ const AdminDashboard = () => {
                         </div>
                     </div>
 
-                    {/* Real-time Driver Status */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <RealTimeDriverStatus />
-                    </div>
+                    {/* Right Column - Driver Status and Leaderboard */}
+                    <div className="space-y-4">
+                        {/* Real-time Driver Status */}
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <RealTimeDriverStatus />
+                        </div>
 
-                    {/* Leaderboard */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div className="px-3 py-2 border-b border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <h2 className="text-xs font-semibold text-gray-900">Top Drivers</h2>
-                                <div className="flex items-center space-x-1">
-                                    <button
-                                        onClick={copyLeaderboardToClipboard}
-                                        disabled={isCopying}
-                                        className="text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
-                                    >
-                                        {isCopying ? 'Copying...' : 'Copy'}
-                                    </button>
-                                    <button
-                                        onClick={() => loadDashboardData(false)}
-                                        className="text-xs text-gray-500 hover:text-gray-700"
-                                    >
-                                        ↻
-                                    </button>
+                        {/* Leaderboard */}
+                        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                            <div className="px-3 py-2 border-b border-gray-200">
+                                <div className="flex items-center justify-between">
+                                    <h2 className="text-xs font-semibold text-gray-900">Top Drivers</h2>
+                                    <div className="flex items-center space-x-1">
+                                        <button
+                                            onClick={copyLeaderboardToClipboard}
+                                            disabled={isCopying}
+                                            className="text-xs text-green-600 hover:text-green-700 font-medium disabled:opacity-50"
+                                        >
+                                            {isCopying ? 'Copying...' : 'Copy'}
+                                        </button>
+                                        <button
+                                            onClick={() => loadDashboardData(false)}
+                                            className="text-xs text-gray-500 hover:text-gray-700"
+                                        >
+                                            ↻
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                        <div className="p-2">
-                            {topDrivers.length === 0 ? (
-                                <div className="text-center py-3">
-                                    <TrophyIcon className="w-5 h-5 text-gray-400 mx-auto mb-1" />
-                                    <p className="text-xs text-gray-500">No driver data available</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-1">
-                                    {topDrivers.slice(0, 5).map((driver, index) => {
-                                        const getRankBadge = (rank) => {
-                                            switch (rank) {
-                                                case 0: return { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: '🥇' };
-                                                case 1: return { bg: 'bg-gray-100', text: 'text-gray-700', icon: '🥈' };
-                                                case 2: return { bg: 'bg-orange-100', text: 'text-orange-700', icon: '🥉' };
-                                                default: return { bg: 'bg-blue-100', text: 'text-blue-700', icon: `#${rank + 1}` };
-                                            }
-                                        };
+                            <div className="p-2">
+                                {topDrivers.length === 0 ? (
+                                    <div className="text-center py-3">
+                                        <TrophyIcon className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+                                        <p className="text-xs text-gray-500">No driver data available</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-1">
+                                        {topDrivers.slice(0, 5).map((driver, index) => {
+                                            const getRankBadge = (rank) => {
+                                                switch (rank) {
+                                                    case 0: return { bg: 'bg-yellow-100', text: 'text-yellow-700', icon: '🥇' };
+                                                    case 1: return { bg: 'bg-gray-100', text: 'text-gray-700', icon: '🥈' };
+                                                    case 2: return { bg: 'bg-orange-100', text: 'text-orange-700', icon: '🥉' };
+                                                    default: return { bg: 'bg-blue-100', text: 'text-blue-700', icon: `#${rank + 1}` };
+                                                }
+                                            };
 
-                                        const rankBadge = getRankBadge(index);
-                                        const isOnline = driver.isOnline || driver.isActive;
-                                        const points = driver.points || 0;
-                                        const rating = driver.rating || 0;
+                                            const rankBadge = getRankBadge(index);
+                                            const isOnline = driver.isOnline || driver.isActive;
+                                            const points = driver.points || 0;
+                                            const rating = driver.rating || 0;
 
-                                        return (
-                                            <div key={driver._id || driver.id || `driver-${index}`} className="flex items-start justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
-                                                <div className="flex items-start space-x-2 min-w-0 flex-1">
-                                                    <div className={`w-6 h-6 ${rankBadge.bg} rounded-full flex items-center justify-center flex-shrink-0`}>
-                                                        <span className="text-xs font-bold">{rankBadge.icon}</span>
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="flex items-center space-x-2 mb-1">
-                                                            <p className="text-xs font-medium text-gray-900 truncate">{capitalizeName(driver.name || driver.fullNameComputed)}</p>
-                                                            <VerifiedBadge
-                                                                isVerified={isDriverVerified(driver)}
-                                                                size="xs"
-                                                                className="flex-shrink-0"
-                                                            />
-                                                            <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                            return (
+                                                <div key={driver._id || driver.id || `driver-${index}`} className="flex items-start justify-between p-2 bg-gray-50 rounded hover:bg-gray-100 transition-colors">
+                                                    <div className="flex items-start space-x-2 min-w-0 flex-1">
+                                                        <div className={`w-6 h-6 ${rankBadge.bg} rounded-full flex items-center justify-center flex-shrink-0`}>
+                                                            <span className="text-xs font-bold">{rankBadge.icon}</span>
                                                         </div>
-                                                        <div className="flex items-center space-x-2 flex-wrap gap-1">
-                                                            <span className="text-xs text-gray-600">
-                                                                📦 {driver.totalDeliveries || 0}
-                                                            </span>
-                                                            <span className="text-xs text-gray-600">
-                                                                ⭐ {rating.toFixed(1)}
-                                                            </span>
-                                                            {driver.avgDeliveryTime && (
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex items-center space-x-2 mb-1">
+                                                                <p className="text-xs font-medium text-gray-900 truncate">{capitalizeName(driver.name || driver.fullNameComputed)}</p>
+                                                                <VerifiedBadge
+                                                                    isVerified={isDriverVerified(driver)}
+                                                                    size="xs"
+                                                                    className="flex-shrink-0"
+                                                                />
+                                                                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isOnline ? 'bg-green-500' : 'bg-gray-400'}`}></div>
+                                                            </div>
+                                                            <div className="flex items-center space-x-2 flex-wrap gap-1">
                                                                 <span className="text-xs text-gray-600">
-                                                                    ⏱️ {Math.round(driver.avgDeliveryTime)}m
+                                                                    📦 {driver.totalDeliveries || 0}
                                                                 </span>
-                                                            )}
-                                                            <span className="text-xs font-semibold text-green-600">
-                                                                🏆 {points} pts
-                                                            </span>
+                                                                <span className="text-xs text-gray-600">
+                                                                    ⭐ {rating.toFixed(1)}
+                                                                </span>
+                                                                {driver.avgDeliveryTime && (
+                                                                    <span className="text-xs text-gray-600">
+                                                                        ⏱️ {Math.round(driver.avgDeliveryTime)}m
+                                                                    </span>
+                                                                )}
+                                                                <span className="text-xs font-semibold text-green-600">
+                                                                    🏆 {points} pts
+                                                                </span>
+                                                            </div>
                                                         </div>
                                                     </div>
+                                                    <div className="text-right ml-2 flex-shrink-0">
+                                                        <p className="text-xs font-bold text-gray-900">{formatCurrency(driver.totalEarnings)}</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {driver.avgEarningsPerDelivery ? `€${driver.avgEarningsPerDelivery}/delivery` : 'N/A'}
+                                                        </p>
+                                                        {driver.achievements && driver.achievements.length > 0 && (
+                                                            <div className="flex justify-end space-x-1 mt-1">
+                                                                {driver.achievements.slice(0, 2).map((achievement, idx) => (
+                                                                    <span key={idx} className="text-xs bg-green-100 text-green-700 px-1 rounded">
+                                                                        {achievement}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="text-right ml-2 flex-shrink-0">
-                                                    <p className="text-xs font-bold text-gray-900">{formatCurrency(driver.totalEarnings)}</p>
-                                                    <p className="text-xs text-gray-500">
-                                                        {driver.avgEarningsPerDelivery ? `€${driver.avgEarningsPerDelivery}/delivery` : 'N/A'}
-                                                    </p>
-                                                    {driver.achievements && driver.achievements.length > 0 && (
-                                                        <div className="flex justify-end space-x-1 mt-1">
-                                                            {driver.achievements.slice(0, 2).map((achievement, idx) => (
-                                                                <span key={idx} className="text-xs bg-green-100 text-green-700 px-1 rounded">
-                                                                    {achievement}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    {/* Quick Actions */}
-                    <div className="lg:col-span-3 bg-white rounded-lg shadow-sm border border-gray-200">
+                {/* Quick Actions Section */}
+                <div className="mt-4">
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="px-3 py-2 border-b border-gray-200">
                             <h2 className="text-xs font-semibold text-gray-900">Quick Actions</h2>
                         </div>
                         <div className="p-3">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-2 sm:gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2 sm:gap-3">
                                 <button
                                     onClick={() => navigate('/admin/drivers')}
                                     className="p-2 sm:p-3 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 transition-colors text-left"
@@ -696,8 +701,6 @@ const AdminDashboard = () => {
                             </div>
                         </div>
                     </div>
-
-
                 </div>
             </div>
         </div>
@@ -705,29 +708,3 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
-
-// The endpoint '/admin/search' does not exist. 
-// If you want to provide a quick action for global search, you should open the global search modal instead of navigating to a non-existent route.
-// Example: If you have a global search modal context or function, trigger it here.
-// For demonstration, we'll show a placeholder function call:
-
-// Example: If you use a context or prop for opening the global search modal, e.g. openGlobalSearchModal()
-// You may need to import/use the correct context or prop in your component.
-// Here's a placeholder for the button's onClick:
-
-/*
-<button
-    onClick={openGlobalSearchModal}
-    className="p-2 bg-gradient-to-r from-[#0D965E] to-[#00683F] border border-green-200 rounded hover:from-[#13b87a] hover:to-[#00794a] transition-colors text-left"
->
-    <div className="flex items-center space-x-2">
-        <MagnifyingGlassIcon className="w-3 h-3 text-white" />
-        <div>
-            <h3 className="text-xs font-medium text-white">Global Search</h3>
-            <p className="text-xs text-green-100">Search across all entities</p>
-        </div>
-    </div>
-</button>
-*/
-
-// If you do not have a modal yet, you may want to implement a global search modal and trigger it here.

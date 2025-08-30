@@ -17,16 +17,12 @@ const DevPanel = ({ isOpen, onClose }) => {
     };
 
     const handleRateLimitBypass = (enable) => {
-        if (enable) {
-            devHelpers.enableRateLimitBypass();
-        } else {
-            devHelpers.disableRateLimitBypass();
-        }
+        // Rate limiting removed
         updateStatus();
     };
 
     const handleClearRateLimits = () => {
-        devHelpers.clearRateLimits();
+        // Rate limiting removed
         updateStatus();
     };
 
@@ -56,41 +52,38 @@ const DevPanel = ({ isOpen, onClose }) => {
                         <h4 className="text-sm font-medium text-gray-900 mb-2">Rate Limiting</h4>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-600">Bypass Enabled:</span>
-                                <span className={`text-sm font-medium ${status.rateLimitBypass ? 'text-green-600' : 'text-red-600'}`}>
-                                    {status.rateLimitBypass ? 'Yes' : 'No'}
+                                <span className="text-sm text-gray-600">Status:</span>
+                                <span className="text-sm font-medium text-green-600">
+                                    Disabled
                                 </span>
                             </div>
 
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">Min Interval:</span>
                                 <span className="text-sm font-medium text-gray-900">
-                                    {status.rateLimiterStatus?.minInterval}ms
+                                    0ms
                                 </span>
                             </div>
 
                             <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-600">Active Endpoints:</span>
                                 <span className="text-sm font-medium text-gray-900">
-                                    {status.rateLimiterStatus?.activeEndpoints}
+                                    0
                                 </span>
                             </div>
 
                             <div className="flex space-x-2 pt-2">
                                 <button
-                                    onClick={() => handleRateLimitBypass(!status.rateLimitBypass)}
-                                    className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${status.rateLimitBypass
-                                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                                            : 'bg-green-100 text-green-700 hover:bg-green-200'
-                                        }`}
+                                    disabled
+                                    className="flex-1 px-3 py-2 text-sm font-medium bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed"
                                 >
-                                    {status.rateLimitBypass ? 'Disable Bypass' : 'Enable Bypass'}
+                                    Rate Limiting Disabled
                                 </button>
                                 <button
-                                    onClick={handleClearRateLimits}
-                                    className="px-3 py-2 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                                    disabled
+                                    className="px-3 py-2 text-sm font-medium bg-gray-100 text-gray-500 rounded-lg cursor-not-allowed"
                                 >
-                                    Clear All
+                                    N/A
                                 </button>
                             </div>
                         </div>

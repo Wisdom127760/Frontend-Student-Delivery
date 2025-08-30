@@ -1,5 +1,4 @@
 import axios from 'axios';
-import rateLimiter from '../utils/rateLimiter';
 import requestDeduplicator from '../utils/requestDeduplicator';
 import devHelpers from '../utils/devHelpers';
 import toast from 'react-hot-toast';
@@ -85,22 +84,12 @@ api.interceptors.response.use(
             });
         }
 
-        // Handle rate limiting (429 errors)
+        // Handle 429 errors (server rate limiting)
         if (error.response?.status === 429) {
-            console.warn('⚠️ Rate limit exceeded. Request throttled.');
-
-            // In development, show a more helpful message
-            if (process.env.NODE_ENV === 'development') {
-                toast.error('Rate limit hit in development. Consider increasing server rate limits or using the dev bypass.', {
-                    duration: 6000,
-                });
-                console.log('🔧 Development tip: You can modify server rate limits or use the rate limiter bypass');
-            } else {
-                // Show toast for rate limiting in production
-                toast.error('Too many requests. Please wait a moment before trying again.', {
-                    duration: 4000,
-                });
-            }
+            console.warn('⚠️ Server rate limit exceeded.');
+            toast.error('Too many requests. Please wait a moment before trying again.', {
+                duration: 4000,
+            });
         }
 
         // Handle server errors (500+)
@@ -1570,22 +1559,7 @@ class ApiService {
         const requestKey = `${endpoint}?lat=${lat}&lng=${lng}`;
 
         return requestDeduplicator.execute(requestKey, async () => {
-            // Check rate limiting (with development bypass)
-            if (!devHelpers.shouldBypassRateLimit() && !rateLimiter.canMakeRequest(endpoint)) {
-                const waitTime = rateLimiter.getTimeUntilNextRequest(endpoint);
-                console.warn(`⚠️ Rate limited for ${endpoint}, waiting ${waitTime}ms`);
-
-                // In development, show more helpful message
-                if (process.env.NODE_ENV === 'development') {
-                    console.log('🔧 Development tip: Use window.devHelpers.enableRateLimitBypass() to bypass rate limiting');
-                }
-
-                return {
-                    success: false,
-                    message: `Rate limited. Please wait ${Math.ceil(waitTime / 1000)} seconds before trying again.`,
-                    data: { broadcasts: [] }
-                };
-            }
+            // Rate limiting removed - all requests allowed
 
             console.log('📡 API Service: Getting active broadcasts for location:', lat, lng);
             const params = lat && lng ? `?lat=${lat}&lng=${lng}` : '';
@@ -1933,6 +1907,11 @@ class ApiService {
     // Admin referral endpoints
     async getReferralAdminStats() {
         const response = await api.get('/referral/admin/statistics');
+        return response.data;
+    }
+
+    async getReferralRecentActivity(limit = 10) {
+        const response = await api.get(`/referral/admin/recent-activity?limit=${limit}`);
         return response.data;
     }
 
