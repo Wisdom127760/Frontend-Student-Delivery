@@ -165,7 +165,7 @@ const OTPVerification = () => {
                     break;
                 case 429:
                     errorMessage = data?.message || 'Too many verification attempts. Please wait a moment before trying again.';
-                    errorType = 'rateLimit';
+                    errorType = 'error';
                     break;
                 case 500:
                     errorMessage = data?.message || 'Server error. Please try again later.';
@@ -265,7 +265,7 @@ const OTPVerification = () => {
                     duration: 5000,
                 });
                 break;
-            case 'rateLimit':
+            case 'error':
                 toast.error(errorMessage, {
                     duration: 6000,
                 });
@@ -375,8 +375,8 @@ const OTPVerification = () => {
             const errorInfo = handleError(error, 'resend');
 
             // Handle specific resend errors
-            if (errorInfo.type === 'rateLimit') {
-                setTimeLeft(120); // Extend cooldown for rate limiting
+            if (errorInfo.type === 'error') {
+                setTimeLeft(60); // Standard cooldown
             } else if (errorInfo.type === 'notFound') {
                 // Redirect to login if user not found
                 navigate('/');

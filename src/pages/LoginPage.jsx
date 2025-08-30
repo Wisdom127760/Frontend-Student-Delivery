@@ -171,7 +171,7 @@ const LoginPage = () => {
                     break;
                 case 429:
                     errorMessage = data?.message || 'Too many login attempts. Please wait a moment before trying again.';
-                    errorType = 'rateLimit';
+                    errorType = 'error';
                     break;
                 case 500:
                     errorMessage = data?.message || 'Server error. Please try again later.';
@@ -248,7 +248,7 @@ const LoginPage = () => {
                     duration: 5000,
                 });
                 break;
-            case 'rateLimit':
+            case 'error':
                 toast.error(errorMessage, {
                     duration: 6000,
                 });

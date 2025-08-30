@@ -75,17 +75,10 @@ const BroadcastDeliveries = () => {
         } catch (error) {
             console.error('❌ BroadcastDeliveries: Error loading broadcasts:', error);
 
-            // Handle rate limiting specifically
-            if (error.response?.status === 429) {
-                console.warn('⚠️ BroadcastDeliveries: Rate limited, will retry later');
-                // Don't show error to user for rate limiting, just log it
-                // Don't clear broadcasts on rate limit to maintain UI
-            } else {
-                if (!silent) {
-                    toast.error('Failed to load available deliveries');
-                }
-                setBroadcasts([]);
+            if (!silent) {
+                toast.error('Failed to load available deliveries');
             }
+            setBroadcasts([]);
         } finally {
             if (!silent) {
                 setLoading(false);
@@ -157,7 +150,7 @@ const BroadcastDeliveries = () => {
         }
     };
 
-    // Auto-refresh broadcasts every 60 seconds (increased to avoid rate limiting)
+    // Auto-refresh broadcasts every 60 seconds
     useEffect(() => {
         const interval = setInterval(() => {
             if (userLocation && !loading) {

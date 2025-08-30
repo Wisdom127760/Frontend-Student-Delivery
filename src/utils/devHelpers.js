@@ -1,53 +1,16 @@
 // Development Helper Utilities
-import rateLimiter from './rateLimiter';
 
 class DevHelpers {
     constructor() {
         this.isDevelopment = process.env.NODE_ENV === 'development';
-        this.rateLimitBypass = false;
-    }
-
-    // Bypass rate limiting for development
-    enableRateLimitBypass() {
-        if (this.isDevelopment) {
-            this.rateLimitBypass = true;
-            console.log('🔧 Development: Rate limit bypass enabled');
-            return true;
-        }
-        return false;
-    }
-
-    // Disable rate limiting bypass
-    disableRateLimitBypass() {
-        if (this.isDevelopment) {
-            this.rateLimitBypass = false;
-            console.log('🔧 Development: Rate limit bypass disabled');
-            return true;
-        }
-        return false;
-    }
-
-    // Check if rate limiting should be bypassed
-    shouldBypassRateLimit() {
-        return this.isDevelopment && this.rateLimitBypass;
-    }
-
-    // Clear all rate limiting timestamps
-    clearRateLimits() {
-        if (this.isDevelopment) {
-            rateLimiter.clear();
-            console.log('🔧 Development: All rate limits cleared');
-            return true;
-        }
-        return false;
     }
 
     // Get development status
     getStatus() {
         return {
             isDevelopment: this.isDevelopment,
-            rateLimitBypass: this.rateLimitBypass,
-            rateLimiterStatus: rateLimiter.getStatus()
+            rateLimitBypass: false, // Rate limiting removed
+            rateLimiterStatus: { activeEndpoints: 0, minInterval: 0 } // Rate limiting removed
         };
     }
 
@@ -75,7 +38,7 @@ class DevHelpers {
     // Development-only: Force allow next request for specific endpoint
     forceAllowNextRequest(endpoint) {
         if (this.isDevelopment) {
-            return rateLimiter.forceAllowNext(endpoint);
+            return true; // Rate limiting removed
         }
         return false;
     }
