@@ -300,7 +300,10 @@ class ApiService {
 
     // Driver invitation endpoints
     async inviteDriver(driverData) {
+        console.log('🔍 API Service: Inviting driver with data:', driverData);
+        console.log('🔍 API Service: Referral code in request:', driverData.referralCode);
         const response = await api.post('/admin/drivers/invite', driverData);
+        console.log('🔍 API Service: Invite driver response:', response.data);
         return response.data;
     }
 
