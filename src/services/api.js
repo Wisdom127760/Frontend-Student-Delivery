@@ -84,13 +84,7 @@ api.interceptors.response.use(
             });
         }
 
-        // Handle 429 errors (server rate limiting)
-        if (error.response?.status === 429) {
-            console.warn('⚠️ Server rate limit exceeded.');
-            toast.error('Too many requests. Please wait a moment before trying again.', {
-                duration: 4000,
-            });
-        }
+        // Rate limiting removed - all requests allowed
 
         // Handle server errors (500+)
         if (error.response?.status >= 500) {
