@@ -323,17 +323,36 @@ const MyDeliveries = () => {
         return distance;
     };
 
+    // Helper function to clean address text (remove URLs)
+    const cleanAddressText = (text) => {
+        if (!text) return '';
+
+        // Remove Google Maps URLs
+        const cleaned = text.replace(/https?:\/\/[^\s]+/g, '').trim();
+
+        // If the cleaned text is empty or just whitespace, return a fallback
+        if (!cleaned) {
+            return 'Location';
+        }
+
+        return cleaned;
+    };
+
     // Create a better trip description
     const getTripDescription = (delivery) => {
         const pickupDesc = delivery.pickupLocationDescription ? ` (${delivery.pickupLocationDescription})` : '';
         const deliveryDesc = delivery.deliveryLocationDescription ? ` (${delivery.deliveryLocationDescription})` : '';
         const distance = getDeliveryDistance(delivery);
 
+        // Clean the addresses to remove any URLs
+        const cleanPickupAddress = cleanAddressText(delivery.pickupAddress);
+        const cleanDeliveryAddress = cleanAddressText(delivery.deliveryAddress);
+
         return {
-            pickup: `${delivery.pickupAddress}${pickupDesc}`,
-            delivery: `${delivery.deliveryAddress}${deliveryDesc}`,
+            pickup: `${cleanPickupAddress}${pickupDesc}`,
+            delivery: `${cleanDeliveryAddress}${deliveryDesc}`,
             distance: distance,
-            fullDescription: `${delivery.pickupAddress}${pickupDesc} → ${delivery.deliveryAddress}${deliveryDesc} (${distance})`
+            fullDescription: `${cleanPickupAddress}${pickupDesc} → ${cleanDeliveryAddress}${deliveryDesc} (${distance})`
         };
     };
 
@@ -771,7 +790,7 @@ const MyDeliveries = () => {
                                                     Navigate
                                                 </button>
                                             </div>
-                                            <p className="text-sm font-medium text-gray-900 leading-tight">{delivery.pickupAddress}</p>
+                                            <p className="text-sm font-medium text-gray-900 leading-tight">{cleanAddressText(delivery.pickupAddress)}</p>
                                             {delivery.pickupLocationDescription && (
                                                 <p className="text-xs text-blue-600 mt-1 font-medium">
                                                     📍 {delivery.pickupLocationDescription}
@@ -826,7 +845,7 @@ const MyDeliveries = () => {
                                                     Navigate
                                                 </button>
                                             </div>
-                                            <p className="text-sm font-medium text-gray-900 leading-tight">{delivery.deliveryAddress}</p>
+                                            <p className="text-sm font-medium text-gray-900 leading-tight">{cleanAddressText(delivery.deliveryAddress)}</p>
                                             {delivery.deliveryLocationDescription && (
                                                 <p className="text-xs text-green-600 mt-1 font-medium">
                                                     📍 {delivery.deliveryLocationDescription}

@@ -491,7 +491,7 @@ export const mapsUtils = {
     generateCoordinatesLink: (lat, lng, zoom = 15) => {
         if (!lat || !lng) return null;
 
-        // Use the most reliable Google Maps coordinates format
+        // Use place format for viewing specific location
         return `https://www.google.com/maps/place/@${lat},${lng},${zoom}z`;
     },
 
@@ -524,10 +524,10 @@ export const mapsUtils = {
 
         if (searchQuery) {
             const encodedQuery = encodeURIComponent(searchQuery);
-            // Use the most reliable Google Maps format
+            // Use place format for viewing specific location
             return `https://www.google.com/maps/place/${encodedQuery}/@${lat},${lng},${zoom}z`;
         } else {
-            // Use the most reliable Google Maps format for coordinates only
+            // Use place format for coordinates only
             return `https://www.google.com/maps/place/@${lat},${lng},${zoom}z`;
         }
     },
@@ -567,17 +567,17 @@ export const mapsUtils = {
         }
     },
 
-    // Generate navigation link from coordinates (for driving directions)
+    // Generate navigation link from coordinates (for viewing location)
     generateNavigationLink: (lat, lng, destinationName = '') => {
         if (!lat || !lng) return null;
 
-        // Use the proper Google Maps directions format
-        // This creates a proper directions page with route options
+        // Use the proper Google Maps place format
+        // This creates a proper location view with navigation options
         if (destinationName) {
             const encodedName = encodeURIComponent(destinationName);
-            return `https://www.google.com/maps/dir/My+Location/${encodedName}/${lat},${lng}`;
+            return `https://www.google.com/maps/place/${encodedName}/@${lat},${lng},15z`;
         } else {
-            return `https://www.google.com/maps/dir/My+Location/${lat},${lng}`;
+            return `https://www.google.com/maps/place/@${lat},${lng},15z`;
         }
     },
 
@@ -585,11 +585,17 @@ export const mapsUtils = {
     extractAndCreateNavigationLink: (url, destinationName = '') => {
         if (!url) return null;
 
+        console.log('🔍 Extracting coordinates from URL:', url);
         const coords = mapsUtils.extractCoordinatesFromUrl(url);
+        console.log('📍 Extracted coordinates:', coords);
+
         if (coords) {
-            return mapsUtils.generateNavigationLink(coords.lat, coords.lng, destinationName);
+            const navUrl = mapsUtils.generateNavigationLink(coords.lat, coords.lng, destinationName);
+            console.log('🧭 Generated navigation URL:', navUrl);
+            return navUrl;
         }
 
+        console.log('❌ No coordinates found in URL');
         return null;
     }
 }; 
