@@ -411,6 +411,7 @@ class ApiService {
             });
 
             // Return fallback data if API fails
+            console.log('📋 API Service: Using fallback profile options due to API error');
             return {
                 success: true,
                 data: {
