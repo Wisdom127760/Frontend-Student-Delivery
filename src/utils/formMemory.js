@@ -491,8 +491,8 @@ export const mapsUtils = {
     generateCoordinatesLink: (lat, lng, zoom = 15) => {
         if (!lat || !lng) return null;
 
-        // Use the proper Google Maps coordinates format
-        return `https://www.google.com/maps/@${lat},${lng},${zoom}z`;
+        // Use the most reliable Google Maps coordinates format
+        return `https://www.google.com/maps/place/@${lat},${lng},${zoom}z`;
     },
 
     // Generate Google Maps directions from current location to coordinates
@@ -524,9 +524,11 @@ export const mapsUtils = {
 
         if (searchQuery) {
             const encodedQuery = encodeURIComponent(searchQuery);
-            return `https://www.google.com/maps/search/${encodedQuery}/@${lat},${lng},${zoom}z`;
+            // Use the most reliable Google Maps format
+            return `https://www.google.com/maps/place/${encodedQuery}/@${lat},${lng},${zoom}z`;
         } else {
-            return `https://www.google.com/maps/@${lat},${lng},${zoom}z`;
+            // Use the most reliable Google Maps format for coordinates only
+            return `https://www.google.com/maps/place/@${lat},${lng},${zoom}z`;
         }
     },
 
@@ -541,7 +543,7 @@ export const mapsUtils = {
                 /@(-?\d+\.\d+),(-?\d+\.\d+),(\d+)z/,
                 // Format: https://www.google.com/maps/place/.../@35.196171,33.370403,15z
                 /@(-?\d+\.\d+),(-?\d+\.\d+),(\d+)z/,
-                // Format: https://maps.google.com/?q=35.196171,33.370403
+                // Format: https://maps.google.com/?q=35.196171,33.326942
                 /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
                 // Format: https://www.google.com/maps/search/.../@35.196171,33.370403,15z
                 /@(-?\d+\.\d+),(-?\d+\.\d+),(\d+)z/
@@ -563,5 +565,31 @@ export const mapsUtils = {
             console.error('Error extracting coordinates from URL:', error);
             return null;
         }
+    },
+
+    // Generate navigation link from coordinates (for driving directions)
+    generateNavigationLink: (lat, lng, destinationName = '') => {
+        if (!lat || !lng) return null;
+
+        // Use the proper Google Maps directions format
+        // This creates a proper directions page with route options
+        if (destinationName) {
+            const encodedName = encodeURIComponent(destinationName);
+            return `https://www.google.com/maps/dir/My+Location/${encodedName}/${lat},${lng}`;
+        } else {
+            return `https://www.google.com/maps/dir/My+Location/${lat},${lng}`;
+        }
+    },
+
+    // Extract coordinates and create navigation link from URL
+    extractAndCreateNavigationLink: (url, destinationName = '') => {
+        if (!url) return null;
+
+        const coords = mapsUtils.extractCoordinatesFromUrl(url);
+        if (coords) {
+            return mapsUtils.generateNavigationLink(coords.lat, coords.lng, destinationName);
+        }
+
+        return null;
     }
 }; 

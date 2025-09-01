@@ -725,7 +725,7 @@ const MyDeliveries = () => {
                                             <span className="text-xs text-gray-600">{getTripDescription(delivery).distance}</span>
                                         </div>
                                         <div className="text-xs text-gray-700 leading-relaxed">
-                                            {getTripDescription(delivery).fullDescription}
+                                            {getTripDescription(delivery).pickup} → {getTripDescription(delivery).delivery}
                                         </div>
                                     </div>
 
@@ -739,6 +739,19 @@ const MyDeliveries = () => {
                                                 </div>
                                                 <button
                                                     onClick={() => {
+                                                        // Try to extract coordinates from pickupLocationLink first
+                                                        if (delivery.pickupLocationLink) {
+                                                            const navUrl = mapsUtils.extractAndCreateNavigationLink(
+                                                                delivery.pickupLocationLink,
+                                                                delivery.pickupLocationDescription || 'Pickup Location'
+                                                            );
+                                                            if (navUrl) {
+                                                                window.open(navUrl, '_blank');
+                                                                return;
+                                                            }
+                                                        }
+
+                                                        // Fallback to coordinates or search
                                                         const mapUrl = mapsUtils.generateCoordinatesSearchLink(
                                                             delivery.pickupCoordinates?.lat || delivery.pickupLat,
                                                             delivery.pickupCoordinates?.lng || delivery.pickupLng,
@@ -753,9 +766,9 @@ const MyDeliveries = () => {
                                                             window.open(searchUrl, '_blank');
                                                         }
                                                     }}
-                                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                                    className="text-xs text-blue-600 hover:text-blue-800 font-medium bg-blue-100 px-2 py-1 rounded-md"
                                                 >
-                                                    Open Map
+                                                    Navigate
                                                 </button>
                                             </div>
                                             <p className="text-sm font-medium text-gray-900 leading-tight">{delivery.pickupAddress}</p>
@@ -781,6 +794,19 @@ const MyDeliveries = () => {
                                                 </div>
                                                 <button
                                                     onClick={() => {
+                                                        // Try to extract coordinates from deliveryLocationLink first
+                                                        if (delivery.deliveryLocationLink) {
+                                                            const navUrl = mapsUtils.extractAndCreateNavigationLink(
+                                                                delivery.deliveryLocationLink,
+                                                                delivery.deliveryLocationDescription || 'Delivery Location'
+                                                            );
+                                                            if (navUrl) {
+                                                                window.open(navUrl, '_blank');
+                                                                return;
+                                                            }
+                                                        }
+
+                                                        // Fallback to coordinates or search
                                                         const mapUrl = mapsUtils.generateCoordinatesSearchLink(
                                                             delivery.deliveryCoordinates?.lat || delivery.deliveryLat,
                                                             delivery.deliveryCoordinates?.lng || delivery.deliveryLng,
@@ -795,9 +821,9 @@ const MyDeliveries = () => {
                                                             window.open(searchUrl, '_blank');
                                                         }
                                                     }}
-                                                    className="text-xs text-green-600 hover:text-green-800 font-medium"
+                                                    className="text-xs text-green-600 hover:text-green-800 font-medium bg-green-100 px-2 py-1 rounded-md"
                                                 >
-                                                    Open Map
+                                                    Navigate
                                                 </button>
                                             </div>
                                             <p className="text-sm font-medium text-gray-900 leading-tight">{delivery.deliveryAddress}</p>
