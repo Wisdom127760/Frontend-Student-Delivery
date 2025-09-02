@@ -31,6 +31,7 @@ const DeliveriesPage = () => {
     const [broadcastFilter, setBroadcastFilter] = useState('all');
     const [lastRefresh, setLastRefresh] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -1258,7 +1259,32 @@ Student Delivery Team`;
                                                     </td>
                                                     <td className="px-3 py-2">
                                                         <div className="text-sm text-gray-900">
-                                                            {delivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                                            {delivery.assignedTo ? (
+                                                                (() => {
+                                                                    // Debug: Log the assignedTo structure
+                                                                    console.log(`🔍 Delivery ${delivery.deliveryCode}: assignedTo:`, delivery.assignedTo);
+                                                                    console.log(`🔍 Type:`, typeof delivery.assignedTo);
+                                                                    console.log(`🔍 Keys:`, Object.keys(delivery.assignedTo || {}));
+
+                                                                    // assignedTo is already an object with driver info
+                                                                    if (typeof delivery.assignedTo === 'object' && delivery.assignedTo !== null) {
+                                                                        // Access driver properties directly
+                                                                        const driverName = delivery.assignedTo.name ||
+                                                                            delivery.assignedTo.fullName ||
+                                                                            delivery.assignedTo.fullNameComputed ||
+                                                                            'Unknown Driver';
+                                                                        console.log(`🔍 Driver name found:`, driverName);
+                                                                        return driverName;
+                                                                    } else {
+                                                                        // Fallback: try to find driver by ID
+                                                                        const assignedDriver = drivers.find(driver =>
+                                                                            driver._id === delivery.assignedTo || driver.id === delivery.assignedTo
+                                                                        );
+                                                                        console.log(`🔍 Driver found by ID:`, assignedDriver);
+                                                                        return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                                    }
+                                                                })()
+                                                            ) : 'Unassigned'}
                                                         </div>
                                                         <div className="text-xs text-gray-500">
                                                             {delivery.estimatedTime ? format(new Date(delivery.estimatedTime), 'MMM dd, HH:mm') : 'No ETA'}
@@ -1443,7 +1469,25 @@ Student Delivery Team`;
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-gray-500">Assigned</span>
                                                 <span className="text-sm text-gray-900">
-                                                    {delivery.assignedTo ? 'Yes' : 'No'}
+                                                    {delivery.assignedTo ? (
+                                                        (() => {
+                                                            // assignedTo is already an object with driver info
+                                                            if (typeof delivery.assignedTo === 'object' && delivery.assignedTo !== null) {
+                                                                // Access driver properties directly
+                                                                const driverName = delivery.assignedTo.name ||
+                                                                    delivery.assignedTo.fullName ||
+                                                                    delivery.assignedTo.fullNameComputed ||
+                                                                    'Unknown Driver';
+                                                                return driverName;
+                                                            } else {
+                                                                // Fallback: try to find driver by ID
+                                                                const assignedDriver = drivers.find(driver =>
+                                                                    driver._id === delivery.assignedTo || driver.id === delivery.assignedTo
+                                                                );
+                                                                return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                            }
+                                                        })()
+                                                    ) : 'Unassigned'}
                                                 </span>
                                             </div>
                                         </div>
@@ -1969,7 +2013,25 @@ Student Delivery Team`;
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm text-gray-600">Assigned To:</span>
                                         <span className="text-sm font-medium text-gray-900">
-                                            {selectedDelivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                            {selectedDelivery.assignedTo ? (
+                                                (() => {
+                                                    // assignedTo is already an object with driver info
+                                                    if (typeof selectedDelivery.assignedTo === 'object' && selectedDelivery.assignedTo !== null) {
+                                                        // Access driver properties directly
+                                                        const driverName = selectedDelivery.assignedTo.name ||
+                                                            selectedDelivery.assignedTo.fullName ||
+                                                            selectedDelivery.assignedTo.fullNameComputed ||
+                                                            'Unknown Driver';
+                                                        return driverName;
+                                                    } else {
+                                                        // Fallback: try to find driver by ID
+                                                        const assignedDriver = drivers.find(driver =>
+                                                            driver._id === selectedDelivery.assignedTo || driver.id === selectedDelivery.assignedTo
+                                                        );
+                                                        return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                    }
+                                                })()
+                                            ) : 'Unassigned'}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">

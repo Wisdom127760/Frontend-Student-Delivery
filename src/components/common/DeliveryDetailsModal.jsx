@@ -3,15 +3,16 @@ import { XMarkIcon, TruckIcon, UserIcon, PhoneIcon, MapPinIcon, ClockIcon, Curre
 import { mapsUtils } from '../../utils/formMemory';
 
 const DeliveryDetailsModal = ({
+    delivery,
     isOpen,
     onClose,
-    delivery,
-    showActions = true,
-    onEdit,
-    onDelete,
+    showActions = false,
     onAccept,
     onStart,
-    onComplete
+    onComplete,
+    onEdit,
+    onDelete,
+    drivers = [] // Add drivers prop for fallback driver lookup
 }) => {
     if (!isOpen || !delivery) return null;
 
@@ -180,7 +181,25 @@ const DeliveryDetailsModal = ({
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-gray-600">Assigned To:</span>
                                     <span className="text-sm font-medium text-gray-900">
-                                        {delivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                        {delivery.assignedTo ? (
+                                            (() => {
+                                                // assignedTo is already an object with driver info
+                                                if (typeof delivery.assignedTo === 'object' && delivery.assignedTo !== null) {
+                                                    // Access driver properties directly
+                                                    const driverName = delivery.assignedTo.name ||
+                                                        delivery.assignedTo.fullName ||
+                                                        delivery.assignedTo.fullNameComputed ||
+                                                        'Unknown Driver';
+                                                    return driverName;
+                                                } else {
+                                                    // Fallback: try to find driver by ID
+                                                    const assignedDriver = drivers.find(driver =>
+                                                        driver._id === delivery.assignedTo || driver.id === delivery.assignedTo
+                                                    );
+                                                    return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                }
+                                            })()
+                                        ) : 'Unassigned'}
                                     </span>
                                 </div>
                                 {delivery.estimatedTime && (
