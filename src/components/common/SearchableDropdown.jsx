@@ -107,6 +107,35 @@ const SearchableDropdown = ({
         }
     };
 
+    // Calculate optimal dropdown position
+    const getDropdownPosition = () => {
+        if (!dropdownRef.current) return { top: 0, left: 0, width: 'auto' };
+
+        const rect = dropdownRef.current.getBoundingClientRect();
+        const viewportHeight = window.innerHeight;
+        const viewportWidth = window.innerWidth;
+
+        // Check if dropdown would go below viewport
+        const spaceBelow = viewportHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        let top = rect.bottom + 4;
+        let left = rect.left;
+        let width = rect.width;
+
+        // If not enough space below, position above
+        if (spaceBelow < 300 && spaceAbove > 300) {
+            top = rect.top - 4;
+        }
+
+        // Ensure dropdown doesn't go off-screen horizontally
+        if (left + width > viewportWidth) {
+            left = Math.max(0, viewportWidth - width - 10);
+        }
+
+        return { top, left, width };
+    };
+
     const displayValue = getDisplayValue();
 
     return (
@@ -159,9 +188,7 @@ const SearchableDropdown = ({
             {/* Dropdown Menu - Smart positioning that works in modals */}
             {isOpen && (
                 <div className="fixed z-[9999] bg-white border border-gray-300 rounded-lg shadow-xl" style={{
-                    top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 4 : 0,
-                    left: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().left : 0,
-                    width: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().width : 'auto',
+                    ...getDropdownPosition(),
                     minWidth: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().width : 'auto',
                     maxHeight: '300px'
                 }}>
