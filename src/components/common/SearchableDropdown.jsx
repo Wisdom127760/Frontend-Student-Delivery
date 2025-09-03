@@ -156,9 +156,15 @@ const SearchableDropdown = ({
                 <p className="mt-1 text-sm text-red-600">{error}</p>
             )}
 
-            {/* Dropdown Menu - Simplified positioning without portal */}
+            {/* Dropdown Menu - Smart positioning that works in modals */}
             {isOpen && (
-                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+                <div className="fixed z-[9999] bg-white border border-gray-300 rounded-lg shadow-xl" style={{
+                    top: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().bottom + 4 : 0,
+                    left: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().left : 0,
+                    width: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().width : 'auto',
+                    minWidth: dropdownRef.current ? dropdownRef.current.getBoundingClientRect().width : 'auto',
+                    maxHeight: '300px'
+                }}>
                     {showSearch && (
                         <div className="p-3 border-b border-gray-200">
                             <div className="relative">
