@@ -108,7 +108,7 @@ const MyDeliveries = () => {
         setRefreshing(true);
         await loadDeliveries();
         setRefreshing(false);
-        toast.success('Deliveries refreshed!');
+        // Deliveries refreshed silently
     };
 
     // Status helpers
@@ -284,8 +284,14 @@ const MyDeliveries = () => {
                 // Trigger earnings calculation after delivery completion
                 try {
                     console.log('💰 MyDeliveries: Triggering earnings calculation...');
-                    await apiService.calculateDriverEarnings();
-                    console.log('✅ MyDeliveries: Earnings calculation triggered successfully');
+                    // Find the delivery object to pass to earnings calculation
+                    const delivery = deliveries.find(d => d.id === deliveryId);
+                    if (delivery) {
+                        await apiService.calculateDriverEarnings(delivery);
+                        console.log('✅ MyDeliveries: Earnings calculation triggered successfully');
+                    } else {
+                        console.warn('⚠️ MyDeliveries: Could not find delivery for earnings calculation');
+                    }
                 } catch (earningsError) {
                     console.warn('⚠️ MyDeliveries: Earnings calculation failed, but delivery was completed:', earningsError);
                     // Don't show error to user since delivery was successful
@@ -306,7 +312,7 @@ const MyDeliveries = () => {
 
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
-        toast.success('Copied to clipboard!');
+        // Copied silently
     };
 
     // Calculate distance between two coordinates using Haversine formula
@@ -323,17 +329,36 @@ const MyDeliveries = () => {
         return distance;
     };
 
+    // Helper function to clean address text (remove URLs)
+    const cleanAddressText = (text) => {
+        if (!text) return '';
+
+        // Remove Google Maps URLs
+        const cleaned = text.replace(/https?:\/\/[^\s]+/g, '').trim();
+
+        // If the cleaned text is empty or just whitespace, return a fallback
+        if (!cleaned) {
+            return 'Location';
+        }
+
+        return cleaned;
+    };
+
     // Create a better trip description
     const getTripDescription = (delivery) => {
         const pickupDesc = delivery.pickupLocationDescription ? ` (${delivery.pickupLocationDescription})` : '';
         const deliveryDesc = delivery.deliveryLocationDescription ? ` (${delivery.deliveryLocationDescription})` : '';
         const distance = getDeliveryDistance(delivery);
 
+        // Clean the addresses to remove any URLs
+        const cleanPickupAddress = cleanAddressText(delivery.pickupAddress);
+        const cleanDeliveryAddress = cleanAddressText(delivery.deliveryAddress);
+
         return {
-            pickup: `${delivery.pickupAddress}${pickupDesc}`,
-            delivery: `${delivery.deliveryAddress}${deliveryDesc}`,
+            pickup: `${cleanPickupAddress}${pickupDesc}`,
+            delivery: `${cleanDeliveryAddress}${deliveryDesc}`,
             distance: distance,
-            fullDescription: `${delivery.pickupAddress}${pickupDesc} → ${delivery.deliveryAddress}${deliveryDesc} (${distance})`
+            fullDescription: `${cleanPickupAddress}${pickupDesc} → ${cleanDeliveryAddress}${deliveryDesc} (${distance})`
         };
     };
 
@@ -771,7 +796,7 @@ const MyDeliveries = () => {
                                                     Navigate
                                                 </button>
                                             </div>
-                                            <p className="text-sm font-medium text-gray-900 leading-tight">{delivery.pickupAddress}</p>
+                                            <p className="text-sm font-medium text-gray-900 leading-tight">{cleanAddressText(delivery.pickupAddress)}</p>
                                             {delivery.pickupLocationDescription && (
                                                 <p className="text-xs text-blue-600 mt-1 font-medium">
                                                     📍 {delivery.pickupLocationDescription}
@@ -826,7 +851,7 @@ const MyDeliveries = () => {
                                                     Navigate
                                                 </button>
                                             </div>
-                                            <p className="text-sm font-medium text-gray-900 leading-tight">{delivery.deliveryAddress}</p>
+                                            <p className="text-sm font-medium text-gray-900 leading-tight">{cleanAddressText(delivery.deliveryAddress)}</p>
                                             {delivery.deliveryLocationDescription && (
                                                 <p className="text-xs text-green-600 mt-1 font-medium">
                                                     📍 {delivery.deliveryLocationDescription}
@@ -1025,10 +1050,20 @@ const MyDeliveries = () => {
                     </p>
                     <button
                         onClick={refreshDeliveries}
-                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        disabled={refreshing}
+                        className="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <ArrowPathIcon className="w-4 h-4 mr-2" />
-                        Refresh Deliveries
+                        {refreshing ? (
+                            <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                Refreshing...
+                            </>
+                        ) : (
+                            <>
+                                <ArrowPathIcon className="w-4 h-4 mr-2" />
+                                Refresh Deliveries
+                            </>
+                        )}
                     </button>
                 </div>
             )}

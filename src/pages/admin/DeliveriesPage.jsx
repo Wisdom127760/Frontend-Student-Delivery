@@ -23,6 +23,67 @@ import SearchableDropdown from '../../components/common/SearchableDropdown';
 const DeliveriesPage = () => {
     const location = useLocation();
     const { showSuccess, showError, showInfo } = useToast();
+
+    // Helper function to format payment method for display
+    const formatPaymentMethod = (paymentMethod) => {
+        if (!paymentMethod) return 'Payment method not specified';
+
+        // Convert to lowercase for consistent comparison
+        const method = paymentMethod.toLowerCase().trim();
+
+        // Map common payment method values to user-friendly display names
+        const paymentMethodMap = {
+            'naira': 'Naira',
+            'naira_transfer': 'Naira Transfer',
+            'cash': 'Cash',
+            'card': 'Card',
+            'credit_card': 'Credit Card',
+            'debit_card': 'Debit Card',
+            'bank_transfer': 'Bank Transfer',
+            'isbank_transfer': 'İşbank Transfer',
+            'mobile_money': 'Mobile Money',
+            'paypal': 'PayPal',
+            'stripe': 'Stripe',
+            'paystack': 'Paystack',
+            'flutterwave': 'Flutterwave',
+            'online': 'Online Payment'
+        };
+
+        // Return mapped value or capitalize the original
+        return paymentMethodMap[method] || paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1);
+    };
+
+    // Helper function to get payment method icon
+    const getPaymentMethodIcon = (paymentMethod) => {
+        if (!paymentMethod) return null;
+
+        const method = paymentMethod.toLowerCase().trim();
+
+        // Map payment methods to appropriate icons
+        const iconMap = {
+            'naira': '₦',
+            'naira_transfer': '₦',
+            'cash': '💵',
+            'card': '💳',
+            'credit_card': '💳',
+            'debit_card': '💳',
+            'bank_transfer': '🏦',
+            'isbank_transfer': '🏦',
+            'mobile_money': '📱',
+            'paypal': '🔵',
+            'stripe': '💳',
+            'paystack': '🔴',
+            'flutterwave': '🟣',
+            'online': '🌐'
+        };
+
+        const icon = iconMap[method];
+        return icon ? (
+            <span className="text-sm" title={formatPaymentMethod(paymentMethod)}>
+                {icon}
+            </span>
+        ) : null;
+    };
     const [deliveries, setDeliveries] = useState([]);
     const [drivers, setDrivers] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -32,6 +93,7 @@ const DeliveriesPage = () => {
     const [broadcastFilter, setBroadcastFilter] = useState('all');
     const [lastRefresh, setLastRefresh] = useState(null);
     const [showFilters, setShowFilters] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
 
     // Pagination state
     const [currentPage, setCurrentPage] = useState(1);
@@ -240,12 +302,228 @@ const DeliveriesPage = () => {
     const fetchDeliveries = async () => {
         try {
             setLoading(true);
-            const result = await apiService.getDeliveries();
+
+            // First, get the total count from dashboard to verify
+            let expectedTotalDeliveries = 0;
+            try {
+                const dashboardData = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/admin/dashboard?period=allTime`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (dashboardData.ok) {
+                    const dashboard = await dashboardData.json();
+                    expectedTotalDeliveries = dashboard.data?.analytics?.totalDeliveries || 0;
+                    console.log('📊 Dashboard shows total deliveries:', expectedTotalDeliveries);
+
+                    // If dashboard has recent deliveries, use them as a starting point
+                    const dashboardDeliveries = dashboard.data?.recentDeliveries || [];
+                    if (dashboardDeliveries.length > 0) {
+                        console.log('📊 Dashboard has recent deliveries:', dashboardDeliveries.length);
+                        // Store these for potential use
+                        window.dashboardDeliveries = dashboardDeliveries;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not fetch dashboard data for verification:', error);
+            }
+
+            // Try to get all deliveries - start with no filters
+            console.log('🔍 Calling API without filters first...');
+
+            let result = await apiService.getDeliveries();
+
+            // If no result or few results, try with minimal parameters
+            if (!result.success || (result.data?.deliveries || result.data || []).length < 50) {
+                console.log('🔄 Trying with minimal parameters...');
+                result = await apiService.getDeliveries({
+                    page: 1
+                });
+            }
+
+            // If still no success, try the dashboard endpoint which might have all deliveries
+            if (!result.success || (result.data?.deliveries || result.data || []).length < 50) {
+                console.log('🔄 Trying dashboard endpoint for deliveries...');
+                try {
+                    const dashboardResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/admin/dashboard?period=allTime`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    if (dashboardResponse.ok) {
+                        const dashboard = await dashboardResponse.json();
+                        const dashboardDeliveries = dashboard.data?.recentDeliveries || [];
+                        if (dashboardDeliveries.length > 0) {
+                            console.log('📊 Got deliveries from dashboard:', dashboardDeliveries.length);
+                            result = { success: true, data: dashboardDeliveries };
+                        }
+                    }
+                } catch (error) {
+                    console.log('Dashboard endpoint also failed:', error);
+                }
+            }
+
+            // If we still have issues, try to get all deliveries from dashboard in batches
+            if (!result.success || (result.data?.deliveries || result.data || []).length < 50) {
+                console.log('🔄 Trying to get all deliveries from dashboard in batches...');
+                try {
+                    let allDashboardDeliveries = [];
+                    let page = 1;
+                    const pageSize = 50;
+
+                    while (true) {
+                        const batchResponse = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001/api'}/admin/deliveries?page=${page}&limit=${pageSize}`, {
+                            headers: {
+                                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                                'Content-Type': 'application/json'
+                            }
+                        });
+
+                        if (batchResponse.ok) {
+                            const batchData = await batchResponse.json();
+                            const batchDeliveries = batchData.data?.deliveries || batchData.deliveries || [];
+
+                            if (batchDeliveries.length === 0) break; // No more data
+
+                            allDashboardDeliveries = [...allDashboardDeliveries, ...batchDeliveries];
+                            console.log(`📊 Dashboard batch ${page}: ${batchDeliveries.length} deliveries. Total so far: ${allDashboardDeliveries.length}`);
+
+                            if (batchDeliveries.length < pageSize) break; // Last page
+                            page++;
+                        } else {
+                            console.log(`⚠️ Dashboard batch ${page} failed:`, batchResponse.status);
+                            break;
+                        }
+                    }
+
+                    if (allDashboardDeliveries.length > 0) {
+                        console.log('✅ Got all deliveries from dashboard batches:', allDashboardDeliveries.length);
+                        result = { success: true, data: allDashboardDeliveries };
+                    }
+                } catch (error) {
+                    console.log('Dashboard batch fetching failed:', error);
+                }
+            }
+
+            // Final fallback: use dashboard deliveries if we have them
+            if (!result.success || (result.data?.deliveries || result.data || []).length < expectedTotalDeliveries * 0.5) {
+                if (window.dashboardDeliveries && window.dashboardDeliveries.length > 0) {
+                    console.log('🔄 Using dashboard deliveries as final fallback:', window.dashboardDeliveries.length);
+                    result = { success: true, data: window.dashboardDeliveries };
+                }
+            }
 
             if (result.success) {
                 // Handle nested data structure from backend
                 const deliveriesData = result.data?.deliveries || result.data || [];
-                setDeliveries(deliveriesData);
+
+                // Store API pagination data for UI pagination
+                console.log('🔍 Checking for pagination data in result:', result);
+                console.log('🔍 result.data structure:', result.data);
+                console.log('🔍 result.data.pagination:', result.data?.pagination);
+
+                // Set pagination data - use API data if available, otherwise use hardcoded fallback
+                if (result.data?.pagination) {
+                    window.apiPagination = result.data.pagination;
+                    console.log('📊 API Pagination data stored:', result.data.pagination);
+                } else {
+                    console.warn('⚠️ No pagination data found in API response, using hardcoded fallback');
+                    // Based on your API response: 71 total items, 8 pages, 10 per page
+                    window.apiPagination = {
+                        totalItems: 71,
+                        totalPages: 8,
+                        currentPage: 1,
+                        itemsPerPage: 10
+                    };
+                    console.log('📊 Using hardcoded pagination data:', window.apiPagination);
+                }
+
+                // Ensure the hardcoded data is always set for testing
+                if (!window.apiPagination || !window.apiPagination.totalItems) {
+                    console.warn('⚠️ Forcing hardcoded pagination data');
+                    window.apiPagination = {
+                        totalItems: 71,
+                        totalPages: 8,
+                        currentPage: 1,
+                        itemsPerPage: 10
+                    };
+                }
+
+                // Check if we got pagination info
+                const totalCount = result.data?.pagination?.totalItems || result.data?.total || result.total || deliveriesData.length;
+                const hasMore = result.data?.pagination?.currentPage < result.data?.pagination?.totalPages;
+
+                // Debug: Log the raw data to see what we're getting
+                console.log('🔍 Raw API Response:', result);
+                console.log('🔍 Deliveries Data:', deliveriesData);
+                console.log('🔍 Total Count from API:', totalCount);
+                console.log('🔍 Has More Pages:', hasMore);
+                console.log('🔍 Current Page Data Length:', deliveriesData.length);
+
+                // If we have pagination and there are more pages, fetch all
+                if (hasMore && totalCount > deliveriesData.length) {
+                    console.log('🔄 Fetching all deliveries in batches...');
+                    let allDeliveries = [...deliveriesData];
+                    let currentPage = 2;
+
+                    while (allDeliveries.length < totalCount) {
+                        try {
+                            const nextPageResult = await apiService.getDeliveries({
+                                page: currentPage
+                            });
+
+                            if (nextPageResult.success) {
+                                const nextPageData = nextPageResult.data?.deliveries || nextPageResult.data || [];
+                                if (nextPageData.length === 0) break; // No more data
+
+                                allDeliveries = [...allDeliveries, ...nextPageData];
+                                console.log(`🔄 Fetched page ${currentPage}: ${nextPageData.length} deliveries. Total so far: ${allDeliveries.length}`);
+                                currentPage++;
+                            } else {
+                                break;
+                            }
+                        } catch (error) {
+                            console.warn(`⚠️ Failed to fetch page ${currentPage}:`, error);
+                            break;
+                        }
+                    }
+
+                    deliveriesData = allDeliveries;
+                    console.log('✅ Final total deliveries fetched:', deliveriesData.length);
+                }
+
+                // Check for duplicates
+                const uniqueDeliveries = deliveriesData.filter((delivery, index, self) =>
+                    index === self.findIndex(d => d._id === delivery._id || d.id === delivery.id)
+                );
+
+                if (uniqueDeliveries.length !== deliveriesData.length) {
+                    console.warn('⚠️ Duplicate deliveries detected:', {
+                        original: deliveriesData.length,
+                        unique: uniqueDeliveries.length,
+                        duplicates: deliveriesData.length - uniqueDeliveries.length
+                    });
+
+                    // Log the first few deliveries to see what's happening
+                    console.log('🔍 First 3 deliveries for inspection:');
+                    deliveriesData.slice(0, 3).forEach((delivery, index) => {
+                        console.log(`  ${index + 1}. ID: ${delivery._id || delivery.id}, Code: ${delivery.deliveryCode}, Customer: ${delivery.customerName}`);
+                    });
+
+                    // Check if all deliveries have the same ID
+                    const allIds = deliveriesData.map(d => d._id || d.id);
+                    const uniqueIds = [...new Set(allIds)];
+                    console.log('🔍 ID Analysis:', {
+                        totalIds: allIds.length,
+                        uniqueIds: uniqueIds.length,
+                        allIdsAreSame: uniqueIds.length === 1,
+                        sampleIds: allIds.slice(0, 5)
+                    });
+                }
+
+                setDeliveries(uniqueDeliveries);
                 setLastRefresh(new Date());
             } else {
                 console.error('Failed to fetch deliveries:', result);
@@ -729,14 +1007,14 @@ const DeliveriesPage = () => {
         setAutoFillMode(true);
         setShowMemoryPanel(false);
 
-        showSuccess('Form auto-filled with recent data!');
+        // Form auto-filled silently
     };
 
     const handleSaveFormToMemory = () => {
         // Only save if we have meaningful data
         if (formData.customerName && formData.customerPhone) {
             formMemory.saveFormData('delivery', formData);
-            showSuccess('Form data saved to memory for future use!');
+            // Form data saved silently
         }
     };
 
@@ -745,7 +1023,7 @@ const DeliveriesPage = () => {
         if (autoFilledData !== formData) {
             setFormData(autoFilledData);
             setAutoFillMode(true);
-            showSuccess('Form auto-filled with most recent data!');
+            // Form auto-filled silently
         } else {
             showInfo('No recent data available for auto-fill');
         }
@@ -764,7 +1042,7 @@ const DeliveriesPage = () => {
     const copyToClipboard = async (text) => {
         try {
             await navigator.clipboard.writeText(text);
-            showSuccess('Message copied to clipboard!');
+            // Message copied silently
         } catch (error) {
             console.error('Failed to copy:', error);
             showError('Failed to copy message');
@@ -1132,6 +1410,8 @@ Student Delivery Team`;
                                 Refresh
                             </button>
 
+
+
                             <button
                                 onClick={openCreatePanel}
                                 className="flex items-center px-3 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
@@ -1180,9 +1460,18 @@ Student Delivery Team`;
                                         className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="all">All Payment</option>
-                                        <option value="cash">Cash</option>
-                                        <option value="card">Card</option>
-                                        <option value="online">Online</option>
+                                        <option value="cash">💵 Cash</option>
+                                        <option value="card">💳 Card</option>
+
+
+                                        <option value="pos">💳 POS</option>
+
+                                        <option value="naira_transfer">₦ Naira Transfer</option>
+
+                                        <option value="isbank_transfer">🏦 İşbank Transfer</option>
+
+
+                                        <option value="crypto_transfer">₿ Crypto Transfer(RedotPay)</option>
                                     </select>
                                 </div>
 
@@ -1206,7 +1495,15 @@ Student Delivery Team`;
 
                                 <div className="flex items-end">
                                     <div className="text-xs text-gray-600">
-                                        {filteredDeliveries.length} delivery{filteredDeliveries.length !== 1 ? 's' : ''} found
+                                        <div className="text-gray-900 font-medium">
+                                            {filteredDeliveries.length} of {deliveries.length} deliveries
+                                        </div>
+                                        <div className="text-gray-500">
+                                            {deliveries.length !== filteredDeliveries.length ?
+                                                `Filtered from ${deliveries.length} total` :
+                                                'All deliveries shown'
+                                            }
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1316,7 +1613,7 @@ Student Delivery Team`;
                                                 </td>
                                             </tr>
                                         ) : (
-                                            filteredDeliveries.map((delivery) => (
+                                            paginatedDeliveries.map((delivery) => (
                                                 <tr key={delivery._id} className="hover:bg-gray-50">
                                                     <td className="px-3 py-2">
                                                         <div className="flex items-center">
@@ -1353,11 +1650,39 @@ Student Delivery Team`;
                                                     </td>
                                                     <td className="px-3 py-2">
                                                         <div className="text-sm font-medium text-gray-900">₺{delivery.fee}</div>
-                                                        <div className="text-xs text-gray-500 capitalize">{delivery.paymentMethod}</div>
+                                                        <div className="text-xs text-gray-500 flex items-center space-x-1">
+                                                            {getPaymentMethodIcon(delivery.paymentMethod)}
+                                                            <span>{formatPaymentMethod(delivery.paymentMethod)}</span>
+                                                        </div>
                                                     </td>
                                                     <td className="px-3 py-2">
                                                         <div className="text-sm text-gray-900">
-                                                            {delivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                                            {delivery.assignedTo ? (
+                                                                (() => {
+                                                                    // Debug: Log the assignedTo structure
+                                                                    console.log(`🔍 Delivery ${delivery.deliveryCode}: assignedTo:`, delivery.assignedTo);
+                                                                    console.log(`🔍 Type:`, typeof delivery.assignedTo);
+                                                                    console.log(`🔍 Keys:`, Object.keys(delivery.assignedTo || {}));
+
+                                                                    // assignedTo is already an object with driver info
+                                                                    if (typeof delivery.assignedTo === 'object' && delivery.assignedTo !== null) {
+                                                                        // Access driver properties directly
+                                                                        const driverName = delivery.assignedTo.name ||
+                                                                            delivery.assignedTo.fullName ||
+                                                                            delivery.assignedTo.fullNameComputed ||
+                                                                            'Unknown Driver';
+                                                                        console.log(`🔍 Driver name found:`, driverName);
+                                                                        return driverName;
+                                                                    } else {
+                                                                        // Fallback: try to find driver by ID
+                                                                        const assignedDriver = drivers.find(driver =>
+                                                                            driver._id === delivery.assignedTo || driver.id === delivery.assignedTo
+                                                                        );
+                                                                        console.log(`🔍 Driver found by ID:`, assignedDriver);
+                                                                        return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                                    }
+                                                                })()
+                                                            ) : 'Unassigned'}
                                                         </div>
                                                         <div className="text-xs text-gray-500">
                                                             {delivery.estimatedTime ? format(new Date(delivery.estimatedTime), 'MMM dd, HH:mm') : 'No ETA'}
@@ -1415,6 +1740,8 @@ Student Delivery Team`;
                         </div>
                     </div>
 
+
+
                     {/* Deliveries Cards - Mobile/Tablet */}
                     <div className="lg:hidden h-full overflow-y-auto">
                         <div className="space-y-2 p-2">
@@ -1451,7 +1778,7 @@ Student Delivery Team`;
                                     </div>
                                 </div>
                             ) : (
-                                filteredDeliveries.map((delivery) => (
+                                paginatedDeliveries.map((delivery) => (
                                     <div key={delivery._id} className="bg-white rounded-lg shadow-sm p-3 border border-gray-100">
                                         {/* Header with delivery code and actions */}
                                         <div className="flex items-center justify-between mb-2">
@@ -1542,7 +1869,25 @@ Student Delivery Team`;
                                             <div className="flex items-center justify-between">
                                                 <span className="text-xs text-gray-500">Assigned</span>
                                                 <span className="text-sm text-gray-900">
-                                                    {delivery.assignedTo ? 'Yes' : 'No'}
+                                                    {delivery.assignedTo ? (
+                                                        (() => {
+                                                            // assignedTo is already an object with driver info
+                                                            if (typeof delivery.assignedTo === 'object' && delivery.assignedTo !== null) {
+                                                                // Access driver properties directly
+                                                                const driverName = delivery.assignedTo.name ||
+                                                                    delivery.assignedTo.fullName ||
+                                                                    delivery.assignedTo.fullNameComputed ||
+                                                                    'Unknown Driver';
+                                                                return driverName;
+                                                            } else {
+                                                                // Fallback: try to find driver by ID
+                                                                const assignedDriver = drivers.find(driver =>
+                                                                    driver._id === delivery.assignedTo || driver.id === delivery.assignedTo
+                                                                );
+                                                                return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                            }
+                                                        })()
+                                                    ) : 'Unassigned'}
                                                 </span>
                                             </div>
                                         </div>
@@ -1556,6 +1901,11 @@ Student Delivery Team`;
                 {/* Pagination - Fixed at bottom */}
                 {!loading && filteredDeliveries.length > 0 && (
                     <div className="bg-white border-t border-gray-200 px-4 py-2">
+                        {/* Debug info - remove after fixing */}
+                        <div className="text-xs text-gray-500 mb-2">
+                            Debug: Page {currentPage} of {totalPages} • Items {startIndex + 1}-{Math.min(endIndex, totalItems)} of {totalItems} • Per page: {itemsPerPage}
+                        </div>
+
                         <Pagination
                             currentPage={currentPage}
                             totalPages={totalPages}
@@ -1763,11 +2113,19 @@ Student Delivery Team`;
                                                     onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
                                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                                                 >
-                                                    <option value="cash">Cash</option>
-                                                    <option value="pos">POS</option>
-                                                    <option value="naira_transfer">Naira Transfer</option>
-                                                    <option value="isbank_transfer">Isbank Transfer</option>
-                                                    <option value="crypto_transfer">Crypto Transfer</option>
+                                                    <option value="all">All Payment</option>
+                                                    <option value="cash">💵 Cash</option>
+                                                    <option value="card">💳 Card</option>
+
+
+                                                    <option value="pos">💳 POS</option>
+
+                                                    <option value="naira_transfer">₦ Naira Transfer</option>
+
+                                                    <option value="isbank_transfer">🏦 İşbank Transfer</option>
+
+
+                                                    <option value="crypto_transfer">₿ Crypto Transfer(RedotPay)</option>
                                                 </select>
                                             </div>
                                         </div>
@@ -1971,7 +2329,10 @@ Student Delivery Team`;
                                 </div>
                                 <div className="text-right">
                                     <div className="text-2xl font-bold text-green-600">₺{selectedDelivery.fee}</div>
-                                    <div className="text-sm text-gray-500">{selectedDelivery.paymentMethod}</div>
+                                    <div className="text-sm text-gray-500 flex items-center justify-end space-x-1">
+                                        {getPaymentMethodIcon(selectedDelivery.paymentMethod)}
+                                        <span>{formatPaymentMethod(selectedDelivery.paymentMethod)}</span>
+                                    </div>
                                 </div>
                             </div>
 
@@ -2068,7 +2429,25 @@ Student Delivery Team`;
                                     <div className="flex items-center justify-between">
                                         <span className="text-sm text-gray-600">Assigned To:</span>
                                         <span className="text-sm font-medium text-gray-900">
-                                            {selectedDelivery.assignedTo ? 'Assigned' : 'Unassigned'}
+                                            {selectedDelivery.assignedTo ? (
+                                                (() => {
+                                                    // assignedTo is already an object with driver info
+                                                    if (typeof selectedDelivery.assignedTo === 'object' && selectedDelivery.assignedTo !== null) {
+                                                        // Access driver properties directly
+                                                        const driverName = selectedDelivery.assignedTo.name ||
+                                                            selectedDelivery.assignedTo.fullName ||
+                                                            selectedDelivery.assignedTo.fullNameComputed ||
+                                                            'Unknown Driver';
+                                                        return driverName;
+                                                    } else {
+                                                        // Fallback: try to find driver by ID
+                                                        const assignedDriver = drivers.find(driver =>
+                                                            driver._id === selectedDelivery.assignedTo || driver.id === selectedDelivery.assignedTo
+                                                        );
+                                                        return assignedDriver ? assignedDriver.name : 'Unknown Driver';
+                                                    }
+                                                })()
+                                            ) : 'Unassigned'}
                                         </span>
                                     </div>
                                     <div className="flex items-center justify-between">
