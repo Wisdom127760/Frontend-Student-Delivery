@@ -2229,35 +2229,23 @@ Student Delivery Team`;
                                 <SearchableDropdown
                                     options={drivers
                                         .filter(driver => {
-                                            console.log('🔍 Filtering driver:', {
-                                                id: driver._id,
-                                                name: driver.name,
-                                                status: driver.status,
-                                                hasName: !!driver.name,
-                                                hasPhone: !!driver.phone,
-                                                hasEmail: !!driver.email
-                                            });
-                                            // Check if status exists and is truthy, or if no status filtering is needed
                                             const hasValidStatus = driver.status && (driver.status === 'active' || driver.status === 'online');
                                             const noStatusFilter = !driver.status || driver.status === '';
-                                            console.log('🔍 Status check:', { status: driver.status, hasValidStatus, noStatusFilter });
                                             return hasValidStatus || noStatusFilter;
                                         })
-                                        .map(driver => {
-                                            const option = {
-                                                value: driver._id,
-                                                label: `${driver.name || 'Unknown'} - ${driver.phone || 'No phone'}`,
-                                                name: driver.name || 'Unknown',
-                                                email: driver.email || 'No email',
-                                                phone: driver.phone || 'No phone'
-                                            };
-                                            console.log('🔍 Created option:', option);
-                                            return option;
-                                        })}
+                                        .map(driver => ({
+                                            value: driver._id,
+                                            label: `${driver.name || 'Unknown'} - ${driver.phone || 'No phone'}`,
+                                            name: driver.name || 'Unknown',
+                                            email: driver.email || 'No email',
+                                            phone: driver.phone || 'No phone'
+                                        }))}
                                     value={selectedDriverId}
                                     onChange={(driverId) => {
-                                        console.log('🔍 Driver selection changed:', { driverId });
+                                        console.log('🔍 SearchableDropdown onChange called with:', { driverId, type: typeof driverId });
+                                        console.log('🔍 Previous selectedDriverId:', selectedDriverId);
                                         setSelectedDriverId(driverId);
+                                        console.log('🔍 New selectedDriverId set to:', driverId);
                                     }}
                                     placeholder="Choose a driver..."
                                     searchPlaceholder="Search drivers..."
@@ -2270,6 +2258,11 @@ Student Delivery Team`;
                                         </div>
                                     )}
                                 />
+
+                                {/* DEBUG: Show current state */}
+                                <div className="mt-2 p-2 bg-gray-100 rounded text-xs">
+                                    <strong>DEBUG:</strong> selectedDriverId = "{selectedDriverId}" | Type: {typeof selectedDriverId}
+                                </div>
                             </div>
 
                             <div className="flex space-x-3">
