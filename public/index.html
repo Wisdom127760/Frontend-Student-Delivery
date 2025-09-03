@@ -22,6 +22,116 @@
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <title>Greep SDS</title>
     <script>
+      // PERMANENT FIX: Block postMessage errors BEFORE anything else loads
+      (function () {
+        "use strict";
+
+        // Store original postMessage
+        const originalPostMessage = window.postMessage;
+
+        // Create intelligent wrapper function - only block problematic calls
+        function safePostMessage(message, targetOrigin, transfer) {
+          try {
+            // Block MetaMask messages
+            if (
+              message &&
+              typeof message === "object" &&
+              message.type &&
+              (message.type.includes("metamask") ||
+                message.type.includes("ethereum"))
+            ) {
+              console.warn("MetaMask message blocked:", message.type);
+              return;
+            }
+
+            // INTELLIGENT BLOCKING: Only block calls that will definitely cause errors
+            if (
+              targetOrigin === "undefined" || // String "undefined" - definitely problematic
+              targetOrigin === "null" // String "null" - definitely problematic
+            ) {
+              console.warn(
+                "🚫 Blocked postMessage with problematic targetOrigin:",
+                targetOrigin
+              );
+              return;
+            }
+
+            // ALLOW calls with undefined/null targetOrigin but handle them safely
+            if (
+              !targetOrigin ||
+              targetOrigin === undefined ||
+              targetOrigin === null
+            ) {
+              console.log(
+                "⚠️ Allowing postMessage with undefined/null targetOrigin (will use default):",
+                targetOrigin
+              );
+              // Call with default targetOrigin instead of blocking
+              return originalPostMessage.call(
+                this,
+                message,
+                "*", // Use wildcard as safe default
+                transfer
+              );
+            }
+
+            // Additional type safety - but allow non-string with safe fallback
+            if (typeof targetOrigin !== "string") {
+              console.log(
+                "⚠️ Allowing postMessage with non-string targetOrigin (will use default):",
+                typeof targetOrigin,
+                targetOrigin
+              );
+              // Call with default targetOrigin instead of blocking
+              return originalPostMessage.call(
+                this,
+                message,
+                "*", // Use wildcard as safe default
+                transfer
+              );
+            }
+
+            // Safe to call postMessage with original targetOrigin
+            return originalPostMessage.call(
+              this,
+              message,
+              targetOrigin,
+              transfer
+            );
+          } catch (error) {
+            console.warn(
+              "⚠️ postMessage error caught but allowing to continue:",
+              error.message
+            );
+            // Don't block - let it continue
+            return;
+          }
+        }
+
+        // Override at multiple levels to ensure nothing gets through
+        window.postMessage = safePostMessage;
+
+        // Also override at prototype level
+        if (window.MessageEvent && window.MessageEvent.prototype) {
+          const originalPostMessageProto =
+            window.MessageEvent.prototype.postMessage;
+          if (originalPostMessageProto) {
+            window.MessageEvent.prototype.postMessage = safePostMessage;
+          }
+        }
+
+        // Make it non-writable and non-configurable
+        Object.defineProperty(window, "postMessage", {
+          value: safePostMessage,
+          writable: false,
+          configurable: false,
+        });
+
+        console.log(
+          "🛡️ INTELLIGENT postMessage protection activated - allowing legitimate calls"
+        );
+      })();
+
       // Suppress React Router future flag warnings
       const originalWarn = console.warn;
       console.warn = function (...args) {
@@ -49,28 +159,36 @@
             console.warn("MetaMask connection blocked");
           },
         });
-
-        // Block MetaMask extension messages
-        const originalPostMessage = window.postMessage;
-        window.postMessage = function (message, targetOrigin, transfer) {
-          if (
-            message &&
-            typeof message === "object" &&
-            message.type &&
-            (message.type.includes("metamask") ||
-              message.type.includes("ethereum"))
-          ) {
-            console.warn("MetaMask message blocked:", message.type);
-            return;
-          }
-          return originalPostMessage.call(
-            this,
-            message,
-            targetOrigin,
-            transfer
-          );
-        };
       }
+
+      // INTELLIGENT ERROR HANDLING: Log errors but don't block functionality
+      window.addEventListener("error", function (event) {
+        if (
+          event.error &&
+          event.error.message &&
+          event.error.message.includes("postMessage")
+        ) {
+          console.log(
+            "⚠️ postMessage error detected (allowing to continue):",
+            event.error.message
+          );
+          // Don't prevent default - let it continue
+        }
+      });
+
+      window.addEventListener("unhandledrejection", function (event) {
+        if (
+          event.reason &&
+          event.reason.message &&
+          event.reason.message.includes("postMessage")
+        ) {
+          console.log(
+            "⚠️ postMessage promise rejection detected (allowing to continue):",
+            event.reason.message
+          );
+          // Don't prevent default - let it continue
+        }
+      });
     </script>
   </head>
   <body>

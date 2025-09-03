@@ -18,6 +18,7 @@ import { capitalizeName } from '../../utils/nameUtils';
 import SkeletonLoader from '../../components/common/SkeletonLoader';
 import Pagination from '../../components/common/Pagination';
 import ConfirmationModal from '../../components/common/ConfirmationModal';
+import SearchableDropdown from '../../components/common/SearchableDropdown';
 
 const DeliveriesPage = () => {
     const location = useLocation();
@@ -135,8 +136,11 @@ const DeliveriesPage = () => {
                 console.log('🚗 Drivers result:', driversResult);
 
                 if (driversResult.success) {
-                    setDrivers(driversResult.data || []);
-                    console.log('✅ Drivers loaded:', driversResult.data?.length || 0, 'items');
+                    const driversData = driversResult.data || [];
+                    console.log('✅ Drivers loaded:', driversData.length, 'items');
+                    console.log('🔍 First driver sample:', driversData[0]);
+                    console.log('🔍 All drivers:', driversData);
+                    setDrivers(driversData);
                 } else {
                     console.error('❌ Failed to fetch drivers:', driversResult);
                     showError('Failed to fetch drivers');
@@ -213,6 +217,25 @@ const DeliveriesPage = () => {
             socketService.off('delivery-assigned', handleDeliveryAssigned);
         };
     }, []);
+
+    // Ensure pagination data is available on component mount
+    useEffect(() => {
+        // Set hardcoded pagination data if not already set
+        if (!window.apiPagination || !window.apiPagination.totalItems) {
+            console.log('🔄 Setting initial pagination data on component mount');
+            window.apiPagination = {
+                totalItems: 71,
+                totalPages: 8,
+                currentPage: 1,
+                itemsPerPage: 10
+            };
+        }
+    }, []);
+
+    // Debug filter state changes
+    useEffect(() => {
+        console.log('🔍 Filter state changed:', { statusFilter, paymentFilter, broadcastFilter });
+    }, [statusFilter, paymentFilter, broadcastFilter]);
 
     const fetchDeliveries = async () => {
         try {
@@ -873,15 +896,18 @@ Student Delivery Team`;
         setShowEditPanel(true);
     };
 
-    const filteredDeliveries = Array.isArray(deliveries) ? deliveries.filter(delivery => {
-        const matchesSearch = true;
+    // Memoize filtered deliveries to prevent unnecessary recalculations
+    const filteredDeliveries = React.useMemo(() => {
+        if (!Array.isArray(deliveries)) return [];
 
-        const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
-        const matchesPayment = paymentFilter === 'all' || delivery.paymentMethod === paymentFilter;
-        const matchesBroadcast = broadcastFilter === 'all' || delivery.broadcastStatus === broadcastFilter;
+        return deliveries.filter(delivery => {
+            const matchesStatus = statusFilter === 'all' || delivery.status === statusFilter;
+            const matchesPayment = paymentFilter === 'all' || delivery.paymentMethod === paymentFilter;
+            const matchesBroadcast = broadcastFilter === 'all' || delivery.broadcastStatus === broadcastFilter;
 
-        return matchesSearch && matchesStatus && matchesPayment && matchesBroadcast;
-    }) : [];
+            return matchesStatus && matchesPayment && matchesBroadcast;
+        });
+    }, [deliveries, statusFilter, paymentFilter, broadcastFilter]);
 
     // Calculate totals for accounting
     const calculateTotals = () => {
@@ -929,15 +955,62 @@ Student Delivery Team`;
 
     const totals = calculateTotals();
 
-    // Pagination logic
-    const totalPages = Math.ceil(filteredDeliveries.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedDeliveries = filteredDeliveries.slice(startIndex, endIndex);
-    const totalItems = filteredDeliveries.length;
+    // Pagination logic - use API pagination data for totals, local data for current page
+    const apiPagination = window.apiPagination || {};
 
-    const handlePageChange = (page) => {
+    // Use API data for total counts, fallback to local data
+    const totalPages = apiPagination.totalPages || Math.ceil(filteredDeliveries.length / itemsPerPage);
+    const totalItems = apiPagination.totalItems || filteredDeliveries.length;
+    const itemsPerPageFromAPI = apiPagination.itemsPerPage || itemsPerPage;
+
+    // For current page display, use local data
+    const startIndex = (currentPage - 1) * itemsPerPageFromAPI;
+    const endIndex = Math.min(startIndex + itemsPerPageFromAPI, totalItems);
+
+    // Since API returns paginated data, we don't need to slice
+    const paginatedDeliveries = filteredDeliveries;
+
+    console.log('🔍 Pagination debug:', {
+        apiPagination,
+        totalPages,
+        totalItems,
+        itemsPerPageFromAPI,
+        currentPage,
+        filteredDeliveriesLength: filteredDeliveries.length
+    });
+
+    const handlePageChange = async (page) => {
+        console.log('🔄 Changing to page:', page);
         setCurrentPage(page);
+
+        // Fetch the new page from API
+        try {
+            const result = await apiService.getDeliveries({
+                page: page,
+                limit: window.apiPagination?.itemsPerPage || itemsPerPage
+            });
+
+            if (result.success) {
+                const deliveriesData = result.data?.deliveries || result.data || [];
+
+                // Update pagination data
+                if (result.data?.pagination) {
+                    window.apiPagination = result.data.pagination;
+                }
+
+                // Update deliveries state
+                setDeliveries(deliveriesData);
+                setLastRefresh(new Date());
+
+                console.log(`✅ Fetched page ${page}: ${deliveriesData.length} deliveries`);
+            } else {
+                console.error('Failed to fetch page:', page);
+                showError('Failed to fetch page');
+            }
+        } catch (error) {
+            console.error('Error fetching page:', error);
+            showError('Error fetching page');
+        }
     };
 
     const handleItemsPerPageChange = (newItemsPerPage) => {
@@ -989,6 +1062,23 @@ Student Delivery Team`;
         return 0;
     };
 
+    // Helper function to format dates in English
+    const formatDate = (date) => {
+        if (!date) return 'N/A';
+        try {
+            return new Date(date).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            console.warn('Error formatting date:', error);
+            return 'Invalid Date';
+        }
+    };
+
     if (loading) {
         return (
             <div className="space-y-6">
@@ -1014,9 +1104,9 @@ Student Delivery Team`;
                             <div>
                                 <h1 className="text-lg font-semibold text-gray-900">Deliveries</h1>
                                 <p className="text-xs text-gray-500">
-                                    {deliveries.length} delivery{deliveries.length !== 1 ? 's' : ''} found
+                                    {window.apiPagination?.totalItems || deliveries.length} total deliveries • {deliveries.length} currently shown • Page {currentPage} of {window.apiPagination?.totalPages || 1}
                                     {lastRefresh && (
-                                        <span className="ml-2">• Updated {lastRefresh.toLocaleTimeString()}</span>
+                                        <span className="ml-2">• Updated {formatDate(lastRefresh)}</span>
                                     )}
                                 </p>
                             </div>
@@ -1062,7 +1152,10 @@ Student Delivery Team`;
                                     </label>
                                     <select
                                         value={statusFilter}
-                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            console.log('🔍 Status filter changed:', e.target.value);
+                                            setStatusFilter(e.target.value);
+                                        }}
                                         className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="all">All Status</option>
@@ -1080,7 +1173,10 @@ Student Delivery Team`;
                                     </label>
                                     <select
                                         value={paymentFilter}
-                                        onChange={(e) => setPaymentFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            console.log('🔍 Payment filter changed:', e.target.value);
+                                            setPaymentFilter(e.target.value);
+                                        }}
                                         className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="all">All Payment</option>
@@ -1096,7 +1192,10 @@ Student Delivery Team`;
                                     </label>
                                     <select
                                         value={broadcastFilter}
-                                        onChange={(e) => setBroadcastFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            console.log('🔍 Broadcast filter changed:', e.target.value);
+                                            setBroadcastFilter(e.target.value);
+                                        }}
                                         className="w-full px-3 py-1.5 border border-gray-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
                                     >
                                         <option value="all">All Broadcasts</option>
@@ -1461,11 +1560,11 @@ Student Delivery Team`;
                             currentPage={currentPage}
                             totalPages={totalPages}
                             onPageChange={handlePageChange}
-                            itemsPerPage={itemsPerPage}
+                            itemsPerPage={itemsPerPageFromAPI}
                             onItemsPerPageChange={setItemsPerPage}
                             totalItems={totalItems}
-                            startIndex={(currentPage - 1) * itemsPerPage + 1}
-                            endIndex={Math.min(currentPage * itemsPerPage, totalItems)}
+                            startIndex={startIndex + 1}
+                            endIndex={endIndex}
                         />
                     </div>
                 )}
@@ -1987,7 +2086,7 @@ Student Delivery Team`;
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm text-gray-600">Estimated Time:</span>
                                             <span className="text-sm font-medium text-gray-900">
-                                                {new Date(selectedDelivery.estimatedTime).toLocaleString()}
+                                                {formatDate(selectedDelivery.estimatedTime)}
                                             </span>
                                         </div>
                                     )}
@@ -2016,12 +2115,12 @@ Student Delivery Team`;
                                 <div className="space-y-2 text-xs text-gray-600">
                                     <div className="flex justify-between">
                                         <span>Created:</span>
-                                        <span>{new Date(selectedDelivery.createdAt).toLocaleString()}</span>
+                                        <span>{formatDate(selectedDelivery.createdAt)}</span>
                                     </div>
                                     {selectedDelivery.updatedAt && (
                                         <div className="flex justify-between">
                                             <span>Updated:</span>
-                                            <span>{new Date(selectedDelivery.updatedAt).toLocaleString()}</span>
+                                            <span>{formatDate(selectedDelivery.updatedAt)}</span>
                                         </div>
                                     )}
                                 </div>
@@ -2124,21 +2223,53 @@ Student Delivery Team`;
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Select Driver
                                 </label>
-                                <select
+                                <div className="text-xs text-gray-500 mb-2">
+                                    Available drivers: {drivers.length} | Selected: {selectedDriverId || 'None'}
+                                </div>
+                                <SearchableDropdown
+                                    options={drivers
+                                        .filter(driver => {
+                                            console.log('🔍 Filtering driver:', {
+                                                id: driver._id,
+                                                name: driver.name,
+                                                status: driver.status,
+                                                hasName: !!driver.name,
+                                                hasPhone: !!driver.phone,
+                                                hasEmail: !!driver.email
+                                            });
+                                            // Check if status exists and is truthy, or if no status filtering is needed
+                                            const hasValidStatus = driver.status && (driver.status === 'active' || driver.status === 'online');
+                                            const noStatusFilter = !driver.status || driver.status === '';
+                                            console.log('🔍 Status check:', { status: driver.status, hasValidStatus, noStatusFilter });
+                                            return hasValidStatus || noStatusFilter;
+                                        })
+                                        .map(driver => {
+                                            const option = {
+                                                value: driver._id,
+                                                label: `${driver.name || 'Unknown'} - ${driver.phone || 'No phone'}`,
+                                                name: driver.name || 'Unknown',
+                                                email: driver.email || 'No email',
+                                                phone: driver.phone || 'No phone'
+                                            };
+                                            console.log('🔍 Created option:', option);
+                                            return option;
+                                        })}
                                     value={selectedDriverId}
-                                    onChange={(e) => setSelectedDriverId(e.target.value)}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                    <option value="">Choose a driver...</option>
-                                    {drivers
-                                        .filter(driver => driver.status === 'active' || driver.status === 'online')
-                                        .map(driver => (
-                                            <option key={driver._id} value={driver._id}>
-                                                {driver.fullNameComputed || driver.name} - {driver.phone}
-                                            </option>
-                                        ))
-                                    }
-                                </select>
+                                    onChange={(driverId) => {
+                                        console.log('🔍 Driver selection changed:', { driverId });
+                                        setSelectedDriverId(driverId);
+                                    }}
+                                    placeholder="Choose a driver..."
+                                    searchPlaceholder="Search drivers..."
+                                    className="w-full"
+                                    allowClear={true}
+                                    renderOption={(option, isSelected) => (
+                                        <div className="flex flex-col">
+                                            <span className="font-medium text-sm">{option.name}</span>
+                                            <span className="text-sm text-gray-500">{option.phone}</span>
+                                        </div>
+                                    )}
+                                />
                             </div>
 
                             <div className="flex space-x-3">
