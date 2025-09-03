@@ -50,26 +50,166 @@
           },
         });
 
-        // Block MetaMask extension messages
+        // Block MetaMask extension messages and handle invalid postMessage calls
         const originalPostMessage = window.postMessage;
         window.postMessage = function (message, targetOrigin, transfer) {
-          if (
-            message &&
-            typeof message === "object" &&
-            message.type &&
-            (message.type.includes("metamask") ||
-              message.type.includes("ethereum"))
-          ) {
-            console.warn("MetaMask message blocked:", message.type);
-            return;
-          }
-          return originalPostMessage.call(
-            this,
+          // Log all postMessage calls for debugging
+          console.log("🔍 postMessage called with:", {
             message,
             targetOrigin,
-            transfer
-          );
+            transfer,
+          });
+
+          try {
+            // Block MetaMask messages
+            if (
+              message &&
+              typeof message === "object" &&
+              message.type &&
+              (message.type.includes("metamask") ||
+                message.type.includes("ethereum"))
+            ) {
+              console.warn("MetaMask message blocked:", message.type);
+              return;
+            }
+
+            // Validate targetOrigin before calling postMessage
+            if (
+              !targetOrigin ||
+              targetOrigin === "undefined" ||
+              targetOrigin === "null"
+            ) {
+              console.warn(
+                "⚠️ Blocked postMessage with invalid targetOrigin:",
+                targetOrigin
+              );
+              return;
+            }
+
+            // Additional safety checks
+            if (
+              typeof targetOrigin !== "string" ||
+              targetOrigin.trim() === ""
+            ) {
+              console.warn(
+                "⚠️ Blocked postMessage with non-string targetOrigin:",
+                targetOrigin
+              );
+              return;
+            }
+
+            // Safe to call postMessage
+            console.log(
+              "✅ postMessage call allowed with valid targetOrigin:",
+              targetOrigin
+            );
+            return originalPostMessage.call(
+              this,
+              message,
+              targetOrigin,
+              transfer
+            );
+          } catch (error) {
+            console.warn(
+              "⚠️ postMessage error caught and prevented:",
+              error.message
+            );
+            return;
+          }
         };
+
+        // Add global error handler for postMessage errors
+        window.addEventListener("error", function (event) {
+          console.log("🔍 Global error event:", event);
+
+          if (
+            event.error &&
+            event.error.message &&
+            event.error.message.includes("postMessage")
+          ) {
+            console.warn(
+              "⚠️ Global postMessage error caught:",
+              event.error.message
+            );
+            event.preventDefault();
+            return false;
+          }
+
+          // Also catch any SyntaxError related to postMessage
+          if (event.message && event.message.includes("postMessage")) {
+            console.warn(
+              "⚠️ Global postMessage syntax error caught:",
+              event.message
+            );
+            event.preventDefault();
+            return false;
+          }
+        });
+
+        // Also handle unhandled promise rejections
+        window.addEventListener("unhandledrejection", function (event) {
+          if (
+            event.reason &&
+            event.reason.message &&
+            event.reason.message.includes("postMessage")
+          ) {
+            console.warn(
+              "⚠️ Global postMessage promise rejection caught:",
+              event.reason.message
+            );
+            event.preventDefault();
+            return false;
+          }
+        });
+
+        // Additional safety: Override postMessage at prototype level
+        if (window.MessageEvent && window.MessageEvent.prototype) {
+          const originalPostMessageProto =
+            window.MessageEvent.prototype.postMessage;
+          if (originalPostMessageProto) {
+            window.MessageEvent.prototype.postMessage = function (
+              message,
+              targetOrigin,
+              transfer
+            ) {
+              console.log("🔍 MessageEvent postMessage called with:", {
+                message,
+                targetOrigin,
+                transfer,
+              });
+
+              if (
+                !targetOrigin ||
+                targetOrigin === "undefined" ||
+                targetOrigin === "null"
+              ) {
+                console.warn(
+                  "⚠️ Blocked MessageEvent postMessage with invalid targetOrigin:",
+                  targetOrigin
+                );
+                return;
+              }
+
+              try {
+                return originalPostMessageProto.call(
+                  this,
+                  message,
+                  targetOrigin,
+                  transfer
+                );
+              } catch (error) {
+                console.warn(
+                  "⚠️ MessageEvent postMessage error caught:",
+                  error.message
+                );
+                return;
+              }
+            };
+          }
+        }
+
+        // Final safety: Monitor for any postMessage calls
+        console.log("🛡️ postMessage protection activated successfully");
       }
     </script>
   </head>
