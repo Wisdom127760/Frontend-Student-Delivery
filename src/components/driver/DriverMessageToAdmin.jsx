@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
-// import { useAuth } from '../../context/AuthContext'; // Unused import
 import apiService from '../../services/api';
 import { useToast } from '../common/ToastProvider';
 import Button from '../ui/Button';
+import soundService from '../../services/soundService';
 
 const DriverMessageToAdmin = () => {
-    // const { user } = useAuth(); // Unused variable
     const { showSuccess, showError } = useToast();
     const [message, setMessage] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -19,11 +18,19 @@ const DriverMessageToAdmin = () => {
 
         setIsSending(true);
         try {
-            const response = await apiService.sendMessageToAdmin(message.trim());
+            // Use the new messaging API instead of the old notification endpoint
+            const response = await apiService.sendMessage({
+                message: message.trim(),
+                type: 'general',
+                timestamp: new Date().toISOString()
+            });
 
             if (response.success) {
+                // Play success sound when message is sent
+                soundService.playSound('success');
                 showSuccess('Message sent to admin successfully!');
                 setMessage('');
+                console.log('💬 DriverMessageToAdmin: Message sent via messaging API:', response);
             } else {
                 showError('Failed to send message');
             }
@@ -44,8 +51,6 @@ const DriverMessageToAdmin = () => {
 
     return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Send Message to Admin</h3>
-
             <div className="space-y-3">
                 <textarea
                     value={message}

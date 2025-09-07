@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import SimpleEmergencyAlert from '../driver/SimpleEmergencyAlert';
 import NotificationsDropdown from '../driver/NotificationsDropdown';
 import Avatar from '../common/Avatar';
 import SoundPermissionModal from '../common/SoundPermissionModal';
 import GlobalSearch from '../common/GlobalSearch';
 import ActiveStatusButton from '../driver/ActiveStatusButton';
+import AdminMessaging from '../common/AdminMessaging';
 import apiService from '../../services/api';
 import { useToast } from '../common/ToastProvider';
 import {
@@ -247,6 +247,9 @@ const DriverLayout = ({ children }) => {
                                     <div className={`w-2 h-2 rounded-full ${socketAuthenticated ? 'bg-green-500' : socketConnected ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
                                 </div>
 
+                                {/* Admin Messaging */}
+                                <AdminMessaging />
+
                                 {/* Notifications */}
                                 <NotificationsDropdown />
 
@@ -341,8 +344,6 @@ const DriverLayout = ({ children }) => {
                     />
                 )}
 
-                {/* Emergency Alert */}
-                <SimpleEmergencyAlert />
 
                 {/* Active Status Button - Fixed position in bottom left */}
                 <ActiveStatusButton />

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
+import notificationManager from '../../services/notificationManager';
 import { BellIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from 'react-router-dom';
 
@@ -51,6 +52,7 @@ const SimpleDriverNotifications = () => {
         }
 
         listenersSet.current = true;
+        const componentName = 'DriverSimpleNotifications';
 
         // Remove existing listeners to prevent duplicates
         socketService.off('notification');
@@ -59,47 +61,38 @@ const SimpleDriverNotifications = () => {
 
         // Listen for general notifications
         socketService.on('notification', (data) => {
-            soundService.playSound('notification');
-
-            const notification = {
-                id: Date.now(),
-                message: data.message || 'New notification received',
-                timestamp: new Date(),
-                priority: data.priority || 'medium',
-                type: 'notification'
-            };
-
-            addNotification(notification);
+            const notification = notificationManager.processNotification({
+                ...data,
+                message: data.message || 'New notification received'
+            }, componentName);
+            if (notification) {
+                addNotification(notification);
+            }
         });
 
         // Listen for delivery updates
         socketService.on('delivery_update', (data) => {
-            soundService.playSound('notification');
-
-            const notification = {
-                id: Date.now(),
+            const notification = notificationManager.processNotification({
+                ...data,
                 message: `📦 ${data.message || 'Delivery status updated'}`,
-                timestamp: new Date(),
-                priority: 'medium',
                 type: 'delivery_update'
-            };
-
-            addNotification(notification);
+            }, componentName);
+            if (notification) {
+                addNotification(notification);
+            }
         });
 
         // Listen for system alerts
         socketService.on('system_alert', (data) => {
-            soundService.playSound('alert');
-
-            const notification = {
-                id: Date.now(),
+            const notification = notificationManager.processNotification({
+                ...data,
                 message: `⚠️ ${data.message || 'System alert'}`,
-                timestamp: new Date(),
-                priority: 'high',
-                type: 'system_alert'
-            };
-
-            addNotification(notification);
+                type: 'system_alert',
+                priority: 'high'
+            }, componentName);
+            if (notification) {
+                addNotification(notification);
+            }
         });
 
         // Check connection status

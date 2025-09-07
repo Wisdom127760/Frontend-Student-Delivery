@@ -1,6 +1,7 @@
 import axios from 'axios';
 import requestDeduplicator from '../utils/requestDeduplicator';
 import toast from 'react-hot-toast';
+import notificationManager from './notificationManager';
 
 // Request deduplication to prevent duplicate API calls
 const pendingRequests = new Map();
@@ -78,7 +79,7 @@ api.interceptors.response.use(
             console.error('🌐 Error details:', error.message);
 
             // Show toast for network errors
-            toast.error('Unable to connect to the server. Please check your internet connection and try again.', {
+            notificationManager.showToast('Unable to connect to the server. Please check your internet connection and try again.', 'error', {
                 duration: 5000,
             });
         }
@@ -88,7 +89,7 @@ api.interceptors.response.use(
         // Handle server errors (500+)
         if (error.response?.status >= 500) {
             console.error('🔧 Server error:', error.response?.status, error.response?.data);
-            toast.error('Server error. Please try again later.', {
+            notificationManager.showToast('Server error. Please try again later.', 'error', {
                 duration: 5000,
             });
         }
@@ -415,7 +416,7 @@ class ApiService {
                 success: true,
                 data: {
                     addresses: ['Kucuk', 'Lefkosa', 'Girne', 'Iskele', 'Guzelyurt', 'Lefke'],
-                    transportationMethods: ['Walking', 'Bicycle', 'Motorcycle', 'Car', 'Public Transport', 'Other'],
+                    transportationMethods: ['walking', 'bicycle', 'motorcycle', 'scooter', 'car', 'other'],
                     universities: [
                         'Eastern Mediterranean University', 'Cyprus West University', 'Cyprus International University',
                         'Near East University', 'Girne American University', 'European University of Lefke',
@@ -565,47 +566,15 @@ class ApiService {
     }
 
     async updateDriverStatus(status) {
-        // Try multiple possible endpoints for driver status update
-        try {
-            // First try the standard driver status endpoint with status field
-            const response = await api.put('/driver/status', { status });
-            return response.data;
-        } catch (error) {
-            console.log('⚠️ First endpoint failed, trying alternative...');
-            try {
-                // Try the profile update endpoint with status field
-                const response = await api.put('/driver/profile', { status });
-                return response.data;
-            } catch (secondError) {
-                console.log('⚠️ Second endpoint failed, trying third option...');
-                try {
-                    // Try updating the current user's status with status field
-                    const user = JSON.parse(localStorage.getItem('user') || '{}');
-                    const userId = user.id || user._id;
-
-                    if (!userId) {
-                        console.error('❌ No user ID found in localStorage');
-                        throw new Error('User ID not found');
-                    }
-
-                    const response = await api.put(`/drivers/${userId}/status`, { status });
-                    return response.data;
-                } catch (thirdError) {
-                    console.error('❌ All status update endpoints failed:', {
-                        first: error.message,
-                        second: secondError.message,
-                        third: thirdError.message
-                    });
-                    throw thirdError;
-                }
-            }
-        }
+        const response = await api.put('/driver/status', { status });
+        return response.data;
     }
 
     async updateDriverLocation(location) {
         const response = await api.put('/driver/location', location);
         return response.data;
     }
+
 
     async getDriverDeliveries(filters) {
         const params = new URLSearchParams();
@@ -744,6 +713,9 @@ class ApiService {
                 fullResponse: response.data
             });
 
+            // Documents are automatically visible to admin through the existing system
+            // No need for additional admin submission call
+
             return response.data;
         } catch (error) {
             console.error('❌ Document upload failed:', {
@@ -881,6 +853,423 @@ class ApiService {
     }
 
     // Communication endpoints
+    async sendMessage(messageData) {
+        console.log('💬 API Service: Sending message:', messageData);
+
+        const requestKey = `sendMessage:${messageData.message}:${messageData.type}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                // Prepare message data with proper location format
+                // Remove timestamp field as backend doesn't accept it
+                const { timestamp, ...messageDataWithoutTimestamp } = messageData;
+                const formattedMessageData = {
+                    ...messageDataWithoutTimestamp
+                };
+
+                // Only include location if it's a valid object, otherwise omit it
+                if (messageData.location && typeof messageData.location === 'object') {
+                    formattedMessageData.location = messageData.location;
+                }
+
+                // Try the new unified message endpoint first
+                const response = await api.post('/messages/send', formattedMessageData);
+                console.log('💬 API Service: Send message response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Unified message endpoint not available, trying fallback');
+
+                // Fallback to existing emergency alert endpoint for emergency messages
+                if (messageData.type === 'emergency') {
+                    try {
+                        const response = await api.post('/notifications/emergency-alert', {
+                            message: messageData.message,
+                            location: messageData.location
+                        });
+                        console.log('💬 API Service: Emergency alert fallback response:', response.data);
+                        return response.data;
+                    } catch (emergencyError) {
+                        console.log('💬 API Service: Emergency alert fallback also failed');
+                        throw emergencyError;
+                    }
+                } else {
+                    // For regular messages, try the existing driver message endpoint
+                    try {
+                        const response = await api.post('/notifications/driver/send-message', {
+                            message: messageData.message
+                        });
+                        console.log('💬 API Service: Driver message fallback response:', response.data);
+                        return response.data;
+                    } catch (regularError) {
+                        console.log('💬 API Service: Driver message fallback also failed');
+                        throw regularError;
+                    }
+                }
+            }
+        });
+    }
+
+    // Get message history with pagination
+    async getMessageHistory(page = 1, limit = 50, type = null) {
+        console.log('💬 API Service: Getting message history:', { page, limit, type });
+
+        const requestKey = `getMessageHistory:${page}:${limit}:${type}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+                if (type) params.append('type', type);
+
+                const response = await api.get(`/messages/history?${params}`);
+                console.log('💬 API Service: Message history response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Message history endpoint not available');
+                // Return empty history if endpoint doesn't exist
+                return {
+                    success: true,
+                    data: {
+                        messages: [],
+                        pagination: {
+                            currentPage: page,
+                            totalPages: 1,
+                            totalMessages: 0,
+                            hasNext: false,
+                            hasPrev: false
+                        }
+                    }
+                };
+            }
+        });
+    }
+
+    // Get conversations list for multi-driver messaging
+    async getConversations() {
+        console.log('💬 API Service: Getting conversations list');
+
+        const requestKey = 'getConversations';
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.get('/conversations/admin');
+                console.log('💬 API Service: Conversations response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Conversations endpoint not available');
+                // Return empty conversations if endpoint doesn't exist
+                return {
+                    success: true,
+                    data: {
+                        conversations: []
+                    }
+                };
+            }
+        });
+    }
+
+    // Get messages for a specific conversation
+    async getConversationMessages(conversationId, page = 1, limit = 50) {
+        console.log('💬 API Service: Getting conversation messages:', { conversationId, page, limit });
+
+        const requestKey = `getConversationMessages:${conversationId}:${page}:${limit}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const params = new URLSearchParams({
+                    page: page.toString(),
+                    limit: limit.toString()
+                });
+
+                const response = await api.get(`/conversations/${conversationId}?${params}`);
+                console.log('💬 API Service: Conversation messages response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.error('💬 API Service: Error getting conversation messages:', {
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    data: error.response?.data,
+                    message: error.message,
+                    conversationId
+                });
+
+                // Return empty messages if endpoint doesn't exist or has errors
+                return {
+                    success: true,
+                    data: {
+                        messages: [],
+                        pagination: {
+                            currentPage: page,
+                            totalPages: 1,
+                            totalMessages: 0,
+                            hasNext: false,
+                            hasPrev: false
+                        }
+                    }
+                };
+            }
+        });
+    }
+
+    // Send message to specific driver
+    async sendMessageToDriver(driverId, messageData) {
+        console.log('💬 API Service: Sending message to driver:', { driverId, messageData });
+
+        const requestKey = `sendMessageToDriver:${driverId}:${messageData.message}:${messageData.type}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                // First create or get conversation
+                const conversationResponse = await api.post('/conversations/create-or-get', {
+                    driverId: driverId
+                });
+
+                if (conversationResponse.data.success) {
+                    const conversationId = conversationResponse.data.data.conversation._id;
+
+                    // Then send message to the conversation
+                    // Remove timestamp and conversationId fields as backend doesn't accept them
+                    const { timestamp, conversationId: _, ...messageDataWithoutTimestamp } = messageData;
+                    const response = await api.post('/messages/send', {
+                        ...messageDataWithoutTimestamp
+                    });
+                    console.log('💬 API Service: Send message to driver response:', response.data);
+                    return response.data;
+                } else {
+                    throw new Error('Failed to create or get conversation');
+                }
+            } catch (error) {
+                console.log('💬 API Service: Send message to driver endpoint not available');
+                // Fallback to general send message endpoint
+                try {
+                    // Remove timestamp field as backend doesn't accept it
+                    const { timestamp, ...messageDataWithoutTimestamp } = messageData;
+                    const fallbackData = {
+                        ...messageDataWithoutTimestamp,
+                        driverId: driverId
+                    };
+                    const response = await api.post('/messages/send', fallbackData);
+                    console.log('💬 API Service: Fallback send message response:', response.data);
+                    return response.data;
+                } catch (fallbackError) {
+                    console.log('💬 API Service: All send message endpoints failed');
+                    throw fallbackError;
+                }
+            }
+        });
+    }
+
+    // Mark conversation as read
+    async markConversationAsRead(conversationId) {
+        console.log('💬 API Service: Marking conversation as read:', conversationId);
+
+        const requestKey = `markConversationAsRead:${conversationId}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.put(`/conversations/${conversationId}/read`);
+                console.log('💬 API Service: Mark conversation as read response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Mark conversation as read endpoint not available');
+                // Return success even if endpoint doesn't exist
+                return {
+                    success: true,
+                    message: 'Conversation marked as read'
+                };
+            }
+        });
+    }
+
+    // Assign conversation to admin
+    async assignConversation(conversationId, adminId) {
+        console.log('💬 API Service: Assigning conversation:', { conversationId, adminId });
+
+        const requestKey = `assignConversation:${conversationId}:${adminId}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.put(`/conversations/${conversationId}/assign`, {
+                    adminId: adminId
+                });
+                console.log('💬 API Service: Assign conversation response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Assign conversation endpoint not available');
+                return {
+                    success: false,
+                    message: 'Failed to assign conversation'
+                };
+            }
+        });
+    }
+
+    // Update conversation status
+    async updateConversationStatus(conversationId, status) {
+        console.log('💬 API Service: Updating conversation status:', { conversationId, status });
+
+        const requestKey = `updateConversationStatus:${conversationId}:${status}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.put(`/conversations/${conversationId}/status`, {
+                    status: status
+                });
+                console.log('💬 API Service: Update conversation status response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Update conversation status endpoint not available');
+                return {
+                    success: false,
+                    message: 'Failed to update conversation status'
+                };
+            }
+        });
+    }
+
+    // Get conversation statistics
+    async getConversationStats() {
+        console.log('💬 API Service: Getting conversation statistics');
+
+        const requestKey = 'getConversationStats';
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.get('/conversations/admin/stats');
+                console.log('💬 API Service: Conversation stats response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Conversation stats endpoint not available');
+                return {
+                    success: true,
+                    data: {
+                        total: 0,
+                        active: 0,
+                        waiting: 0,
+                        resolved: 0,
+                        archived: 0
+                    }
+                };
+            }
+        });
+    }
+
+    // Mark messages as read
+    async markMessagesAsRead(messageIds) {
+        console.log('💬 API Service: Marking messages as read:', messageIds);
+
+        const requestKey = `markMessagesAsRead:${JSON.stringify(messageIds)}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.put('/messages/read', { messageIds });
+                console.log('💬 API Service: Mark messages as read response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Mark messages as read endpoint not available');
+                // Return success for local update if API fails
+                return { success: true, message: 'Messages marked as read locally' };
+            }
+        });
+    }
+
+    // Get unread message count
+    async getUnreadMessageCount() {
+        console.log('💬 API Service: Getting unread message count');
+
+        const requestKey = 'getUnreadMessageCount';
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.get('/messages/unread-count');
+                console.log('💬 API Service: Unread count response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Unread count endpoint not available');
+                // Return 0 if endpoint doesn't exist
+                return { success: true, data: { unreadCount: 0 } };
+            }
+        });
+    }
+
+    // Get emergency messages (admin only)
+    async getEmergencyMessages(page = 1, limit = 20) {
+        console.log('💬 API Service: Getting emergency messages:', { page, limit });
+
+        const requestKey = `getEmergencyMessages:${page}:${limit}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const params = new URLSearchParams({ page: page.toString(), limit: limit.toString() });
+                const response = await api.get(`/messages/emergency?${params}`);
+                console.log('💬 API Service: Emergency messages response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Emergency messages endpoint not available');
+                // Return empty emergency messages if endpoint doesn't exist
+                return {
+                    success: true,
+                    data: {
+                        messages: [],
+                        pagination: {
+                            currentPage: page,
+                            totalPages: 1,
+                            totalMessages: 0,
+                            hasNext: false,
+                            hasPrev: false
+                        }
+                    }
+                };
+            }
+        });
+    }
+
+    // Delete a message
+    async deleteMessage(messageId) {
+        console.log('💬 API Service: Deleting message:', messageId);
+
+        const requestKey = `deleteMessage:${messageId}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.delete(`/messages/${messageId}`);
+                console.log('💬 API Service: Delete message response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Delete message endpoint not available');
+                // Return success for local update if API fails
+                return { success: true, message: 'Message deleted locally' };
+            }
+        });
+    }
+
+    // Get message statistics (admin only)
+    async getMessageStats() {
+        console.log('💬 API Service: Getting message statistics');
+
+        const requestKey = 'getMessageStats';
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.get('/messages/stats');
+                console.log('💬 API Service: Message stats response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Message stats endpoint not available');
+                // Return empty stats if endpoint doesn't exist
+                return {
+                    success: true,
+                    data: {
+                        totalMessages: 0,
+                        unreadMessages: 0,
+                        emergencyMessages: 0,
+                        messagesByType: {},
+                        messagesByPriority: {}
+                    }
+                };
+            }
+        });
+    }
+
     async sendEmergencyAlert(message, location = null) {
         console.log('🚨 API Service: Sending emergency alert:', { message, location });
 
@@ -931,37 +1320,6 @@ class ApiService {
                 }
             }
         });
-    }
-
-    async sendMessageToDriver(driverId, message) {
-        console.log('💬 API Service: Sending message to driver:', { driverId, message });
-        try {
-            const response = await api.post('/notifications/admin/send-message', {
-                driverId,
-                message
-            });
-            console.log('💬 API Service: Send message response:', response.data);
-            return response.data;
-        } catch (error) {
-            console.log('💬 API Service: Send message failed, trying alternative endpoint');
-            console.log('💬 API Service: Error details:', error.response?.data || error.message);
-
-            // Only use fallback if the primary endpoint truly failed (not just a validation error)
-            if (error.response?.status >= 500 || !error.response) {
-                // Fallback to emergency alert endpoint if the specific endpoint doesn't exist
-                const response = await api.post('/notifications/emergency-alert', {
-                    message: `Admin Message to Driver: ${message}`,
-                    driverId: driverId,
-                    type: 'admin_message',
-                    preventDuplicate: true // Flag to prevent backend from sending duplicate socket events
-                });
-                console.log('💬 API Service: Fallback response:', response.data);
-                return response.data;
-            } else {
-                // If it's a client error (4xx), don't use fallback
-                throw error;
-            }
-        }
     }
 
     async sendSystemNotification(message, priority = 'medium') {

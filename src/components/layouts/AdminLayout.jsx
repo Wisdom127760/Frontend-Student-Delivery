@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { isSuperAdmin } from '../../utils/userHelpers';
 import SimpleNotifications from '../admin/SimpleNotifications';
 import Avatar from '../common/Avatar';
 import GlobalSearch from '../common/GlobalSearch';
+import MultiDriverMessaging from '../common/MultiDriverMessaging';
 import { useToast } from '../common/ToastProvider';
 import {
     ChartBarIcon,
@@ -135,6 +136,9 @@ const AdminLayout = ({ children }) => {
 
                         {/* Right side */}
                         <div className="flex items-center space-x-2 sm:space-x-4">
+                            {/* Admin Messaging */}
+                            <MultiDriverMessaging />
+
                             {/* Notifications */}
                             <SimpleNotifications />
 

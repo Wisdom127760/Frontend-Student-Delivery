@@ -213,6 +213,28 @@ const NotificationsPage = () => {
             setUnreadCount(prev => prev + 1);
         });
 
+        // Listen for delivery broadcasts
+        socketService.on('delivery-broadcast', (data) => {
+            console.log('📡 DriverNotificationsPage: Received delivery broadcast:', data);
+
+            // Play delivery sound
+            soundService.playSound('delivery');
+
+            const broadcastNotification = {
+                _id: data.deliveryId || Date.now().toString(),
+                title: 'New Delivery Available',
+                message: `New delivery from ${data.pickupLocationDescription || data.pickupLocation} to ${data.deliveryLocationDescription || data.deliveryLocation} - ₺${data.fee || 'Unknown'}`,
+                type: 'delivery_broadcast',
+                priority: 'high',
+                isRead: false,
+                createdAt: data.createdAt || new Date().toISOString(),
+                metadata: data
+            };
+
+            setNotifications(prev => [broadcastNotification, ...prev.slice(0, -1)]);
+            setUnreadCount(prev => prev + 1);
+        });
+
         return () => {
             clearInterval(connectionInterval);
             socketService.off('new-notification');
@@ -223,6 +245,7 @@ const NotificationsPage = () => {
             socketService.off('delivery-status-changed');
             socketService.off('payment-received');
             socketService.off('earnings-updated');
+            socketService.off('delivery-broadcast');
         };
     }, [user]);
 
