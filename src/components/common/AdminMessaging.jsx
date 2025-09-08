@@ -25,13 +25,33 @@ const AdminMessaging = () => {
             try {
                 const response = await apiService.getMessageHistory(1, 50);
                 if (response.success && response.data.messages && response.data.messages.length > 0) {
-                    // Ensure timestamps are properly converted to Date objects
-                    const processedMessages = response.data.messages.map(msg => ({
-                        ...msg,
-                        timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
-                    }));
+                    // Ensure timestamps are properly converted to Date objects and sender field is correct
+                    const processedMessages = response.data.messages.map(msg => {
+                        // Determine sender based on senderType or other fields
+                        let sender = 'driver'; // Default to driver
+                        if (msg.senderType === 'admin' || msg.sender === 'admin') {
+                            sender = 'admin';
+                        } else if (msg.senderType === 'driver' || msg.sender === 'driver') {
+                            sender = 'driver';
+                        }
+
+                        console.log('💬 AdminMessaging: Processing message from API:', {
+                            id: msg._id || msg.id,
+                            message: msg.message?.substring(0, 30) + '...',
+                            senderType: msg.senderType,
+                            sender: msg.sender,
+                            finalSender: sender
+                        });
+
+                        return {
+                            ...msg,
+                            sender: sender,
+                            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+                        };
+                    });
                     setMessages(processedMessages);
                     console.log('💬 AdminMessaging: Loaded', processedMessages.length, 'messages from API');
+                    console.log('💬 AdminMessaging: Message senders:', processedMessages.map(m => ({ id: m.id, sender: m.sender, senderType: m.senderType, message: m.message.substring(0, 20) + '...' })));
                 } else {
                     // Start with empty messages array - no fallback messages
                     setMessages([]);
@@ -71,6 +91,7 @@ const AdminMessaging = () => {
     useEffect(() => {
         console.log('💬 AdminMessaging: Setting up real-time message handling, user:', user);
         const handleDriverMessage = (data) => {
+            console.log('💬 AdminMessaging: ===== HANDLE DRIVER MESSAGE CALLED =====');
             console.log('💬 AdminMessaging: Received driver message:', data);
 
             // Skip messages from the current user to prevent echo
@@ -90,6 +111,8 @@ const AdminMessaging = () => {
                 driverId: data.driverId,
                 driverName: data.driverName || 'Driver'
             };
+
+            console.log('💬 AdminMessaging: Processed driver message:', message);
 
             // Check if message already exists to prevent duplicates
             setMessages(prev => {
@@ -158,8 +181,37 @@ const AdminMessaging = () => {
             showSuccess(`New message from ${message.driverName}`, 3000);
         };
 
-        const handleAdminMessage = (message) => {
-            setMessages(prev => [...prev, message]);
+        const handleAdminMessage = (data) => {
+            console.log('💬 AdminMessaging: Received admin message:', data);
+
+            const message = {
+                id: data._id || data.id || Date.now() + Math.random(),
+                sender: 'admin', // ✅ Ensure admin messages are marked as 'admin'
+                message: data.message,
+                timestamp: data.timestamp ? new Date(data.timestamp) : new Date(),
+                read: true, // Admin messages are read by default
+                type: data.type || 'general',
+                location: data.location
+            };
+
+            console.log('💬 AdminMessaging: Processed admin message:', message);
+
+            // Check if message already exists to prevent duplicates
+            setMessages(prev => {
+                const exists = prev.some(msg =>
+                    msg.id === message.id ||
+                    (msg.message === message.message &&
+                        msg.sender === message.sender &&
+                        Math.abs(new Date(msg.timestamp) - new Date(message.timestamp)) < 5000)
+                );
+
+                if (exists) {
+                    console.log('💬 AdminMessaging: Duplicate admin message detected, skipping:', message);
+                    return prev;
+                }
+
+                return [...prev, message];
+            });
         };
 
         const handleTyping = (isTyping) => {
@@ -174,6 +226,9 @@ const AdminMessaging = () => {
             socketService.on('new-message', handleNewMessage);
             socketService.on('admin-message', handleAdminMessage);
             socketService.on('admin-typing', handleTyping);
+
+            // Add debugging for all WebSocket events
+            console.log('💬 AdminMessaging: WebSocket listeners registered for: driver-message, new-message, admin-message, admin-typing');
 
             // Listen for new-notification events that might contain driver messages
             console.log('💬 AdminMessaging: Setting up new-notification listener');

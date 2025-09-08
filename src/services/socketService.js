@@ -11,9 +11,17 @@ class SocketService {
     }
 
     connect(userId, userType) {
+        // Prevent multiple connections
+        if (this.socket && this.connected) {
+            console.log('🔌 SocketService: Already connected, skipping connection');
+            return;
+        }
+
         try {
             // Connect to Socket.IO server
-            this.socket = io(process.env.REACT_APP_SOCKET_URL, {
+            const socketUrl = process.env.REACT_APP_SOCKET_URL || 'http://localhost:3001';
+            console.log('🔌 SocketService: Connecting to:', socketUrl);
+            this.socket = io(socketUrl, {
                 auth: {
                     userId,
                     userType
@@ -105,6 +113,15 @@ class SocketService {
         this.socket.on('authentication-confirmed', (data) => {
             console.log('✅ Socket authentication confirmed:', data);
             this.authenticated = true;
+
+            // Join admin room after authentication (only if not already in admin room)
+            if ((data.userType === 'admin' || data.role === 'admin' || data.role === 'super_admin') &&
+                (!data.rooms || !data.rooms.includes('admin'))) {
+                console.log('🔌 Joining admin room...');
+                this.socket.emit('join-admin-room');
+            } else if (data.rooms && data.rooms.includes('admin')) {
+                console.log('🔌 Already in admin room, skipping join');
+            }
         });
 
         // Listen for authentication failure
@@ -218,6 +235,16 @@ class SocketService {
     // Check if socket is authenticated
     isAuthenticated() {
         return this.authenticated && this.connected && this.socket?.connected;
+    }
+
+    // Join admin room manually
+    joinAdminRoom() {
+        if (this.socket && this.connected) {
+            console.log('🔌 Manually joining admin room...');
+            this.socket.emit('join-admin-room');
+        } else {
+            console.warn('🔌 Cannot join admin room - socket not connected');
+        }
     }
 
     emit(event, data) {

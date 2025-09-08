@@ -105,6 +105,7 @@ const NotificationsPage = () => {
 
         // Listen for admin messages
         socketService.on('admin-message', (data) => {
+            console.log('💬 DriverNotificationsPage: ===== ADMIN MESSAGE RECEIVED =====');
             console.log('💬 DriverNotificationsPage: Received admin message:', data);
 
             // Play notification sound

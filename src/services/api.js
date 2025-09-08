@@ -7,7 +7,7 @@ import notificationManager from './notificationManager';
 const pendingRequests = new Map();
 
 // API Configuration
-const API_BASE_URL = process.env.REACT_APP_API_URL;
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
 console.log('🔧 API Configuration - REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
 console.log('🔧 API Configuration - Final API_BASE_URL:', API_BASE_URL);
 
@@ -951,8 +951,24 @@ class ApiService {
 
         return requestDeduplicator.execute(requestKey, async () => {
             try {
+                // Try to get conversations without status filter first
                 const response = await api.get('/conversations/admin');
                 console.log('💬 API Service: Conversations response:', response.data);
+
+                // If no conversations found, try with different status filters
+                if (response.data.success && (!response.data.data.conversations || response.data.data.conversations.length === 0)) {
+                    console.log('💬 API Service: No conversations found, trying with status=waiting');
+                    try {
+                        const waitingResponse = await api.get('/conversations/admin?status=waiting');
+                        console.log('💬 API Service: Waiting conversations response:', waitingResponse.data);
+                        if (waitingResponse.data.success && waitingResponse.data.data.conversations) {
+                            return waitingResponse.data;
+                        }
+                    } catch (waitingError) {
+                        console.log('💬 API Service: Waiting conversations endpoint failed:', waitingError);
+                    }
+                }
+
                 return response.data;
             } catch (error) {
                 console.log('💬 API Service: Conversations endpoint not available');
@@ -1022,16 +1038,21 @@ class ApiService {
                 const conversationResponse = await api.post('/conversations/create-or-get', {
                     driverId: driverId
                 });
+                console.log('💬 API Service: Conversation create/get response:', conversationResponse.data);
 
                 if (conversationResponse.data.success) {
                     const conversationId = conversationResponse.data.data.conversation._id;
+                    console.log('💬 API Service: Extracted conversation ID:', conversationId);
 
                     // Then send message to the conversation
-                    // Remove timestamp and conversationId fields as backend doesn't accept them
-                    const { timestamp, conversationId: _, ...messageDataWithoutTimestamp } = messageData;
-                    const response = await api.post('/messages/send', {
-                        ...messageDataWithoutTimestamp
-                    });
+                    // Remove timestamp field as backend doesn't accept it, but keep conversationId
+                    const { timestamp, ...messageDataWithoutTimestamp } = messageData;
+                    const finalMessageData = {
+                        ...messageDataWithoutTimestamp,
+                        conversationId: conversationId
+                    };
+                    console.log('💬 API Service: Sending message with data:', finalMessageData);
+                    const response = await api.post('/messages/send', finalMessageData);
                     console.log('💬 API Service: Send message to driver response:', response.data);
                     return response.data;
                 } else {
@@ -1045,8 +1066,10 @@ class ApiService {
                     const { timestamp, ...messageDataWithoutTimestamp } = messageData;
                     const fallbackData = {
                         ...messageDataWithoutTimestamp,
-                        driverId: driverId
+                        driverId: driverId,
+                        conversationId: messageData.conversationId || `temp-${driverId}-${Date.now()}`
                     };
+                    console.log('💬 API Service: Fallback sending message with data:', fallbackData);
                     const response = await api.post('/messages/send', fallbackData);
                     console.log('💬 API Service: Fallback send message response:', response.data);
                     return response.data;
@@ -1121,6 +1144,27 @@ class ApiService {
                 return {
                     success: false,
                     message: 'Failed to update conversation status'
+                };
+            }
+        });
+    }
+
+    // Delete conversation
+    async deleteConversation(conversationId) {
+        console.log('💬 API Service: Deleting conversation:', conversationId);
+
+        const requestKey = `deleteConversation:${conversationId}`;
+
+        return requestDeduplicator.execute(requestKey, async () => {
+            try {
+                const response = await api.delete(`/conversations/${conversationId}`);
+                console.log('💬 API Service: Delete conversation response:', response.data);
+                return response.data;
+            } catch (error) {
+                console.log('💬 API Service: Delete conversation endpoint not available');
+                return {
+                    success: false,
+                    message: 'Failed to delete conversation'
                 };
             }
         });

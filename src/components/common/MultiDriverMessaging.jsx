@@ -9,7 +9,8 @@ import {
     ExclamationTriangleIcon,
     UserPlusIcon,
     CheckCircleIcon,
-    ArchiveBoxIcon
+    ArchiveBoxIcon,
+    TrashIcon
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from './ToastProvider';
@@ -36,26 +37,174 @@ const MultiDriverMessaging = () => {
             console.log('💬 MultiDriverMessaging: Loading conversations...');
             const response = await apiService.getConversations();
             console.log('💬 MultiDriverMessaging: Raw API response:', response);
+            console.log('💬 MultiDriverMessaging: API response details:', {
+                success: response.success,
+                hasData: !!response.data,
+                hasConversations: !!response.data?.conversations,
+                conversationCount: response.data?.conversations?.length || 0,
+                responseKeys: Object.keys(response),
+                dataKeys: response.data ? Object.keys(response.data) : [],
+                fullData: response.data,
+                conversations: response.data?.conversations?.map(c => ({
+                    id: c._id,
+                    driverId: c.driverId,
+                    driverName: c.driverName,
+                    status: c.status,
+                    lastMessage: c.lastMessage
+                }))
+            });
 
-            if (response.success && response.data.conversations) {
+            // Debug: Log the actual data structure
+            console.log('💬 MultiDriverMessaging: ===== DETAILED DATA STRUCTURE =====');
+            console.log('💬 MultiDriverMessaging: Full response.data:', response.data);
+            console.log('💬 MultiDriverMessaging: Data keys:', response.data ? Object.keys(response.data) : 'No data');
+            if (response.data) {
+                Object.keys(response.data).forEach(key => {
+                    console.log(`💬 MultiDriverMessaging: data.${key}:`, response.data[key]);
+                });
+            }
+
+            // Try different possible conversation field names (including paginated responses)
+            const conversations = response.data?.conversations ||
+                response.data?.docs ||  // Paginated response
+                response.data?.data?.conversations ||
+                response.data?.conversationList ||
+                response.data?.conversationData ||
+                response.data?.results ||
+                response.data?.items ||
+                [];
+
+            console.log('💬 MultiDriverMessaging: Found conversations in:', {
+                'data.conversations': !!response.data?.conversations,
+                'data.docs': !!response.data?.docs,  // Paginated response
+                'data.data.conversations': !!response.data?.data?.conversations,
+                'data.conversationList': !!response.data?.conversationList,
+                'data.conversationData': !!response.data?.conversationData,
+                'data.results': !!response.data?.results,
+                'data.items': !!response.data?.items,
+                'finalConversations': conversations,
+                'conversationCount': conversations.length
+            });
+
+            if (response.success && conversations && conversations.length > 0) {
+                // Debug: Log raw conversation data
+                console.log('💬 MultiDriverMessaging: Raw conversation data:', conversations);
+                conversations.forEach((conv, index) => {
+                    console.log(`💬 MultiDriverMessaging: Conversation ${index}:`, {
+                        _id: conv._id,
+                        driverId: conv.driverId,
+                        driverIdType: typeof conv.driverId,
+                        driver: conv.driver,
+                        driverType: typeof conv.driver,
+                        driverName: conv.driverName,
+                        driverNameType: typeof conv.driverName
+                    });
+
+                    // Debug driver object structure
+                    if (typeof conv.driverId === 'object' && conv.driverId) {
+                        console.log(`💬 MultiDriverMessaging: driverId object keys:`, Object.keys(conv.driverId));
+                        console.log(`💬 MultiDriverMessaging: driverId object:`, conv.driverId);
+                    }
+                    if (typeof conv.driver === 'object' && conv.driver) {
+                        console.log(`💬 MultiDriverMessaging: driver object keys:`, Object.keys(conv.driver));
+                        console.log(`💬 MultiDriverMessaging: driver object:`, conv.driver);
+                    }
+                });
+
                 // Transform backend conversation data to match frontend expectations
-                const transformedConversations = response.data.conversations.map(conv => ({
-                    id: conv._id,
-                    driverId: conv.driverId,
-                    driverName: conv.driverName || conv.driver?.name || 'Unknown Driver',
-                    lastMessage: conv.lastMessage,
-                    lastMessageTime: conv.lastMessageTime || conv.updatedAt,
-                    unreadCount: conv.adminUnreadCount || 0,
-                    status: conv.status || 'active',
-                    priority: conv.priority || 'normal',
-                    assignedAdmin: conv.assignedAdmin,
-                    createdAt: conv.createdAt
-                }));
+                // Filter out resolved and archived conversations from the main list
+                const activeConversations = conversations.filter(conv =>
+                    conv.status !== 'resolved' && conv.status !== 'archived'
+                );
+
+                const transformedConversations = activeConversations.map(conv => {
+                    // Handle driverId - it might be an object or string
+                    const driverId = typeof conv.driverId === 'object' ? conv.driverId?._id || conv.driverId?.id : conv.driverId;
+
+                    // Handle driver object - extract name and profile picture with comprehensive fallbacks
+                    let driverName = 'Unknown Driver';
+                    if (conv.driverName) {
+                        driverName = conv.driverName;
+                    } else if (typeof conv.driver === 'object' && conv.driver) {
+                        driverName = conv.driver.fullName ||
+                            conv.driver.name ||
+                            conv.driver.fullNameComputed ||
+                            conv.driver.email ||
+                            'Unknown Driver';
+                    } else if (typeof conv.driver === 'string') {
+                        driverName = conv.driver;
+                    }
+
+                    // Handle driverId object case - extract name from driverId if it's an object
+                    if (typeof conv.driverId === 'object' && conv.driverId && driverName === 'Unknown Driver') {
+                        driverName = conv.driverId.fullName ||
+                            conv.driverId.name ||
+                            conv.driverId.fullNameComputed ||
+                            conv.driverId.email ||
+                            'Unknown Driver';
+                    }
+
+                    const driverProfilePicture = (typeof conv.driver === 'object' ? conv.driver?.profilePicture || conv.driver?.profileImage : null) ||
+                        (typeof conv.driverId === 'object' ? conv.driverId?.profilePicture || conv.driverId?.profileImage : null) ||
+                        conv.profilePicture;
+
+                    return {
+                        id: conv._id,
+                        driverId: driverId,
+                        driverName: driverName,
+                        driverProfilePicture: driverProfilePicture,
+                        lastMessage: conv.lastMessage,
+                        lastMessageTime: conv.lastMessageTime || conv.updatedAt,
+                        unreadCount: conv.adminUnreadCount || 0,
+                        status: conv.status || 'active',
+                        priority: conv.priority || 'normal',
+                        assignedAdmin: conv.assignedAdmin,
+                        createdAt: conv.createdAt
+                    };
+                });
                 setConversations(transformedConversations);
                 console.log('💬 MultiDriverMessaging: Loaded conversations:', transformedConversations);
+                console.log('💬 MultiDriverMessaging: Final driver names:', transformedConversations.map(c => ({
+                    id: c.id,
+                    driverId: c.driverId,
+                    driverName: c.driverName,
+                    profilePicture: c.driverProfilePicture,
+                    hasProfilePicture: !!c.driverProfilePicture
+                })));
+                console.log('💬 MultiDriverMessaging: Conversation lastMessage types:', transformedConversations.map(c => ({
+                    driverName: c.driverName,
+                    lastMessage: c.lastMessage,
+                    lastMessageType: typeof c.lastMessage,
+                    lastMessageIsObject: typeof c.lastMessage === 'object'
+                })));
+
+                // If we have a saved active conversation but it's not in the loaded conversations, add it
+                const savedActiveConversation = localStorage.getItem('activeConversation');
+                if (savedActiveConversation && transformedConversations.length === 0) {
+                    try {
+                        const parsedConversation = JSON.parse(savedActiveConversation);
+                        console.log('💬 MultiDriverMessaging: Adding saved conversation to empty list:', parsedConversation);
+                        setConversations([parsedConversation]);
+                    } catch (error) {
+                        console.error('💬 MultiDriverMessaging: Error parsing saved conversation:', error);
+                    }
+                }
             } else {
                 console.log('💬 MultiDriverMessaging: No conversations found or API error. Response:', response);
-                setConversations([]);
+                console.log('💬 MultiDriverMessaging: Response structure:', {
+                    success: response.success,
+                    hasData: !!response.data,
+                    dataKeys: response.data ? Object.keys(response.data) : [],
+                    fullResponse: response
+                });
+
+                // Try to create a conversation from the active conversation if it exists
+                if (activeConversation && activeConversation.id) {
+                    console.log('💬 MultiDriverMessaging: Creating conversation from active conversation:', activeConversation);
+                    setConversations([activeConversation]);
+                } else {
+                    setConversations([]);
+                }
             }
         } catch (error) {
             console.error('💬 MultiDriverMessaging: Error loading conversations:', error);
@@ -88,16 +237,43 @@ const MultiDriverMessaging = () => {
             return;
         }
 
+        // First try to load messages from localStorage for immediate display
+        const messagesKey = `conversation_messages_${conversationId}`;
+        const savedMessages = localStorage.getItem(messagesKey);
+        if (savedMessages) {
+            try {
+                const parsedMessages = JSON.parse(savedMessages);
+                // Convert timestamp strings back to Date objects
+                const processedMessages = parsedMessages.map((msg, index) => ({
+                    ...msg,
+                    id: msg.id || `local-msg-${index}-${Date.now()}`,
+                    timestamp: new Date(msg.timestamp)
+                }));
+                setMessages(processedMessages);
+                console.log('💬 MultiDriverMessaging: Loaded messages from localStorage for conversation:', conversationId, 'Count:', processedMessages.length);
+            } catch (error) {
+                console.error('💬 MultiDriverMessaging: Error parsing saved messages:', error);
+                localStorage.removeItem(messagesKey);
+            }
+        }
+
         setIsLoading(true);
         try {
             console.log('💬 MultiDriverMessaging: Loading messages for conversation:', conversationId);
             const response = await apiService.getConversationMessages(conversationId, 1, 50);
             console.log('💬 MultiDriverMessaging: Messages API response:', response);
+            console.log('💬 MultiDriverMessaging: API response details:', {
+                success: response.success,
+                hasData: !!response.data,
+                hasMessages: !!response.data?.messages,
+                messageCount: response.data?.messages?.length || 0,
+                responseKeys: Object.keys(response)
+            });
 
             if (response.success && response.data.messages) {
                 // Transform backend message data to match frontend expectations
-                const processedMessages = response.data.messages.map(msg => ({
-                    id: msg._id,
+                const processedMessages = response.data.messages.map((msg, index) => ({
+                    id: msg._id || `api-msg-${index}-${Date.now()}`,
                     sender: msg.senderType === 'driver' ? 'driver' : 'admin',
                     message: msg.message,
                     timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
@@ -179,6 +355,29 @@ const MultiDriverMessaging = () => {
                     isTyping: false
                 });
 
+                // Emit WebSocket event to notify driver in real-time
+                console.log('💬 MultiDriverMessaging: Checking WebSocket connection for admin message...');
+                console.log('💬 MultiDriverMessaging: Socket connected?', socketService.isConnected());
+
+                if (socketService.isConnected()) {
+                    const messageData = {
+                        message: messageText,
+                        type: 'general',
+                        driverId: activeConversation.driverId,
+                        driverName: activeConversation.driverName,
+                        conversationId: activeConversation.id,
+                        senderType: 'admin',
+                        timestamp: new Date().toISOString(),
+                        isFromSender: true // Flag to prevent echo
+                    };
+
+                    console.log('💬 MultiDriverMessaging: About to emit admin-message event with data:', messageData);
+                    socketService.emit('admin-message', messageData);
+                    console.log('💬 MultiDriverMessaging: Admin message WebSocket event emitted successfully!');
+                } else {
+                    console.warn('💬 MultiDriverMessaging: WebSocket not connected, driver will not receive real-time notification');
+                }
+
                 soundService.playSound('success');
                 console.log('💬 MultiDriverMessaging: Message sent successfully');
             } else {
@@ -195,9 +394,22 @@ const MultiDriverMessaging = () => {
 
     // Handle incoming messages
     const handleDriverMessage = useCallback((data) => {
+        console.log('💬 MultiDriverMessaging: ===== HANDLE DRIVER MESSAGE CALLED =====');
+        console.log('💬 MultiDriverMessaging: ===== WEBSOCKET EVENT RECEIVED =====');
         console.log('💬 MultiDriverMessaging: Received driver message:', data);
         console.log('💬 MultiDriverMessaging: Current user:', user);
         console.log('💬 MultiDriverMessaging: Active conversation:', activeConversation);
+        console.log('💬 MultiDriverMessaging: Current messages count:', messages.length);
+        console.log('💬 MultiDriverMessaging: Message data structure:', {
+            hasMessage: !!data.message,
+            hasDriverId: !!data.driverId,
+            hasConversationId: !!data.conversationId,
+            hasSenderType: !!data.senderType,
+            messageType: data.type,
+            timestamp: data.timestamp,
+            isFromSender: data.isFromSender
+        });
+        console.log('💬 MultiDriverMessaging: handleDriverMessage function called successfully');
 
         // Skip messages from the current user to prevent echo
         if (data.isFromSender || (data.driverId && data.driverId === (user._id || user.id))) {
@@ -239,7 +451,10 @@ const MultiDriverMessaging = () => {
                 return prev;
             }
 
-            return [...prev, message];
+            console.log('💬 MultiDriverMessaging: Adding new message to state. Previous count:', prev.length, 'New message:', message);
+            const newMessages = [...prev, message];
+            console.log('💬 MultiDriverMessaging: New messages count:', newMessages.length);
+            return newMessages;
         });
 
         // Update conversation list with new message or create new conversation
@@ -340,13 +555,54 @@ const MultiDriverMessaging = () => {
             const response = await apiService.updateConversationStatus(conversationId, status);
             if (response.success) {
                 showSuccess(`Conversation marked as ${status}`);
-                loadConversations(); // Refresh conversations list
+
+                // If conversation is resolved or archived, close it and remove from active conversation
+                if (status === 'resolved' || status === 'archived') {
+                    // Close the conversation if it's currently active
+                    if (activeConversation && activeConversation.id === conversationId) {
+                        setActiveConversation(null);
+                        setMessages([]);
+                        console.log('💬 MultiDriverMessaging: Closed resolved/archived conversation');
+                    }
+                }
+
+                // Refresh conversations list
+                loadConversations();
             } else {
                 showError('Failed to update conversation status');
             }
         } catch (error) {
             console.error('Error updating conversation status:', error);
             showError('Failed to update conversation status');
+        }
+    };
+
+    // Delete conversation
+    const deleteConversation = async (conversationId) => {
+        if (!window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await apiService.deleteConversation(conversationId);
+            if (response.success) {
+                showSuccess('Conversation deleted successfully');
+
+                // Close the conversation if it's currently active
+                if (activeConversation && activeConversation.id === conversationId) {
+                    setActiveConversation(null);
+                    setMessages([]);
+                    console.log('💬 MultiDriverMessaging: Closed deleted conversation');
+                }
+
+                // Refresh conversations list
+                loadConversations();
+            } else {
+                showError('Failed to delete conversation');
+            }
+        } catch (error) {
+            console.error('Error deleting conversation:', error);
+            showError('Failed to delete conversation');
         }
     };
 
@@ -399,6 +655,38 @@ const MultiDriverMessaging = () => {
     useEffect(() => {
         if (user) {
             loadConversations();
+
+            // Try to restore active conversation from localStorage
+            const savedActiveConversation = localStorage.getItem('activeConversation');
+            if (savedActiveConversation) {
+                try {
+                    const parsedConversation = JSON.parse(savedActiveConversation);
+                    console.log('💬 MultiDriverMessaging: Restoring active conversation from localStorage:', parsedConversation);
+                    setActiveConversation(parsedConversation);
+
+                    // Also restore messages for this conversation
+                    const messagesKey = `conversation_messages_${parsedConversation.id}`;
+                    const savedMessages = localStorage.getItem(messagesKey);
+                    if (savedMessages) {
+                        try {
+                            const parsedMessages = JSON.parse(savedMessages);
+                            const processedMessages = parsedMessages.map((msg, index) => ({
+                                ...msg,
+                                id: msg.id || `restored-msg-${index}-${Date.now()}`,
+                                timestamp: new Date(msg.timestamp)
+                            }));
+                            setMessages(processedMessages);
+                            console.log('💬 MultiDriverMessaging: Restored messages from localStorage for conversation:', parsedConversation.id, 'Count:', processedMessages.length);
+                        } catch (error) {
+                            console.error('💬 MultiDriverMessaging: Error parsing saved messages:', error);
+                            localStorage.removeItem(messagesKey);
+                        }
+                    }
+                } catch (error) {
+                    console.error('💬 MultiDriverMessaging: Error parsing saved conversation:', error);
+                    localStorage.removeItem('activeConversation');
+                }
+            }
         }
     }, [user, loadConversations]);
 
@@ -409,6 +697,51 @@ const MultiDriverMessaging = () => {
             loadConversations();
         }
     }, [isOpen, user, loadConversations]);
+
+    // Debug: Log when conversations change
+    useEffect(() => {
+        console.log('💬 MultiDriverMessaging: Conversations updated:', {
+            count: conversations.length,
+            conversations: conversations.map(c => ({
+                id: c.id,
+                driverName: c.driverName,
+                unreadCount: c.unreadCount,
+                lastMessage: c.lastMessage
+            }))
+        });
+    }, [conversations]);
+
+    // Debug: Log when active conversation changes
+    useEffect(() => {
+        console.log('💬 MultiDriverMessaging: Active conversation changed:', {
+            hasActiveConversation: !!activeConversation,
+            activeConversationId: activeConversation?.id,
+            activeConversationDriver: activeConversation?.driverName
+        });
+
+        // Save active conversation to localStorage for persistence
+        if (activeConversation) {
+            localStorage.setItem('activeConversation', JSON.stringify(activeConversation));
+            console.log('💬 MultiDriverMessaging: Saved active conversation to localStorage');
+        } else {
+            localStorage.removeItem('activeConversation');
+            console.log('💬 MultiDriverMessaging: Removed active conversation from localStorage');
+        }
+    }, [activeConversation]);
+
+    // Save messages to localStorage for persistence (with debouncing to avoid interference)
+    useEffect(() => {
+        if (activeConversation && messages.length > 0) {
+            // Debounce the save operation to avoid interfering with real-time updates
+            const timeoutId = setTimeout(() => {
+                const messagesKey = `conversation_messages_${activeConversation.id}`;
+                localStorage.setItem(messagesKey, JSON.stringify(messages));
+                console.log('💬 MultiDriverMessaging: Saved messages to localStorage for conversation:', activeConversation.id, 'Count:', messages.length);
+            }, 1000); // 1 second delay
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [messages, activeConversation]);
 
     // Handle Escape key to close modal
     useEffect(() => {
@@ -431,19 +764,79 @@ const MultiDriverMessaging = () => {
     useEffect(() => {
         if (!user) return;
 
-        console.log('💬 MultiDriverMessaging: Setting up WebSocket listeners');
+        console.log('💬 MultiDriverMessaging: ===== SETTING UP WEBSOCKET LISTENERS =====');
         console.log('💬 MultiDriverMessaging: Socket connected?', socketService.isConnected());
         console.log('💬 MultiDriverMessaging: User:', user);
+        console.log('💬 MultiDriverMessaging: Socket service:', socketService);
+        console.log('💬 MultiDriverMessaging: Socket object:', socketService.getSocket());
+        console.log('💬 MultiDriverMessaging: User ID:', user?._id || user?.id);
+        console.log('💬 MultiDriverMessaging: User type:', user?.userType || user?.role);
 
         if (socketService.isConnected()) {
             console.log('💬 MultiDriverMessaging: Registering driver-message listener');
             socketService.on('driver-message', handleDriverMessage);
             socketService.on('driver-typing', handleTyping);
 
-            // Add general event listener for debugging
-            socketService.on('*', (eventName, data) => {
-                console.log('💬 MultiDriverMessaging: Received WebSocket event:', eventName, data);
+            // Add direct socket listener for debugging (bypass socketService wrapper)
+            const directSocket = socketService.getSocket();
+            if (directSocket) {
+                console.log('💬 MultiDriverMessaging: Adding direct socket listeners for debugging');
+
+                // Listen for all events on the direct socket
+                directSocket.onAny((eventName, ...args) => {
+                    console.log('💬 MultiDriverMessaging: ===== DIRECT SOCKET EVENT =====');
+                    console.log('💬 MultiDriverMessaging: Event name:', eventName);
+                    console.log('💬 MultiDriverMessaging: Event args:', args);
+                    if (eventName === 'driver-message') {
+                        console.log('💬 MultiDriverMessaging: ===== DRIVER MESSAGE EVENT RECEIVED ON DIRECT SOCKET! =====', args);
+                    }
+                });
+
+                // Also listen specifically for driver-message on direct socket
+                directSocket.on('driver-message', (data) => {
+                    console.log('💬 MultiDriverMessaging: ===== DRIVER MESSAGE ON DIRECT SOCKET =====', data);
+                });
+            }
+
+            // Test if the listener is actually working
+            console.log('💬 MultiDriverMessaging: Testing WebSocket listener registration...');
+            const testData = { message: 'test', driverId: 'test', senderType: 'driver' };
+            console.log('💬 MultiDriverMessaging: Would call handleDriverMessage with:', testData);
+
+            // Test WebSocket connection status
+            console.log('💬 MultiDriverMessaging: WebSocket connection status:', {
+                isConnected: socketService.isConnected(),
+                isAuthenticated: socketService.isAuthenticated(),
+                socketConnected: directSocket?.connected,
+                socketId: directSocket?.id,
+                socketRooms: directSocket?.rooms
             });
+
+            // Test WebSocket connection by emitting a test event
+            console.log('💬 MultiDriverMessaging: Testing WebSocket connection...');
+            const socket = socketService.getSocket();
+            if (socket) {
+                console.log('💬 MultiDriverMessaging: Socket object found:', socket);
+                console.log('💬 MultiDriverMessaging: Socket connected:', socket.connected);
+                console.log('💬 MultiDriverMessaging: Socket ID:', socket.id);
+
+                // Test basic connection
+                socket.emit('test-connection', { from: 'admin', timestamp: new Date().toISOString() });
+                console.log('💬 MultiDriverMessaging: Test event emitted');
+
+                // Test if we can receive any events at all
+                socket.on('test-response', (data) => {
+                    console.log('💬 MultiDriverMessaging: Test response received:', data);
+                });
+
+                // Listen for any event to test if socket is working
+                socket.onAny((eventName, ...args) => {
+                    console.log('💬 MultiDriverMessaging: ANY EVENT RECEIVED:', eventName, args);
+                });
+
+            } else {
+                console.error('💬 MultiDriverMessaging: No socket available for testing');
+            }
         } else {
             console.log('💬 MultiDriverMessaging: Socket not connected, attempting to connect...');
             socketService.connect(user._id || user.id, user.userType || user.role);
@@ -454,10 +847,59 @@ const MultiDriverMessaging = () => {
                 console.log('💬 MultiDriverMessaging: Cleaning up WebSocket listeners');
                 socketService.off('driver-message', handleDriverMessage);
                 socketService.off('driver-typing', handleTyping);
-                socketService.off('*');
+
+                // Clean up direct socket listeners
+                const directSocket = socketService.getSocket();
+                if (directSocket) {
+                    directSocket.offAny();
+                    directSocket.off('driver-message');
+                }
             }
         };
     }, [user, activeConversation, handleDriverMessage, handleTyping]);
+
+    // Add global test function for debugging
+    useEffect(() => {
+        // Add test function to window for console debugging
+        window.testWebSocket = () => {
+            console.log('🧪 Testing WebSocket connection...');
+            console.log('🧪 SocketService:', socketService);
+            console.log('🧪 Socket connected:', socketService.isConnected());
+            console.log('🧪 Socket authenticated:', socketService.isAuthenticated());
+            console.log('🧪 Direct socket:', socketService.getSocket());
+            console.log('🧪 User:', user);
+
+            const socket = socketService.getSocket();
+            if (socket) {
+                console.log('🧪 Socket object:', socket);
+                console.log('🧪 Socket connected:', socket.connected);
+                console.log('🧪 Socket ID:', socket.id);
+                console.log('🧪 Socket rooms:', socket.rooms);
+
+                // Test emit
+                socket.emit('test-event', { message: 'test from frontend' });
+                console.log('🧪 Test event emitted');
+
+                // Try to join admin room
+                socket.emit('join-admin-room');
+                console.log('🧪 Attempted to join admin room');
+
+                // Listen for any response
+                socket.on('test-response', (data) => {
+                    console.log('🧪 Test response received:', data);
+                });
+
+                // Listen for room join confirmation
+                socket.on('room-joined', (data) => {
+                    console.log('🧪 Room joined:', data);
+                });
+            } else {
+                console.error('🧪 No socket available');
+            }
+        };
+
+        console.log('🧪 WebSocket test function added to window.testWebSocket()');
+    }, [user]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -529,12 +971,25 @@ const MultiDriverMessaging = () => {
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center space-x-3 flex-1">
-                                                    <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold">
+                                                    {conversation.driverProfilePicture ? (
+                                                        <img
+                                                            src={conversation.driverProfilePicture}
+                                                            alt={conversation.driverName}
+                                                            className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                                                            onError={(e) => {
+                                                                e.target.style.display = 'none';
+                                                                e.target.nextSibling.style.display = 'flex';
+                                                            }}
+                                                        />
+                                                    ) : null}
+                                                    <div
+                                                        className={`w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold ${conversation.driverProfilePicture ? 'hidden' : ''}`}
+                                                    >
                                                         {conversation.driverName?.charAt(0) || 'D'}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
                                                         <div className="flex items-center space-x-2">
-                                                            <h4 className="font-medium text-gray-900 truncate">
+                                                            <h4 className="font-medium text-gray-900 truncate capitalize">
                                                                 {conversation.driverName || 'Unknown Driver'}
                                                             </h4>
                                                             <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(conversation.status)}`}>
@@ -545,7 +1000,9 @@ const MultiDriverMessaging = () => {
                                                             )}
                                                         </div>
                                                         <p className="text-sm text-gray-500 truncate">
-                                                            {conversation.lastMessage || 'No messages yet'}
+                                                            {typeof conversation.lastMessage === 'string'
+                                                                ? conversation.lastMessage
+                                                                : conversation.lastMessage?.message || 'No messages yet'}
                                                         </p>
                                                         <div className="flex items-center space-x-2 mt-1">
                                                             <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(conversation.priority)}`}>
@@ -591,12 +1048,25 @@ const MultiDriverMessaging = () => {
                                     <div className="p-4 border-b border-gray-200 bg-gray-50">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center space-x-3">
-                                                <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold">
+                                                {activeConversation.driverProfilePicture ? (
+                                                    <img
+                                                        src={activeConversation.driverProfilePicture}
+                                                        alt={activeConversation.driverName}
+                                                        className="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                                                        onError={(e) => {
+                                                            e.target.style.display = 'none';
+                                                            e.target.nextSibling.style.display = 'flex';
+                                                        }}
+                                                    />
+                                                ) : null}
+                                                <div
+                                                    className={`w-10 h-10 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold ${activeConversation.driverProfilePicture ? 'hidden' : ''}`}
+                                                >
                                                     {activeConversation.driverName?.charAt(0) || 'D'}
                                                 </div>
                                                 <div>
                                                     <div className="flex items-center space-x-2">
-                                                        <h3 className="font-semibold text-gray-900">
+                                                        <h3 className="font-semibold text-gray-900 capitalize">
                                                             {activeConversation.driverName || 'Unknown Driver'}
                                                         </h3>
                                                         <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(activeConversation.status)}`}>
@@ -635,6 +1105,13 @@ const MultiDriverMessaging = () => {
                                                     >
                                                         <ArchiveBoxIcon className="h-4 w-4" />
                                                     </button>
+                                                    <button
+                                                        onClick={() => deleteConversation(activeConversation.id)}
+                                                        className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded transition-colors"
+                                                        title="Delete conversation"
+                                                    >
+                                                        <TrashIcon className="h-4 w-4" />
+                                                    </button>
                                                 </div>
                                                 <button
                                                     onClick={() => setIsOpen(false)}
@@ -656,9 +1133,9 @@ const MultiDriverMessaging = () => {
                                                 <p>No messages yet. Start a conversation!</p>
                                             </div>
                                         ) : (
-                                            messages.map((message) => (
+                                            messages.map((message, index) => (
                                                 <div
-                                                    key={message.id}
+                                                    key={message.id || `msg-${index}-${Date.now()}`}
                                                     className={`flex ${message.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
                                                 >
                                                     <div
