@@ -80,7 +80,7 @@ const AdminMessaging = () => {
 
         loadMessages();
         loadUnreadCount();
-    }, []);
+    }, [user]);
 
     useEffect(() => {
         // Scroll to bottom when new messages arrive
@@ -275,7 +275,7 @@ const AdminMessaging = () => {
                 socketService.off('new-notification');
             }
         };
-    }, [showSuccess, showError, user._id, user.id]);
+    }, [showSuccess, showError, user]);
 
     const handleSendMessage = async () => {
         if (!newMessage.trim()) return;
@@ -476,30 +476,32 @@ const AdminMessaging = () => {
             {/* Message Thread Modal */}
             {isOpen && (
                 <div className="fixed inset-0 z-50 overflow-hidden">
-                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
+                    {/* Mobile: Full screen overlay */}
+                    <div className="absolute inset-0 bg-black bg-opacity-50 sm:bg-opacity-50 md:bg-opacity-50" onClick={() => setIsOpen(false)} />
 
-                    <div className="absolute right-4 top-16 w-96 h-[600px] bg-white rounded-lg shadow-xl border border-gray-200 flex flex-col">
+                    {/* Modal Container - Responsive sizing */}
+                    <div className="absolute right-0 top-0 sm:right-4 sm:top-16 w-full h-full sm:w-[768px] sm:h-[600px] md:w-[768px] md:h-[600px] lg:w-[768px] lg:h-[600px] bg-white rounded-none sm:rounded-lg shadow-xl border-0 sm:border border-gray-200 flex flex-col">
                         {/* Header */}
-                        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-                            <div>
+                        <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
+                            <div className="flex-1 min-w-0">
                                 <h3 className="text-lg font-semibold text-gray-900">Admin Support</h3>
-                                <p className="text-sm text-gray-500">
+                                <p className="text-xs sm:text-sm text-gray-500 truncate">
                                     {isTyping ? 'Admin is typing...' : 'Get help with any issue - documents, deliveries, earnings, or emergencies'}
                                 </p>
                             </div>
                             <button
                                 onClick={() => setIsOpen(false)}
-                                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
                             >
                                 <XMarkIcon className="h-5 w-5" />
                             </button>
                         </div>
 
                         {/* Messages */}
-                        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
                             {isTyping && (
                                 <div className="flex justify-start">
-                                    <div className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg">
+                                    <div className="bg-gray-100 text-gray-900 px-3 sm:px-4 py-2 rounded-lg max-w-xs sm:max-w-md">
                                         <div className="flex items-center space-x-1">
                                             <div className="flex space-x-1">
                                                 <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
@@ -517,12 +519,12 @@ const AdminMessaging = () => {
                                     className={`flex ${message.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
                                 >
                                     <div
-                                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender === 'admin'
+                                        className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${message.sender === 'admin'
                                             ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
                                             : 'bg-gray-100 text-gray-900'
                                             }`}
                                     >
-                                        <p className="text-sm">{message.message}</p>
+                                        <p className="text-sm break-words">{message.message}</p>
                                         <p
                                             className={`text-xs mt-1 ${message.sender === 'admin'
                                                 ? 'text-green-100'
@@ -538,21 +540,21 @@ const AdminMessaging = () => {
                         </div>
 
                         {/* Message Input */}
-                        <div className="p-4 border-t border-gray-200">
+                        <div className="p-3 sm:p-4 border-t border-gray-200">
                             <div className="flex space-x-2">
                                 <input
                                     type="text"
                                     value={newMessage}
                                     onChange={(e) => setNewMessage(e.target.value)}
                                     onKeyPress={handleKeyPress}
-                                    placeholder="Type your message... (Use 'emergency' or 'urgent' for immediate help)"
-                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                    placeholder="Type your message..."
+                                    className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                                     disabled={isLoading}
                                 />
                                 <button
                                     onClick={handleSendMessage}
                                     disabled={!newMessage.trim() || isLoading}
-                                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                                    className="px-3 sm:px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 flex-shrink-0"
                                 >
                                     <PaperAirplaneIcon className="h-4 w-4" />
                                     <span className="hidden sm:inline">Send</span>

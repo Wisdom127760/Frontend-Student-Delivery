@@ -480,7 +480,6 @@ const DocumentVerificationPage = () => {
                                 const Icon = documentIcons[document.documentType] || DocumentMagnifyingGlassIcon;
                                 const statusInfo = getStatusInfo(document.status);
                                 const StatusIcon = statusInfo.icon;
-                                const docStatus = getDocumentStatus(document);
 
                                 return (
                                     <div key={document._id || document.id || `document-${index}`} className="p-4 hover:bg-gray-50 transition-colors">

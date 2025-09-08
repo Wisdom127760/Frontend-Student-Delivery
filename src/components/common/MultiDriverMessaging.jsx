@@ -392,6 +392,14 @@ const MultiDriverMessaging = () => {
         }
     };
 
+    // Handle key press for message input
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
     // Handle incoming messages
     const handleDriverMessage = useCallback((data) => {
         console.log('💬 MultiDriverMessaging: ===== HANDLE DRIVER MESSAGE CALLED =====');
@@ -938,25 +946,36 @@ const MultiDriverMessaging = () => {
             {/* Messaging Modal */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 sm:p-4"
                     onClick={() => setIsOpen(false)}
                 >
                     <div
-                        className="bg-white rounded-lg shadow-xl w-full max-w-6xl h-[80vh] flex"
+                        className="bg-white rounded-none sm:rounded-lg shadow-xl w-full h-full sm:w-full sm:max-w-6xl sm:h-[80vh] flex flex-col sm:flex-row"
                         onClick={(e) => e.stopPropagation()}
                     >
                         {/* Conversations Sidebar */}
-                        <div className="w-1/3 border-r border-gray-200 flex flex-col">
-                            <div className="p-4 border-b border-gray-200">
-                                <h3 className="text-lg font-semibold text-gray-900">Driver Conversations</h3>
-                                <p className="text-sm text-gray-500">Manage messages with drivers</p>
+                        <div className="w-full sm:w-1/3 border-r-0 sm:border-r border-gray-200 flex flex-col">
+                            <div className="p-3 sm:p-4 border-b border-gray-200">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <h3 className="text-lg font-semibold text-gray-900">Driver Conversations</h3>
+                                        <p className="text-xs sm:text-sm text-gray-500">Manage messages with drivers</p>
+                                    </div>
+                                    {/* Mobile: Show close button in sidebar header */}
+                                    <button
+                                        onClick={() => setIsOpen(false)}
+                                        className="sm:hidden p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                    >
+                                        <XMarkIcon className="h-5 w-5" />
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="flex-1 overflow-y-auto">
                                 {conversations.length === 0 ? (
-                                    <div className="p-4 text-center text-gray-500">
-                                        <UserIcon className="h-12 w-12 mx-auto mb-2 text-gray-300" />
-                                        <p>No conversations yet</p>
+                                    <div className="p-3 sm:p-4 text-center text-gray-500">
+                                        <UserIcon className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 text-gray-300" />
+                                        <p className="text-sm sm:text-base">No conversations yet</p>
                                         <p className="text-xs text-gray-400 mt-1">
                                             Driver messages will appear here
                                         </p>
@@ -966,7 +985,7 @@ const MultiDriverMessaging = () => {
                                         <div
                                             key={conversation.id}
                                             onClick={() => selectConversation(conversation)}
-                                            className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${activeConversation?.id === conversation.id ? 'bg-blue-50 border-blue-200' : ''
+                                            className={`p-3 sm:p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${activeConversation?.id === conversation.id ? 'bg-blue-50 border-blue-200' : ''
                                                 }`}
                                         >
                                             <div className="flex items-center justify-between">
@@ -988,24 +1007,24 @@ const MultiDriverMessaging = () => {
                                                         {conversation.driverName?.charAt(0) || 'D'}
                                                     </div>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center space-x-2">
-                                                            <h4 className="font-medium text-gray-900 truncate capitalize">
+                                                        <div className="flex items-center space-x-1 sm:space-x-2">
+                                                            <h4 className="font-medium text-gray-900 truncate capitalize text-sm sm:text-base">
                                                                 {conversation.driverName || 'Unknown Driver'}
                                                             </h4>
-                                                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(conversation.status)}`}>
+                                                            <span className={`px-1 sm:px-2 py-1 text-xs rounded-full ${getStatusColor(conversation.status)}`}>
                                                                 {conversation.status}
                                                             </span>
                                                             {conversation.priority === 'urgent' && (
-                                                                <ExclamationTriangleIcon className="h-4 w-4 text-red-500" />
+                                                                <ExclamationTriangleIcon className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
                                                             )}
                                                         </div>
-                                                        <p className="text-sm text-gray-500 truncate">
+                                                        <p className="text-xs sm:text-sm text-gray-500 truncate">
                                                             {typeof conversation.lastMessage === 'string'
                                                                 ? conversation.lastMessage
                                                                 : conversation.lastMessage?.message || 'No messages yet'}
                                                         </p>
-                                                        <div className="flex items-center space-x-2 mt-1">
-                                                            <span className={`px-2 py-1 text-xs rounded-full ${getPriorityColor(conversation.priority)}`}>
+                                                        <div className="flex items-center space-x-1 sm:space-x-2 mt-1">
+                                                            <span className={`px-1 sm:px-2 py-1 text-xs rounded-full ${getPriorityColor(conversation.priority)}`}>
                                                                 {conversation.priority}
                                                             </span>
                                                             {!conversation.assignedAdmin && (
@@ -1017,7 +1036,7 @@ const MultiDriverMessaging = () => {
                                                                     className="text-xs text-blue-600 hover:text-blue-800 flex items-center space-x-1"
                                                                 >
                                                                     <UserPlusIcon className="h-3 w-3" />
-                                                                    <span>Assign</span>
+                                                                    <span className="hidden sm:inline">Assign</span>
                                                                 </button>
                                                             )}
                                                         </div>
@@ -1040,8 +1059,113 @@ const MultiDriverMessaging = () => {
                             </div>
                         </div>
 
-                        {/* Chat Area */}
-                        <div className="flex-1 flex flex-col">
+                        {/* Mobile Chat Area - Shows when conversation is selected on mobile */}
+                        {activeConversation && (
+                            <div className="sm:hidden flex-1 flex flex-col">
+                                {/* Mobile Chat Header */}
+                                <div className="p-3 border-b border-gray-200 bg-gray-50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center space-x-3">
+                                            <button
+                                                onClick={() => setActiveConversation(null)}
+                                                className="p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                            >
+                                                <XMarkIcon className="h-5 w-5" />
+                                            </button>
+                                            {activeConversation.driverProfilePicture ? (
+                                                <img
+                                                    src={activeConversation.driverProfilePicture}
+                                                    alt={activeConversation.driverName}
+                                                    className="w-8 h-8 rounded-full object-cover border-2 border-gray-200"
+                                                    onError={(e) => {
+                                                        e.target.style.display = 'none';
+                                                        e.target.nextSibling.style.display = 'flex';
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <div
+                                                className={`w-8 h-8 bg-gradient-to-r from-green-500 to-green-600 rounded-full flex items-center justify-center text-white font-semibold text-sm ${activeConversation.driverProfilePicture ? 'hidden' : ''}`}
+                                            >
+                                                {activeConversation.driverName?.charAt(0) || 'D'}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center space-x-2">
+                                                    <h3 className="font-semibold text-gray-900 capitalize text-sm">
+                                                        {activeConversation.driverName || 'Unknown Driver'}
+                                                    </h3>
+                                                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(activeConversation.status)}`}>
+                                                        {activeConversation.status}
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-gray-500">
+                                                    Driver ID: {activeConversation.driverId}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Mobile Messages Area */}
+                                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                                    {isLoading ? (
+                                        <div className="text-center text-gray-500">Loading messages...</div>
+                                    ) : messages.length === 0 ? (
+                                        <div className="text-center text-gray-500">
+                                            <ChatBubbleLeftRightIcon className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                                            <p className="text-sm">No messages yet. Start a conversation!</p>
+                                        </div>
+                                    ) : (
+                                        messages.map((message) => (
+                                            <div
+                                                key={message.id || `msg-${Date.now()}`}
+                                                className={`flex ${message.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
+                                            >
+                                                <div
+                                                    className={`max-w-[85%] px-3 py-2 rounded-lg ${message.sender === 'admin'
+                                                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                                                        : 'bg-gray-100 text-gray-900'
+                                                        } ${message.isTemporary ? 'opacity-70' : ''}`}
+                                                >
+                                                    <p className="text-sm break-words">{message.message}</p>
+                                                    <div className={`flex items-center justify-between mt-1 text-xs ${message.sender === 'admin' ? 'text-green-100' : 'text-gray-500'
+                                                        }`}>
+                                                        <span>{formatTime(message.timestamp)}</span>
+                                                        {message.sender === 'admin' && (
+                                                            <span className="ml-2">✓</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+
+                                {/* Mobile Message Input */}
+                                <div className="p-3 border-t border-gray-200">
+                                    <div className="flex space-x-2">
+                                        <input
+                                            type="text"
+                                            value={newMessage}
+                                            onChange={(e) => setNewMessage(e.target.value)}
+                                            onKeyPress={handleKeyPress}
+                                            placeholder="Type your message..."
+                                            className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                            disabled={isLoading}
+                                        />
+                                        <button
+                                            onClick={handleSendMessage}
+                                            disabled={!newMessage.trim()}
+                                            className="px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 flex-shrink-0"
+                                        >
+                                            <PaperAirplaneIcon className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Desktop Chat Area */}
+                        <div className="hidden sm:flex flex-1 flex-col">
                             {activeConversation ? (
                                 <>
                                     {/* Chat Header */}

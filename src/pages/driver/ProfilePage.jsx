@@ -10,9 +10,10 @@ import { capitalizeName } from '../../utils/capitalize';
 import { isDriverVerified, getVerificationStatus } from '../../utils/verificationHelpers';
 import toast from 'react-hot-toast';
 import Button from '../../components/ui/Button';
+import StatusToggle from '../../components/driver/StatusToggle';
+import DocumentUpload from '../../components/common/DocumentUpload';
 import {
     CameraIcon,
-    InformationCircleIcon,
     CheckCircleIcon,
     PencilIcon,
     DocumentTextIcon,
@@ -390,6 +391,22 @@ const DriverProfilePage = () => {
         setIsEditing(false);
     };
 
+    const handleDocumentUploaded = (documentType, documentData) => {
+        console.log('📄 Document uploaded successfully:', { documentType, documentData });
+
+        // Update the profile state with the new document
+        setProfile(prevProfile => ({
+            ...prevProfile,
+            documents: {
+                ...prevProfile.documents,
+                [documentType]: documentData
+            }
+        }));
+
+        // Show success message
+        toast.success(`${documentType} uploaded successfully!`);
+    };
+
 
 
     const handleImageUpload = async (event) => {
@@ -517,13 +534,13 @@ const DriverProfilePage = () => {
         if (isAuthenticated && user && user.id) {
             fetchProfile();
         }
-    }, [user?.id, isAuthenticated, fetchProfile]);
+    }, [user, isAuthenticated, fetchProfile]);
 
     useEffect(() => {
         console.log('🔄 Component mounted, fetching profile options...');
         console.log('🔄 Current state - serviceAreas:', serviceAreas.length, 'transportationMethods:', transportationMethods.length);
         fetchProfileOptions();
-    }, [fetchProfileOptions]);
+    }, [fetchProfileOptions, serviceAreas.length, transportationMethods.length]);
 
     // Debug: Log when dropdown options change
     useEffect(() => {
@@ -598,6 +615,9 @@ const DriverProfilePage = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Status Toggle */}
+                <StatusToggle />
 
                 {/* Profile Overview Card */}
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-6 lg:p-8 mb-6 sm:mb-8">
@@ -1263,34 +1283,12 @@ const DriverProfilePage = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-6">
-                                <div className="text-center py-8">
-                                    <div className="text-gray-500 mb-4">
-                                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                        </svg>
-                                    </div>
-                                    <h3 className="text-lg font-medium text-gray-900 mb-2">Document Upload Moved</h3>
-                                    <p className="text-gray-500 mb-4">
-                                        Document upload functionality has been moved to the messaging system for better communication with admin support.
-                                    </p>
-                                    <p className="text-sm text-gray-400">
-                                        Use the message icon in the top navigation bar to communicate with admin about document verification.
-                                    </p>
-                                </div>
-
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <div className="flex">
-                                        <InformationCircleIcon className="w-5 h-5 text-blue-400 mt-0.5" />
-                                        <div className="ml-3">
-                                            <h3 className="text-sm font-medium text-blue-800">Verification Status</h3>
-                                            <div className="mt-2 text-sm text-blue-700">
-                                                <p>Upload your required documents to verify your account and start accepting deliveries.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            {/* Document Upload Component */}
+                            <DocumentUpload
+                                documents={profile?.documents || {}}
+                                onDocumentUploaded={handleDocumentUploaded}
+                                user={user}
+                            />
                         </div>
                     )}
                 </div>

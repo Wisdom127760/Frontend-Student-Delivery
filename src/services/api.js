@@ -565,8 +565,19 @@ class ApiService {
         return response.data;
     }
 
+    async getDriverStatus() {
+        const response = await api.get('/driver/status');
+        return response.data;
+    }
+
     async updateDriverStatus(status) {
-        const response = await api.put('/driver/status', { status });
+        // Convert status string to boolean fields (same as profileService)
+        const statusData = {
+            isOnline: status === 'active',
+            isActive: status === 'active'
+        };
+        console.log('🔄 API Service: Sending status update:', { status, statusData });
+        const response = await api.put('/driver/status', statusData);
         return response.data;
     }
 
@@ -2211,7 +2222,11 @@ class ApiService {
     }
 
     async getDriverReferralStats(driverId) {
+        console.log('🔍 API Service: Getting driver referral stats for:', driverId);
+        console.log('🔍 API Service: Full URL being called:', `/referral/driver/${driverId}/stats`);
         const response = await api.get(`/referral/driver/${driverId}/stats`);
+        console.log('🔍 API Service: Get driver referral stats response:', response.data);
+        console.log('🔍 API Service: Response driver ID:', response.data?.data?.driverId);
         return response.data;
     }
 
@@ -2222,13 +2237,28 @@ class ApiService {
 
     // Referral points endpoints
     async getDriverPointsSummary(driverId) {
+        console.log('🔍 API Service: Getting driver points summary for:', driverId);
+        console.log('🔍 API Service: Full URL being called:', `/referral/driver/${driverId}/points`);
         const response = await api.get(`/referral/driver/${driverId}/points`);
+        console.log('🔍 API Service: Get driver points summary response:', response.data);
+        console.log('🔍 API Service: Response driver ID:', response.data?.data?.driverId);
         return response.data;
     }
 
     async getDriverPointsHistory(driverId, limit = 20) {
-        const response = await api.get(`/referral/driver/${driverId}/points/history?limit=${limit}`);
-        return response.data;
+        console.log('🔍 API Service: Getting driver points history for:', driverId);
+        console.log('🔍 API Service: Full URL being called:', `/referral/driver/${driverId}/points/history?limit=${limit}`);
+        try {
+            const response = await api.get(`/referral/driver/${driverId}/points/history?limit=${limit}`);
+            console.log('🔍 API Service: Get driver points history response:', response.data);
+            return response.data;
+        } catch (error) {
+            if (error.response?.status === 404) {
+                console.log('⚠️ API Service: Points history endpoint not found (404) - endpoint may not be implemented yet');
+                return { success: false, message: 'Points history endpoint not available', data: [] };
+            }
+            throw error; // Re-throw other errors
+        }
     }
 
     async redeemDriverPoints(driverId, { amount, description }) {

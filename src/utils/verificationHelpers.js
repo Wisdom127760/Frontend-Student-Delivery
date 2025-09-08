@@ -44,7 +44,9 @@ export const getVerificationStatus = (driver) => {
     };
 };
 
-export default {
+const verificationHelpers = {
     isDriverVerified,
     getVerificationStatus
 };
+
+export default verificationHelpers;
