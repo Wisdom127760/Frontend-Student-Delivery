@@ -9,7 +9,7 @@ import MessageImageUpload from '../common/MessageImageUpload';
 import messageImageService from '../../services/messageImageService';
 
 const DriverMessageToAdmin = () => {
-    const { showSuccess, showError } = useToast();
+    const { showError } = useToast();
     const { user } = useAuth();
     const [isOpen, setIsOpen] = useState(false);
     const [message, setMessage] = useState('');
@@ -196,7 +196,6 @@ const DriverMessageToAdmin = () => {
             if (response.success) {
                 // Play success sound when message is sent
                 soundService.playSound('success');
-                showSuccess('Message sent to admin successfully!');
                 setMessage('');
                 setSelectedImage(null);
                 setImageUploadResetTrigger(prev => prev + 1);

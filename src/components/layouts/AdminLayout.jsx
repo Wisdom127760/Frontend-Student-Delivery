@@ -6,7 +6,6 @@ import SimpleNotifications from '../admin/SimpleNotifications';
 import Avatar from '../common/Avatar';
 import GlobalSearch from '../common/GlobalSearch';
 import MultiDriverMessaging from '../common/MultiDriverMessaging';
-import { useToast } from '../common/ToastProvider';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -31,7 +30,6 @@ const AdminLayout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, logout } = useAuth();
-    const { showSuccess } = useToast();
 
     const navigation = [
         { name: 'Dashboard', href: '/admin', icon: HomeIcon },
@@ -51,7 +49,6 @@ const AdminLayout = ({ children }) => {
     const handleLogout = async () => {
         await logout();
         navigate('/');
-        showSuccess('Logged out successfully');
     };
 
     // Updated isActive logic for better path matching

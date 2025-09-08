@@ -21,7 +21,7 @@ const AdminMessaging = () => {
     const [imageUploadResetTrigger, setImageUploadResetTrigger] = useState(0);
     const messagesEndRef = useRef(null);
     const { user } = useAuth();
-    const { showSuccess, showError } = useToast();
+    const { showError } = useToast();
 
     useEffect(() => {
         console.log('💬 AdminMessaging: Component mounted/updated, user:', user);
@@ -146,7 +146,6 @@ const AdminMessaging = () => {
                 showError(`🚨 Emergency from ${data.driverName}: ${data.message}`, 8000);
             } else {
                 soundService.playSound('notification');
-                showSuccess(`New message from ${data.driverName}`, 3000);
             }
         };
 
@@ -185,7 +184,6 @@ const AdminMessaging = () => {
 
             // Play sound notification for new messages
             soundService.playSound('notification');
-            showSuccess(`New message from ${message.driverName}`, 3000);
         };
 
         const handleAdminMessage = (data) => {
@@ -282,7 +280,7 @@ const AdminMessaging = () => {
                 socketService.off('new-notification');
             }
         };
-    }, [showSuccess, showError, user]);
+    }, [showError, user]);
 
     const handleImageSelect = (imageFile) => {
         setSelectedImage(imageFile);
@@ -428,12 +426,6 @@ const AdminMessaging = () => {
                 console.log('⚠️ WebSocket not connected, message stored locally');
             }
 
-            // Show success message
-            if (isEmergency) {
-                showSuccess('Emergency message sent! Admin will be notified immediately.');
-            } else {
-                showSuccess('Message sent successfully!');
-            }
         } catch (error) {
             console.error('Error sending message:', error);
             showError('Failed to send message. Please try again.');

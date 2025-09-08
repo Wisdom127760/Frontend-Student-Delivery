@@ -9,7 +9,6 @@ import DriverMessageToAdmin from '../driver/DriverMessageToAdmin';
 import PointsNotification from '../common/PointsNotification';
 import usePointsNotification from '../../hooks/usePointsNotification';
 import apiService from '../../services/api';
-import { useToast } from '../common/ToastProvider';
 import {
     TruckIcon,
     UserCircleIcon,
@@ -62,7 +61,6 @@ const DriverLayout = ({ children }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { user, profile, logout, updateProfile } = useAuth();
-    const { showSuccess } = useToast();
     const pointsNotification = usePointsNotification();
     const { notification, hidePointsNotification } = pointsNotification;
 
@@ -175,7 +173,6 @@ const DriverLayout = ({ children }) => {
     const handleLogout = async () => {
         await logout();
         navigate('/');
-        showSuccess('Logged out successfully');
     };
 
     const isActive = (path) => {
@@ -262,9 +259,9 @@ const DriverLayout = ({ children }) => {
                                 {/* Right side */}
                                 <div className="flex items-center space-x-2 sm:space-x-4">
                                     {/* Socket Connection Status */}
-                                    <div className="flex items-center space-x-1">
+                                    {/* <div className="flex items-center space-x-1">
                                         <div className={`w-2 h-2 rounded-full ${socketAuthenticated ? 'bg-green-500' : socketConnected ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                                    </div>
+                                    </div> */}
 
                                     {/* Driver Messaging */}
                                     <DriverMessageToAdmin />

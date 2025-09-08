@@ -34,7 +34,7 @@ const MultiDriverMessaging = () => {
     const [imageUploadResetTrigger, setImageUploadResetTrigger] = useState(0);
     const messagesEndRef = useRef(null);
     const { user } = useAuth();
-    const { showSuccess, showError } = useToast();
+    const { showError } = useToast();
 
     // Load conversations list
     const loadConversations = useCallback(async () => {
@@ -561,9 +561,8 @@ const MultiDriverMessaging = () => {
             showError(`🚨 Emergency from ${data.driverName}: ${data.message}`, 8000);
         } else {
             soundService.playSound('notification');
-            showSuccess(`New message from ${data.driverName}`, 3000);
         }
-    }, [user, activeConversation, showSuccess, showError]);
+    }, [user, activeConversation, showError]);
 
     // Handle typing indicators
     const handleTyping = useCallback((data) => {
@@ -593,7 +592,6 @@ const MultiDriverMessaging = () => {
         try {
             const response = await apiService.assignConversation(conversationId, user._id || user.id);
             if (response.success) {
-                showSuccess('Conversation assigned to you');
                 loadConversations(); // Refresh conversations list
             } else {
                 showError('Failed to assign conversation');
@@ -609,7 +607,6 @@ const MultiDriverMessaging = () => {
         try {
             const response = await apiService.updateConversationStatus(conversationId, status);
             if (response.success) {
-                showSuccess(`Conversation marked as ${status}`);
 
                 // If conversation is resolved or archived, close it and remove from active conversation
                 if (status === 'resolved' || status === 'archived') {
@@ -641,7 +638,6 @@ const MultiDriverMessaging = () => {
         try {
             const response = await apiService.deleteConversation(conversationId);
             if (response.success) {
-                showSuccess('Conversation deleted successfully');
 
                 // Close the conversation if it's currently active
                 if (activeConversation && activeConversation.id === conversationId) {

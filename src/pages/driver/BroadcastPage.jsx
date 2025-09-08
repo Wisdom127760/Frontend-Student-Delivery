@@ -227,7 +227,6 @@ const BroadcastPage = () => {
             const response = await apiService.acceptBroadcastDelivery(deliveryId);
 
             if (response.success) {
-                showSuccess('Delivery accepted successfully!');
 
                 // Remove the accepted delivery from the list
                 fetchBroadcasts();

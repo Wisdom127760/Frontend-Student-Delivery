@@ -403,8 +403,6 @@ const DriverProfilePage = () => {
             }
         }));
 
-        // Show success message
-        toast.success(`${documentType} uploaded successfully!`);
     };
 
 
@@ -461,7 +459,6 @@ const DriverProfilePage = () => {
                 console.log('📥 Upload API response:', result);
 
                 if (result.success === true) {
-                    toast.success('Profile image uploaded successfully!');
                     const imageUrl = result.data?.profilePicture || result.data?.optimizedUrl || result.data?.imageUrl || result.data?.url;
 
                     console.log('✅ Image upload successful:', {
