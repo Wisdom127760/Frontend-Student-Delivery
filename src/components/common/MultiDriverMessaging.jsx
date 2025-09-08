@@ -17,6 +17,8 @@ import { useToast } from './ToastProvider';
 import apiService from '../../services/api';
 import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
+import MessageImageUpload from './MessageImageUpload';
+import messageImageService from '../../services/messageImageService';
 
 const MultiDriverMessaging = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -27,6 +29,9 @@ const MultiDriverMessaging = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isTyping, setIsTyping] = useState(false);
     const [lastMessageTime, setLastMessageTime] = useState(0);
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [imageUploadResetTrigger, setImageUploadResetTrigger] = useState(0);
     const messagesEndRef = useRef(null);
     const { user } = useAuth();
     const { showSuccess, showError } = useToast();
@@ -300,12 +305,22 @@ const MultiDriverMessaging = () => {
             setMessages([]);
         } finally {
             setIsLoading(false);
+            setSelectedImage(null);
         }
     }, []);
 
+    // Image upload handlers
+    const handleImageSelect = (imageFile) => {
+        setSelectedImage(imageFile);
+    };
+
+    const handleImageRemove = () => {
+        setSelectedImage(null);
+    };
+
     // Send message to specific driver
     const handleSendMessage = async () => {
-        if (!newMessage.trim() || !activeConversation) return;
+        if ((!newMessage.trim() && !selectedImage) || !activeConversation) return;
 
         // Debouncing: Prevent multiple rapid calls
         const now = Date.now();
@@ -318,6 +333,23 @@ const MultiDriverMessaging = () => {
         const messageText = newMessage.trim();
         setNewMessage('');
 
+        let imageUrl = null;
+
+        // Upload image if selected
+        if (selectedImage) {
+            setIsUploadingImage(true);
+            try {
+                const uploadResult = await messageImageService.uploadMessageImage(selectedImage);
+                imageUrl = uploadResult.data.imageUrl;
+            } catch (error) {
+                console.error('Failed to upload image:', error);
+                showError('Failed to upload image. Please try again.');
+                setIsUploadingImage(false);
+                return;
+            }
+            setIsUploadingImage(false);
+        }
+
         // Add message to local state immediately
         const tempMessage = {
             id: `temp-${Date.now()}`,
@@ -329,23 +361,35 @@ const MultiDriverMessaging = () => {
             conversationId: activeConversation.id,
             driverId: activeConversation.driverId,
             driverName: activeConversation.driverName,
-            isTemporary: true
+            isTemporary: true,
+            imageUrl: imageUrl
         };
 
         setMessages(prev => [...prev, tempMessage]);
 
         try {
-            const response = await apiService.sendMessageToDriver(activeConversation.driverId, {
-                message: messageText,
+            const messagePayload = {
                 type: 'general',
                 timestamp: new Date().toISOString()
-            });
+            };
+
+            // Only include message if it's not empty
+            if (messageText && messageText.trim()) {
+                messagePayload.message = messageText.trim();
+            }
+
+            // Only include imageUrl if it's not null/undefined
+            if (imageUrl) {
+                messagePayload.imageUrl = imageUrl;
+            }
+
+            const response = await apiService.sendMessageToDriver(activeConversation.driverId, messagePayload);
 
             if (response.success) {
                 // Replace temporary message with real one
                 setMessages(prev => prev.map(msg =>
                     msg.id === tempMessage.id
-                        ? { ...msg, id: response.data.messageId, isTemporary: false }
+                        ? { ...msg, id: response.data.messageId, isTemporary: false, imageUrl: msg.imageUrl }
                         : msg
                 ));
 
@@ -389,6 +433,9 @@ const MultiDriverMessaging = () => {
             console.error('💬 MultiDriverMessaging: Error sending message:', error);
             setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
             showError('Failed to send message. Please try again.');
+        } finally {
+            setSelectedImage(null);
+            setImageUploadResetTrigger(prev => prev + 1);
         }
     };
 
@@ -1120,19 +1167,37 @@ const MultiDriverMessaging = () => {
                                                 key={message.id || `msg-${Date.now()}`}
                                                 className={`flex ${message.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
                                             >
-                                                <div
-                                                    className={`max-w-[85%] px-3 py-2 rounded-lg ${message.sender === 'admin'
-                                                        ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                                                        : 'bg-gray-100 text-gray-900'
-                                                        } ${message.isTemporary ? 'opacity-70' : ''}`}
-                                                >
-                                                    <p className="text-sm break-words">{message.message}</p>
-                                                    <div className={`flex items-center justify-between mt-1 text-xs ${message.sender === 'admin' ? 'text-green-100' : 'text-gray-500'
-                                                        }`}>
-                                                        <span>{formatTime(message.timestamp)}</span>
-                                                        {message.sender === 'admin' && (
-                                                            <span className="ml-2">✓</span>
+                                                <div className="flex flex-col max-w-[85%]">
+                                                    {/* Sender label */}
+                                                    <div className={`text-xs mb-1 ${message.sender === 'admin' ? 'text-right text-green-600' : 'text-left text-gray-500'}`}>
+                                                        {message.sender === 'admin' ? 'You' : `${message.driverName || 'Driver'}`}
+                                                    </div>
+                                                    <div
+                                                        className={`px-3 py-2 rounded-lg ${message.sender === 'admin'
+                                                            ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                                                            : 'bg-gray-100 text-gray-900'
+                                                            } ${message.isTemporary ? 'opacity-70' : ''}`}
+                                                    >
+                                                        {message.imageUrl && (
+                                                            <div className="mb-2">
+                                                                <img
+                                                                    src={message.imageUrl}
+                                                                    alt="Message attachment"
+                                                                    className="max-w-full h-auto rounded-lg cursor-pointer"
+                                                                    onClick={() => window.open(message.imageUrl, '_blank')}
+                                                                />
+                                                            </div>
                                                         )}
+                                                        {message.message && (
+                                                            <p className="text-sm break-words">{message.message}</p>
+                                                        )}
+                                                        <div className={`flex items-center justify-between mt-1 text-xs ${message.sender === 'admin' ? 'text-green-100' : 'text-gray-500'
+                                                            }`}>
+                                                            <span>{formatTime(message.timestamp)}</span>
+                                                            {message.sender === 'admin' && (
+                                                                <span className="ml-2">✓</span>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1143,6 +1208,12 @@ const MultiDriverMessaging = () => {
                                 {/* Mobile Message Input */}
                                 <div className="p-3 border-t border-gray-200">
                                     <div className="flex space-x-2">
+                                        <MessageImageUpload
+                                            onImageSelect={handleImageSelect}
+                                            onImageRemove={handleImageRemove}
+                                            isUploading={isUploadingImage}
+                                            resetTrigger={imageUploadResetTrigger}
+                                        />
                                         <input
                                             type="text"
                                             value={newMessage}
@@ -1150,11 +1221,11 @@ const MultiDriverMessaging = () => {
                                             onKeyPress={handleKeyPress}
                                             placeholder="Type your message..."
                                             className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                            disabled={isLoading}
+                                            disabled={isLoading || isUploadingImage}
                                         />
                                         <button
                                             onClick={handleSendMessage}
-                                            disabled={!newMessage.trim()}
+                                            disabled={(!newMessage.trim() && !selectedImage) || isLoading || isUploadingImage}
                                             className="px-3 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 flex-shrink-0"
                                         >
                                             <PaperAirplaneIcon className="h-4 w-4" />
@@ -1262,25 +1333,43 @@ const MultiDriverMessaging = () => {
                                                     key={message.id || `msg-${index}-${Date.now()}`}
                                                     className={`flex ${message.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
                                                 >
-                                                    <div
-                                                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${message.sender === 'admin'
-                                                            ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                                                            : 'bg-gray-100 text-gray-900'
-                                                            } ${message.isTemporary ? 'opacity-70' : ''}`}
-                                                    >
-                                                        <p className="text-sm">{message.message}</p>
-                                                        <div className={`flex items-center justify-between mt-1 text-xs ${message.sender === 'admin' ? 'text-green-100' : 'text-gray-500'
-                                                            }`}>
-                                                            <span>{formatTime(message.timestamp)}</span>
-                                                            {message.sender === 'admin' && (
-                                                                <div className="flex items-center space-x-1">
-                                                                    {message.isTemporary ? (
-                                                                        <ClockIcon className="h-3 w-3" />
-                                                                    ) : (
-                                                                        <CheckIcon className="h-3 w-3" />
-                                                                    )}
+                                                    <div className="flex flex-col max-w-xs lg:max-w-md">
+                                                        {/* Sender label */}
+                                                        <div className={`text-xs mb-1 ${message.sender === 'admin' ? 'text-right text-green-600' : 'text-left text-gray-500'}`}>
+                                                            {message.sender === 'admin' ? 'You' : `${message.driverName || 'Driver'}`}
+                                                        </div>
+                                                        <div
+                                                            className={`px-4 py-2 rounded-lg ${message.sender === 'admin'
+                                                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                                                                : 'bg-gray-100 text-gray-900'
+                                                                } ${message.isTemporary ? 'opacity-70' : ''}`}
+                                                        >
+                                                            {message.imageUrl && (
+                                                                <div className="mb-2">
+                                                                    <img
+                                                                        src={message.imageUrl}
+                                                                        alt="Message attachment"
+                                                                        className="max-w-full h-auto rounded-lg cursor-pointer"
+                                                                        onClick={() => window.open(message.imageUrl, '_blank')}
+                                                                    />
                                                                 </div>
                                                             )}
+                                                            {message.message && (
+                                                                <p className="text-sm">{message.message}</p>
+                                                            )}
+                                                            <div className={`flex items-center justify-between mt-1 text-xs ${message.sender === 'admin' ? 'text-green-100' : 'text-gray-500'
+                                                                }`}>
+                                                                <span>{formatTime(message.timestamp)}</span>
+                                                                {message.sender === 'admin' && (
+                                                                    <div className="flex items-center space-x-1">
+                                                                        {message.isTemporary ? (
+                                                                            <ClockIcon className="h-3 w-3" />
+                                                                        ) : (
+                                                                            <CheckIcon className="h-3 w-3" />
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1306,6 +1395,12 @@ const MultiDriverMessaging = () => {
                                     {/* Message Input */}
                                     <div className="p-4 border-t border-gray-200">
                                         <div className="flex space-x-2">
+                                            <MessageImageUpload
+                                                onImageSelect={handleImageSelect}
+                                                onImageRemove={handleImageRemove}
+                                                isUploading={isUploadingImage}
+                                                resetTrigger={imageUploadResetTrigger}
+                                            />
                                             <input
                                                 type="text"
                                                 value={newMessage}
@@ -1318,10 +1413,11 @@ const MultiDriverMessaging = () => {
                                                 }}
                                                 placeholder="Type your message..."
                                                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                                                disabled={isLoading || isUploadingImage}
                                             />
                                             <button
                                                 onClick={handleSendMessage}
-                                                disabled={!newMessage.trim()}
+                                                disabled={(!newMessage.trim() && !selectedImage) || isLoading || isUploadingImage}
                                                 className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                                             >
                                                 <PaperAirplaneIcon className="h-4 w-4" />

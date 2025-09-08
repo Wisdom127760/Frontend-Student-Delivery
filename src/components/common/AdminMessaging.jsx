@@ -5,6 +5,8 @@ import { useToast } from './ToastProvider';
 import apiService from '../../services/api';
 import socketService from '../../services/socketService';
 import soundService from '../../services/soundService';
+import MessageImageUpload from './MessageImageUpload';
+import messageImageService from '../../services/messageImageService';
 
 const AdminMessaging = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -14,6 +16,9 @@ const AdminMessaging = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isTyping, setIsTyping] = useState(false);
     const [lastMessageTime, setLastMessageTime] = useState(0);
+    const [selectedImage, setSelectedImage] = useState(null);
+    const [isUploadingImage, setIsUploadingImage] = useState(false);
+    const [imageUploadResetTrigger, setImageUploadResetTrigger] = useState(0);
     const messagesEndRef = useRef(null);
     const { user } = useAuth();
     const { showSuccess, showError } = useToast();
@@ -46,7 +51,8 @@ const AdminMessaging = () => {
                         return {
                             ...msg,
                             sender: sender,
-                            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date()
+                            timestamp: msg.timestamp ? new Date(msg.timestamp) : new Date(),
+                            imageUrl: msg.imageUrl // Ensure imageUrl is preserved
                         };
                     });
                     setMessages(processedMessages);
@@ -108,6 +114,7 @@ const AdminMessaging = () => {
                 read: false,
                 type: data.type || 'general',
                 location: data.location,
+                imageUrl: data.imageUrl,
                 driverId: data.driverId,
                 driverName: data.driverName || 'Driver'
             };
@@ -277,8 +284,16 @@ const AdminMessaging = () => {
         };
     }, [showSuccess, showError, user]);
 
+    const handleImageSelect = (imageFile) => {
+        setSelectedImage(imageFile);
+    };
+
+    const handleImageRemove = () => {
+        setSelectedImage(null);
+    };
+
     const handleSendMessage = async () => {
-        if (!newMessage.trim()) return;
+        if (!newMessage.trim() && !selectedImage) return;
 
         // Debouncing: Prevent multiple rapid calls (minimum 1 second between messages)
         const now = Date.now();
@@ -316,16 +331,38 @@ const AdminMessaging = () => {
                 }
             }
 
+            let imageUrl = null;
+
+            // Upload image if selected
+            if (selectedImage) {
+                setIsUploadingImage(true);
+                try {
+                    const uploadResult = await messageImageService.uploadMessageImage(selectedImage);
+                    imageUrl = uploadResult.data.imageUrl;
+                } catch (error) {
+                    console.error('Failed to upload image:', error);
+                    showError('Failed to upload image. Please try again.');
+                    setIsUploadingImage(false);
+                    setIsLoading(false);
+                    return;
+                }
+                setIsUploadingImage(false);
+            }
+
             // Create message object first
             const message = {
                 id: Date.now(),
-                sender: 'driver',
+                sender: 'admin',
                 message: messageText,
                 timestamp: new Date(),
                 read: true,
                 type: isEmergency ? 'emergency' : 'general',
-                location: location
+                location: location,
+                imageUrl: imageUrl
             };
+
+            console.log('💬 AdminMessaging: Creating message with imageUrl:', imageUrl);
+            console.log('💬 AdminMessaging: Full message object:', message);
 
             // Add message to local state immediately for better UX
             setMessages(prev => [...prev, message]);
@@ -333,10 +370,19 @@ const AdminMessaging = () => {
             // Send message via the proper messaging API
             try {
                 const messagePayload = {
-                    message: messageText,
                     type: isEmergency ? 'emergency' : 'general',
                     timestamp: new Date().toISOString()
                 };
+
+                // Only include message if it's not empty
+                if (messageText && messageText.trim()) {
+                    messagePayload.message = messageText.trim();
+                }
+
+                // Only include imageUrl if it's not null/undefined
+                if (imageUrl) {
+                    messagePayload.imageUrl = imageUrl;
+                }
 
                 // Only include location if it's a valid object
                 if (location && typeof location === 'object') {
@@ -351,7 +397,8 @@ const AdminMessaging = () => {
                     const apiMessage = {
                         ...message,
                         id: response.data.message._id || message.id,
-                        timestamp: new Date(response.data.message.createdAt || message.timestamp)
+                        timestamp: new Date(response.data.message.createdAt || message.timestamp),
+                        imageUrl: response.data.message.imageUrl || message.imageUrl // Preserve imageUrl
                     };
 
                     // Replace the local message with the API response
@@ -364,16 +411,19 @@ const AdminMessaging = () => {
                 // Message is already in local state, no need to add again
             }
             setNewMessage('');
+            setSelectedImage(null);
+            setImageUploadResetTrigger(prev => prev + 1);
 
             // Emit via socket for real-time delivery (if connected)
             if (socketService.isConnected()) {
-                socketService.emit('driver-message', {
+                socketService.emit('new-message', {
                     ...message,
-                    driverId: user._id || user.id,
-                    driverName: user.name || 'Driver',
+                    adminId: user._id || user.id,
+                    adminName: user.name || 'Admin',
+                    senderType: 'admin',
                     isFromSender: true // Flag to prevent echo
                 });
-                console.log('🔌 Message sent via WebSocket');
+                console.log('🔌 Admin message sent via WebSocket');
             } else {
                 console.log('⚠️ WebSocket not connected, message stored locally');
             }
@@ -518,21 +568,47 @@ const AdminMessaging = () => {
                                     key={message.id}
                                     className={`flex ${message.sender === 'admin' ? 'justify-end' : 'justify-start'}`}
                                 >
-                                    <div
-                                        className={`max-w-[85%] sm:max-w-xs lg:max-w-md px-3 sm:px-4 py-2 rounded-lg ${message.sender === 'admin'
-                                            ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                                            : 'bg-gray-100 text-gray-900'
-                                            }`}
-                                    >
-                                        <p className="text-sm break-words">{message.message}</p>
-                                        <p
-                                            className={`text-xs mt-1 ${message.sender === 'admin'
-                                                ? 'text-green-100'
-                                                : 'text-gray-500'
+                                    <div className="flex flex-col max-w-[85%] sm:max-w-xs lg:max-w-md">
+                                        {/* Sender label */}
+                                        <div className={`text-xs mb-1 ${message.sender === 'admin' ? 'text-right text-green-600' : 'text-left text-gray-500'}`}>
+                                            {message.sender === 'admin' ? 'You' : `${message.driverName || 'Driver'}`}
+                                        </div>
+                                        <div
+                                            className={`px-3 sm:px-4 py-2 rounded-lg ${message.sender === 'admin'
+                                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                                                : 'bg-gray-100 text-gray-900'
                                                 }`}
                                         >
-                                            {formatTime(message.timestamp)}
-                                        </p>
+                                            {message.imageUrl && (
+                                                <div className="mb-2">
+                                                    <img
+                                                        src={message.imageUrl}
+                                                        alt="Message attachment"
+                                                        className="max-w-full h-auto rounded-lg cursor-pointer border border-gray-200"
+                                                        style={{ maxWidth: '300px', maxHeight: '300px' }}
+                                                        onClick={() => window.open(message.imageUrl, '_blank')}
+                                                        onError={(e) => {
+                                                            console.error('❌ Image failed to load:', message.imageUrl);
+                                                            e.target.style.display = 'none';
+                                                        }}
+                                                        onLoad={() => {
+                                                            console.log('✅ Image loaded successfully:', message.imageUrl);
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+                                            {message.message && (
+                                                <p className="text-sm break-words">{message.message}</p>
+                                            )}
+                                            <p
+                                                className={`text-xs mt-1 ${message.sender === 'admin'
+                                                    ? 'text-green-100'
+                                                    : 'text-gray-500'
+                                                    }`}
+                                            >
+                                                {formatTime(message.timestamp)}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -542,6 +618,12 @@ const AdminMessaging = () => {
                         {/* Message Input */}
                         <div className="p-3 sm:p-4 border-t border-gray-200">
                             <div className="flex space-x-2">
+                                <MessageImageUpload
+                                    onImageSelect={handleImageSelect}
+                                    onImageRemove={handleImageRemove}
+                                    isUploading={isUploadingImage}
+                                    resetTrigger={imageUploadResetTrigger}
+                                />
                                 <input
                                     type="text"
                                     value={newMessage}
@@ -549,11 +631,11 @@ const AdminMessaging = () => {
                                     onKeyPress={handleKeyPress}
                                     placeholder="Type your message..."
                                     className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                                    disabled={isLoading}
+                                    disabled={isLoading || isUploadingImage}
                                 />
                                 <button
                                     onClick={handleSendMessage}
-                                    disabled={!newMessage.trim() || isLoading}
+                                    disabled={(!newMessage.trim() && !selectedImage) || isLoading || isUploadingImage}
                                     className="px-3 sm:px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-1 flex-shrink-0"
                                 >
                                     <PaperAirplaneIcon className="h-4 w-4" />

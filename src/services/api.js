@@ -904,16 +904,22 @@ class ApiService {
                         throw emergencyError;
                     }
                 } else {
-                    // For regular messages, try the existing driver message endpoint
-                    try {
-                        const response = await api.post('/notifications/driver/send-message', {
-                            message: messageData.message
-                        });
-                        console.log('💬 API Service: Driver message fallback response:', response.data);
-                        return response.data;
-                    } catch (regularError) {
-                        console.log('💬 API Service: Driver message fallback also failed');
-                        throw regularError;
+                    // For regular messages, only try fallback if we have a message (not image-only)
+                    if (messageData.message && messageData.message.trim()) {
+                        try {
+                            const response = await api.post('/notifications/driver/send-message', {
+                                message: messageData.message
+                            });
+                            console.log('💬 API Service: Driver message fallback response:', response.data);
+                            return response.data;
+                        } catch (regularError) {
+                            console.log('💬 API Service: Driver message fallback also failed');
+                            throw regularError;
+                        }
+                    } else {
+                        // If it's an image-only message and the new endpoint failed, don't try fallback
+                        console.log('💬 API Service: Image-only message, cannot use fallback endpoint');
+                        throw error; // Re-throw the original error
                     }
                 }
             }

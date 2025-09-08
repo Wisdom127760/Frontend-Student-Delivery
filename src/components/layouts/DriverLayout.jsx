@@ -5,7 +5,7 @@ import NotificationsDropdown from '../driver/NotificationsDropdown';
 import Avatar from '../common/Avatar';
 import SoundPermissionModal from '../common/SoundPermissionModal';
 import GlobalSearch from '../common/GlobalSearch';
-import AdminMessaging from '../common/AdminMessaging';
+import DriverMessageToAdmin from '../driver/DriverMessageToAdmin';
 import PointsNotification from '../common/PointsNotification';
 import usePointsNotification from '../../hooks/usePointsNotification';
 import apiService from '../../services/api';
@@ -266,8 +266,8 @@ const DriverLayout = ({ children }) => {
                                         <div className={`w-2 h-2 rounded-full ${socketAuthenticated ? 'bg-green-500' : socketConnected ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
                                     </div>
 
-                                    {/* Admin Messaging */}
-                                    <AdminMessaging />
+                                    {/* Driver Messaging */}
+                                    <DriverMessageToAdmin />
 
                                     {/* Notifications */}
                                     <NotificationsDropdown />
