@@ -104,7 +104,7 @@ const SimpleDriverNotifications = () => {
             }
         };
         checkConnection();
-        const interval = setInterval(checkConnection, 5000);
+        const interval = setInterval(checkConnection, 30000); // Reduced from 5s to 30s
 
         return () => {
             clearInterval(interval);

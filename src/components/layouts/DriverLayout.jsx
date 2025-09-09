@@ -8,6 +8,10 @@ import GlobalSearch from '../common/GlobalSearch';
 import DriverMessageToAdmin from '../driver/DriverMessageToAdmin';
 import PointsNotification from '../common/PointsNotification';
 import usePointsNotification from '../../hooks/usePointsNotification';
+import PWAInstallButton from '../common/PWAInstallButton';
+import PWAStatus from '../common/PWAStatus';
+import PWANotification from '../common/PWANotification';
+import PWAUpdateNotification from '../common/PWAUpdateNotification';
 import apiService from '../../services/api';
 import {
     TruckIcon,
@@ -154,8 +158,8 @@ const DriverLayout = ({ children }) => {
         // Check immediately
         checkSocketStatus();
 
-        // Check every 5 seconds
-        const interval = setInterval(checkSocketStatus, 5000);
+        // Check every 30 seconds (reduced frequency to prevent API spam)
+        const interval = setInterval(checkSocketStatus, 30000);
 
         return () => clearInterval(interval);
     }, []);
@@ -379,6 +383,17 @@ const DriverLayout = ({ children }) => {
                         isVisible={notification.isVisible}
                         onClose={hidePointsNotification}
                     />
+
+                    {/* PWA Install Button */}
+                    <PWAInstallButton variant="floating" />
+                    <PWAUpdateNotification />
+
+                    {/* PWA Status (for development/debugging) */}
+                    {process.env.NODE_ENV === 'development' && (
+                        <div className="fixed top-4 left-4 z-50">
+                            <PWAStatus showDetails={false} />
+                        </div>
+                    )}
                 </div>
             </PointsNotificationContext.Provider>
         </DriverStatusContext.Provider>

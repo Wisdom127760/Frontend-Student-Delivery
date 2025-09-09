@@ -385,8 +385,8 @@ const BroadcastPage = () => {
         // Initial check
         checkOnlineStatus();
 
-        // Check every 60 seconds (reduced frequency since WebSocket is real-time)
-        const interval = setInterval(checkOnlineStatus, 60000);
+        // Check every 2 minutes (further reduced frequency since WebSocket is real-time)
+        const interval = setInterval(checkOnlineStatus, 120000);
 
         return () => clearInterval(interval);
     }, [user]);

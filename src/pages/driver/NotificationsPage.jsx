@@ -133,7 +133,7 @@ const NotificationsPage = () => {
             setIsConnected(socketService.isConnected());
         };
         checkConnection();
-        const connectionInterval = setInterval(checkConnection, 5000);
+        const connectionInterval = setInterval(checkConnection, 30000); // Reduced from 5s to 30s
 
         // Listen for new notifications
         socketService.on('new-notification', (data) => {

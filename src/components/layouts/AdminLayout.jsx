@@ -6,6 +6,10 @@ import SimpleNotifications from '../admin/SimpleNotifications';
 import Avatar from '../common/Avatar';
 import GlobalSearch from '../common/GlobalSearch';
 import MultiDriverMessaging from '../common/MultiDriverMessaging';
+import PWAInstallButton from '../common/PWAInstallButton';
+import PWAStatus from '../common/PWAStatus';
+import PWANotification from '../common/PWANotification';
+import PWAUpdateNotification from '../common/PWAUpdateNotification';
 import {
     ChartBarIcon,
     TruckIcon,
@@ -207,6 +211,17 @@ const AdminLayout = ({ children }) => {
                     className="fixed inset-0 z-40"
                     onClick={() => setUserMenuOpen(false)}
                 />
+            )}
+
+            {/* PWA Install Button */}
+            <PWAInstallButton variant="floating" />
+            <PWAUpdateNotification />
+
+            {/* PWA Status (for development/debugging) */}
+            {process.env.NODE_ENV === 'development' && (
+                <div className="fixed top-4 left-4 z-50">
+                    <PWAStatus showDetails={false} />
+                </div>
             )}
         </div>
     );
