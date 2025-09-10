@@ -271,12 +271,83 @@ class PWAService {
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-72x72.png',
                 tag: 'greep-sds-notification',
+                requireInteraction: false,
+                silent: false,
                 ...options
             };
 
             return new Notification(title, defaultOptions);
         }
         return null;
+    }
+
+    /**
+     * Subscribe to push notifications
+     */
+    async subscribeToPushNotifications() {
+        if (!this.serviceWorkerRegistration) {
+            console.warn('⚠️ PWA: No service worker registration found');
+            return null;
+        }
+
+        try {
+            const subscription = await this.serviceWorkerRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: this.getVapidPublicKey()
+            });
+
+            console.log('✅ PWA: Push subscription successful');
+            return subscription;
+        } catch (error) {
+            console.error('❌ PWA: Push subscription failed:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Get VAPID public key
+     */
+    getVapidPublicKey() {
+        // Use environment variable or fallback to generated key
+        return process.env.REACT_APP_VAPID_PUBLIC_KEY || 'BKacvFsgtpXRrlQeFd2Z2GBKZaH9uY22mty86opoWMDWQcCjLV2rBcbGpt1U9XTshEayUO1NClABVPXH31gROm0';
+    }
+
+    /**
+     * Unsubscribe from push notifications
+     */
+    async unsubscribeFromPushNotifications() {
+        if (!this.serviceWorkerRegistration) {
+            return false;
+        }
+
+        try {
+            const subscription = await this.serviceWorkerRegistration.pushManager.getSubscription();
+            if (subscription) {
+                await subscription.unsubscribe();
+                console.log('✅ PWA: Push unsubscription successful');
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('❌ PWA: Push unsubscription failed:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get current push subscription
+     */
+    async getPushSubscription() {
+        if (!this.serviceWorkerRegistration) {
+            return null;
+        }
+
+        try {
+            return await this.serviceWorkerRegistration.pushManager.getSubscription();
+        } catch (error) {
+            console.error('❌ PWA: Failed to get push subscription:', error);
+            return null;
+        }
     }
 
     /**
