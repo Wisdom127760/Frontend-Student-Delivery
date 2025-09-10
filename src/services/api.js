@@ -415,7 +415,7 @@ class ApiService {
             return {
                 success: true,
                 data: {
-                    addresses: ['Kucuk', 'Lefkosa', 'Girne', 'Iskele', 'Guzelyurt', 'Lefke'],
+                    addresses: ['Terminal/City Center', 'Kaymakli', 'Hamitköy', 'Yenişehir', 'Kumsal', 'Gönyeli', 'Dereboyu', 'Ortaköy', 'Yenikent', 'Taskinkoy', 'Metehan', 'Gocmenkoy', 'Haspolat', 'Alaykoy', 'Marmara'],
                     transportationMethods: ['walking', 'bicycle', 'motorcycle', 'scooter', 'car', 'other'],
                     universities: [
                         'Eastern Mediterranean University', 'Cyprus West University', 'Cyprus International University',
@@ -1843,6 +1843,34 @@ class ApiService {
         return response.data;
     }
 
+    async calculateBalancedRemittance(driverId, startDate, endDate) {
+        if (!driverId) {
+            console.error('💰 API Service: No driverId provided for balanced remittance calculation');
+            throw new Error('Driver ID is required');
+        }
+        console.log('💰 API Service: Calculating balanced remittance for:', driverId, 'from', startDate, 'to', endDate);
+        const response = await api.get(`/admin/remittances/calculate-balanced/${driverId}?startDate=${startDate}&endDate=${endDate}`);
+        console.log('💰 API Service: Balanced remittance calculation response:', response.data);
+        return response.data;
+    }
+
+    async generateBalancedRemittance(remittanceData) {
+        if (!remittanceData) {
+            console.error('💰 API Service: No remittance data provided for balanced remittance');
+            throw new Error('Remittance data is required');
+        }
+
+        if (!remittanceData.driverId) {
+            console.error('💰 API Service: No driverId in balanced remittance data');
+            throw new Error('Driver ID is required');
+        }
+
+        console.log('💰 API Service: Generating balanced remittance:', remittanceData);
+        const response = await api.post('/admin/remittances/generate-balanced', remittanceData);
+        console.log('💰 API Service: Generate balanced remittance response:', response.data);
+        return response.data;
+    }
+
     // Admin Management endpoints
     async getAdminUsers(params = {}) {
         console.log('👥 API Service: Getting admin users with params:', params);
@@ -1859,24 +1887,39 @@ class ApiService {
     }
 
     async createAdminUser(adminData) {
-        console.log('👥 API Service: Creating admin user:', adminData);
-        const response = await api.post('/admin/management/admins', adminData);
-        console.log('👥 API Service: Create admin response:', response.data);
-        return response.data;
+        try {
+            console.log('👥 API Service: Creating admin user:', adminData);
+            const response = await api.post('/admin/management/admins', adminData);
+            console.log('👥 API Service: Create admin response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('👥 API Service: Error creating admin user:', error);
+            throw error;
+        }
     }
 
     async updateAdminUser(adminId, adminData) {
-        console.log('👥 API Service: Updating admin user:', adminId, adminData);
-        const response = await api.put(`/admin/management/admins/${adminId}`, adminData);
-        console.log('👥 API Service: Update admin response:', response.data);
-        return response.data;
+        try {
+            console.log('👥 API Service: Updating admin user:', adminId, adminData);
+            const response = await api.put(`/admin/management/admins/${adminId}`, adminData);
+            console.log('👥 API Service: Update admin response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('👥 API Service: Error updating admin user:', error);
+            throw error;
+        }
     }
 
     async deleteAdminUser(adminId) {
-        console.log('👥 API Service: Deleting admin user:', adminId);
-        const response = await api.delete(`/admin/management/admins/${adminId}`);
-        console.log('👥 API Service: Delete admin response:', response.data);
-        return response.data;
+        try {
+            console.log('👥 API Service: Deleting admin user:', adminId);
+            const response = await api.delete(`/admin/management/admins/${adminId}`);
+            console.log('👥 API Service: Delete admin response:', response.data);
+            return response.data;
+        } catch (error) {
+            console.error('👥 API Service: Error deleting admin user:', error);
+            throw error;
+        }
     }
 
     async resetAdminPassword(adminId, data) {

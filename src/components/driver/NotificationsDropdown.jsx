@@ -309,7 +309,7 @@ const NotificationsDropdown = () => {
         } else if (diffInHours < 24) {
             return `${Math.floor(diffInHours)}h ago`;
         } else {
-            return date.toLocaleDateString();
+            return date.toLocaleDateString('en-US');
         }
     };
 

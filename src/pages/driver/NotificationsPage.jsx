@@ -604,7 +604,7 @@ const NotificationsPage = () => {
         } else if (diffInHours < 24) {
             return `${Math.floor(diffInHours)} hours ago`;
         } else {
-            return date.toLocaleDateString();
+            return date.toLocaleDateString('en-US');
         }
     };
 

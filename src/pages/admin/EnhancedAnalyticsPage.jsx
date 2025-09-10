@@ -544,7 +544,7 @@ const EnhancedAnalyticsPage = () => {
                             <div className="flex justify-between items-center">
                                 <span className="text-sm text-gray-600">Last Updated</span>
                                 <span className="text-sm font-medium text-gray-900">
-                                    {analyticsData?.lastUpdated ? new Date(analyticsData.lastUpdated).toLocaleDateString() : 'N/A'}
+                                    {analyticsData?.lastUpdated ? new Date(analyticsData.lastUpdated).toLocaleDateString('en-US') : 'N/A'}
                                 </span>
                             </div>
                         </div>
@@ -763,7 +763,7 @@ const EnhancedAnalyticsPage = () => {
                                         <div className="flex items-center space-x-3">
                                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                                             <span className="text-sm text-gray-700">
-                                                {new Date(activity._id.year, activity._id.month - 1, activity._id.day).toLocaleDateString()}
+                                                {new Date(activity._id.year, activity._id.month - 1, activity._id.day).toLocaleDateString('en-US')}
                                             </span>
                                         </div>
                                         <span className="text-sm font-medium text-gray-900">
@@ -1039,7 +1039,7 @@ const EnhancedAnalyticsPage = () => {
                                         {deliveries.trends.slice(0, 10).map((item, index) => (
                                             <tr key={index} className="hover:bg-gray-50">
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                    {new Date(item._id.year, item._id.month - 1, item._id.day).toLocaleDateString()}
+                                                    {new Date(item._id.year, item._id.month - 1, item._id.day).toLocaleDateString('en-US')}
                                                 </td>
                                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                                     {item.total || 0}
@@ -1212,7 +1212,7 @@ const EnhancedAnalyticsPage = () => {
                                         <div className="flex items-center space-x-3">
                                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                                             <span className="text-sm text-gray-700">
-                                                {new Date(trend._id.year, trend._id.month - 1, trend._id.day).toLocaleDateString()}
+                                                {new Date(trend._id.year, trend._id.month - 1, trend._id.day).toLocaleDateString('en-US')}
                                             </span>
                                         </div>
                                         <div className="text-right">
@@ -1619,7 +1619,7 @@ const EnhancedAnalyticsPage = () => {
                                         <div className="flex items-center space-x-3">
                                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                                             <span className="text-sm text-gray-700">
-                                                {new Date(trend._id.year, trend._id.month - 1, trend._id.day).toLocaleDateString()}
+                                                {new Date(trend._id.year, trend._id.month - 1, trend._id.day).toLocaleDateString('en-US')}
                                             </span>
                                         </div>
                                         <div className="text-right">

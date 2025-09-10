@@ -533,7 +533,7 @@ const DocumentVerificationPage = () => {
                                                                     const dateField = document.submittedAt || document.createdAt || document.uploadedAt || document.uploadDate || document.date;
                                                                     if (dateField) {
                                                                         try {
-                                                                            return new Date(dateField).toLocaleDateString();
+                                                                            return new Date(dateField).toLocaleDateString('en-US');
                                                                         } catch (e) {
                                                                             return 'Invalid Date';
                                                                         }
@@ -781,7 +781,7 @@ const DocumentVerificationPage = () => {
                                                 const dateField = selectedDocument.submittedAt || selectedDocument.createdAt || selectedDocument.uploadedAt || selectedDocument.uploadDate || selectedDocument.date;
                                                 if (dateField) {
                                                     try {
-                                                        return new Date(dateField).toLocaleString();
+                                                        return new Date(dateField).toLocaleString('en-US');
                                                     } catch (e) {
                                                         return 'Invalid Date';
                                                     }

@@ -679,7 +679,7 @@ const AdminNotificationsPage = () => {
                                             if (!date) return 'Unknown';
                                             const dateObj = date instanceof Date ? date : new Date(date);
                                             if (isNaN(dateObj.getTime())) return 'Invalid Date';
-                                            return dateObj.toLocaleString();
+                                            return dateObj.toLocaleString('en-US');
                                         } catch (error) {
                                             console.warn('⚠️ Error formatting date in modal:', error);
                                             return 'Invalid Date';
