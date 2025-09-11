@@ -43,8 +43,21 @@ const AdminNotificationsPage = () => {
                 return;
             }
 
-            // Use the correct admin notifications API
-            const response = await apiService.getAdminNotifications({ filter });
+            // Use the correct admin notifications API with proper filter mapping
+            const filterMapping = {
+                'all': undefined,
+                'unread': 'unread',
+                'read': 'read',
+                'driver_active': 'driver_active',
+                'system_alert': 'system_alert',
+                'analytics': 'analytics',
+                'payment': 'payment'
+            };
+
+            const response = await apiService.getAdminNotifications({
+                filter: filterMapping[filter] || filter,
+                type: filter !== 'all' && filter !== 'unread' && filter !== 'read' ? filter : undefined
+            });
             console.log('🔔 AdminNotificationsPage: Notifications API response:', response);
 
             if (response && response.success) {
@@ -139,24 +152,46 @@ const AdminNotificationsPage = () => {
             socketService.connect(user._id || user.id, user.userType || user.role);
         }
 
-        // Listen for new notifications from WebSocket
+        // Listen for new notifications from WebSocket with deduplication
         socketService.on('new-notification', (notification) => {
             console.log('🔔 AdminNotificationsPage: Received new notification via WebSocket:', notification);
 
-            // Add new notification to the top of the list
-            const newNotification = {
-                _id: notification._id || Date.now().toString(),
-                title: notification.title || notification.message || 'New Notification',
-                message: notification.message || notification.title || 'You have a new notification',
-                type: notification.type || 'notification',
-                priority: notification.priority || 'medium',
-                isRead: false,
-                createdAt: notification.createdAt || new Date().toISOString(),
-                sender: notification.sender || notification.senderName || null,
-                emergencyData: notification.emergencyData || null
-            };
+            // Skip driver messages - they should go to messaging system
+            if (notification._routeToMessaging ||
+                notification.type === 'driver-message' ||
+                notification.type === 'message' ||
+                notification.senderType === 'driver' ||
+                notification.message?.includes('Message from') ||
+                notification.message?.includes('💬')) {
+                console.log('🔔 AdminNotificationsPage: Skipping driver message notification');
+                return;
+            }
 
-            setNotifications(prev => [newNotification, ...prev]);
+            // Check for duplicates
+            setNotifications(prev => {
+                const exists = prev.some(n =>
+                    n._id === notification._id ||
+                    (n.title === notification.title && n.message === notification.message && n.type === notification.type)
+                );
+                if (exists) {
+                    console.log('🔔 AdminNotificationsPage: Duplicate notification detected, skipping');
+                    return prev;
+                }
+
+                const newNotification = {
+                    _id: notification._id || Date.now().toString(),
+                    title: notification.title || notification.message || 'New Notification',
+                    message: notification.message || notification.title || 'You have a new notification',
+                    type: notification.type || 'notification',
+                    priority: notification.priority || 'medium',
+                    isRead: false,
+                    createdAt: notification.createdAt || new Date().toISOString(),
+                    sender: notification.sender || notification.senderName || null,
+                    emergencyData: notification.emergencyData || null
+                };
+
+                return [newNotification, ...prev];
+            });
         });
 
         // Listen for notification updates (mark as read, etc.)
@@ -541,6 +576,18 @@ const AdminNotificationsPage = () => {
                                 </button>
                             ))}
                         </div>
+                    </div>
+                    {/* Filter Status */}
+                    <div className="mt-2 text-xs text-gray-500">
+                        {filter === 'all' ?
+                            `Showing all notifications (${notificationsArray.length} total)` :
+                            `Showing ${filter} notifications (${filteredNotifications.length} of ${notificationsArray.length} total)`
+                        }
+                        {filteredNotifications.length > 0 && (
+                            <span className="ml-2 text-green-600">
+                                • {filteredNotifications.filter(n => !n.isRead).length} unread
+                            </span>
+                        )}
                     </div>
                 </div>
 

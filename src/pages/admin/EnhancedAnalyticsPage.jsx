@@ -1767,46 +1767,6 @@ const EnhancedAnalyticsPage = () => {
                     />
                 </div>
 
-                {/* Growth Comparison */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Period Comparison</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <h4 className="text-sm font-medium text-gray-900 mb-3">Current Period</h4>
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Drivers</span>
-                                    <span className="text-sm font-medium text-gray-900">{growth?.currentPeriod?.drivers || 0}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Deliveries</span>
-                                    <span className="text-sm font-medium text-gray-900">{growth?.currentPeriod?.deliveries || 0}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Revenue</span>
-                                    <span className="text-sm font-medium text-gray-900">₺{growth?.currentPeriod?.revenue?.toLocaleString() || 0}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-medium text-gray-900 mb-3">Previous Period</h4>
-                            <div className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Drivers</span>
-                                    <span className="text-sm font-medium text-gray-900">{growth?.previousPeriod?.drivers || 0}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Deliveries</span>
-                                    <span className="text-sm font-medium text-gray-900">{growth?.previousPeriod?.deliveries || 0}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-gray-600">Revenue</span>
-                                    <span className="text-sm font-medium text-gray-900">₺{growth?.previousPeriod?.revenue?.toLocaleString() || 0}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 {/* Growth Trends */}
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -1828,86 +1788,6 @@ const EnhancedAnalyticsPage = () => {
                             </div>
                         </div>
 
-                        {/* Period Comparison */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Current Period */}
-                            <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-4">
-                                <h4 className="text-md font-medium text-gray-900 mb-3">Current Period</h4>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Total Drivers:</span>
-                                        <span className="font-medium text-gray-900">{growth?.currentPeriod?.totalDrivers || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Active Drivers:</span>
-                                        <span className="font-medium text-gray-900">{growth?.currentPeriod?.activeDrivers || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Total Deliveries:</span>
-                                        <span className="font-medium text-gray-900">{growth?.currentPeriod?.totalDeliveries || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Completed Deliveries:</span>
-                                        <span className="font-medium text-gray-900">{growth?.currentPeriod?.completedDeliveries || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Total Revenue:</span>
-                                        <span className="font-medium text-gray-900">₺{growth?.currentPeriod?.totalRevenue?.toLocaleString() || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Driver Earnings:</span>
-                                        <span className="font-medium text-gray-900">₺{growth?.currentPeriod?.totalDriverEarnings?.toLocaleString() || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Platform Fees:</span>
-                                        <span className="font-medium text-gray-900">₺{growth?.currentPeriod?.platformFees?.toLocaleString() || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Completion Rate:</span>
-                                        <span className="font-medium text-gray-900">{growth?.currentPeriod?.completionRate?.toFixed(1) || 0}%</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Previous Period */}
-                            <div className="bg-gradient-to-r from-gray-50 to-orange-50 rounded-lg p-4">
-                                <h4 className="text-md font-medium text-gray-900 mb-3">Previous Period</h4>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Total Drivers:</span>
-                                        <span className="font-medium text-gray-900">{growth?.previousPeriod?.totalDrivers || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Active Drivers:</span>
-                                        <span className="font-medium text-gray-900">{growth?.previousPeriod?.activeDrivers || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Total Deliveries:</span>
-                                        <span className="font-medium text-gray-900">{growth?.previousPeriod?.totalDeliveries || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Completed Deliveries:</span>
-                                        <span className="font-medium text-gray-900">{growth?.previousPeriod?.completedDeliveries || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Total Revenue:</span>
-                                        <span className="font-medium text-gray-900">₺{growth?.previousPeriod?.totalRevenue?.toLocaleString() || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Driver Earnings:</span>
-                                        <span className="font-medium text-gray-900">₺{growth?.previousPeriod?.totalDriverEarnings?.toLocaleString() || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Platform Fees:</span>
-                                        <span className="font-medium text-gray-900">₺{growth?.previousPeriod?.platformFees?.toLocaleString() || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-gray-600">Completion Rate:</span>
-                                        <span className="font-medium text-gray-900">{growth?.previousPeriod?.completionRate?.toFixed(1) || 0}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
                         {/* Growth Insights */}
                         <div className="bg-gray-50 rounded-lg p-4">

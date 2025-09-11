@@ -883,7 +883,10 @@ const DocumentVerificationPage = () => {
                                             <button
                                                 onClick={() => {
                                                     // TODO: Implement AI verification
-                                                    toast.info('AI verification feature coming soon!');
+                                                    toast('AI verification feature coming soon!', {
+                                                        icon: '🤖',
+                                                        duration: 3000
+                                                    });
                                                 }}
                                                 disabled={processingAction === (selectedDocument._id || selectedDocument.id)}
                                                 className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50 transition-colors"

@@ -15,7 +15,6 @@ import PWAInstallButton from '../common/PWAInstallButton';
 import PWAStatus from '../common/PWAStatus';
 import PWANotification from '../common/PWANotification';
 import PWAUpdateNotification from '../common/PWAUpdateNotification';
-import NotificationTest from '../common/NotificationTest';
 import apiService from '../../services/api';
 import {
     TruckIcon,
@@ -422,8 +421,6 @@ const DriverLayout = ({ children }) => {
                         </div>
                     )}
 
-                    {/* Notification Test (for development/debugging) */}
-                    <NotificationTest />
                 </div>
             </PointsNotificationContext.Provider>
         </DriverStatusContext.Provider>

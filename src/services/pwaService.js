@@ -282,6 +282,45 @@ class PWAService {
     }
 
     /**
+     * Show message notification with preview
+     */
+    showMessageNotification(senderName, message, options = {}) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const title = `💬 Message from ${senderName}`;
+            const body = message.length > 100 ? message.substring(0, 100) + '...' : message;
+
+            const defaultOptions = {
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-72x72.png',
+                tag: 'driver-message',
+                requireInteraction: false,
+                silent: false,
+                data: {
+                    type: 'message',
+                    senderName,
+                    message
+                },
+                ...options
+            };
+
+            const notification = new Notification(title, {
+                ...defaultOptions,
+                body
+            });
+
+            // Auto-close after 5 seconds unless it's an emergency
+            if (!options.requireInteraction) {
+                setTimeout(() => {
+                    notification.close();
+                }, 5000);
+            }
+
+            return notification;
+        }
+        return null;
+    }
+
+    /**
      * Subscribe to push notifications
      */
     async subscribeToPushNotifications() {

@@ -38,7 +38,10 @@ const NotificationEnforcer = ({
                         setHasShownWarning(true);
                     }
                 } else if (!allowed && enforcementLevel === 'medium' && showWarning && !hasShownWarning) {
-                    toast.warning('Enable notifications for the best experience.');
+                    toast('Enable notifications for the best experience.', {
+                        icon: '⚠️',
+                        duration: 5000
+                    });
                     setHasShownWarning(true);
                 }
             }

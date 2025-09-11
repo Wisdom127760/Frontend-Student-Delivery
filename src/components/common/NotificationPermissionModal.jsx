@@ -86,7 +86,10 @@ const NotificationPermissionModal = ({
     };
 
     const openBrowserSettings = () => {
-        toast.info('Please enable notifications in your browser settings and refresh the page.');
+        toast('Please enable notifications in your browser settings and refresh the page.', {
+            icon: 'ℹ️',
+            duration: 5000
+        });
     };
 
     if (!isOpen) return null;

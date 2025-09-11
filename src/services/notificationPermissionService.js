@@ -93,7 +93,10 @@ class NotificationPermissionService {
         // Check cooldown unless forced
         if (!force && !this.canRequestPermission()) {
             const remainingTime = Math.ceil((this.cooldownPeriod - (Date.now() - this.lastRequestTime)) / 1000);
-            toast.info(`Please wait ${remainingTime} seconds before requesting again.`);
+            toast(`Please wait ${remainingTime} seconds before requesting again.`, {
+                icon: '⏰',
+                duration: 3000
+            });
             return false;
         }
 
@@ -173,7 +176,10 @@ class NotificationPermissionService {
             instructions = 'Look for a lock or shield icon in your browser\'s address bar and enable notifications';
         }
 
-        toast.info(instructions, { duration: 10000 });
+        toast(instructions, {
+            icon: 'ℹ️',
+            duration: 10000
+        });
     }
 
     /**
@@ -205,7 +211,10 @@ class NotificationPermissionService {
                 return false;
             } else if (level === 'medium') {
                 // Show warning but allow to proceed
-                toast.warning('Notifications are recommended for the best experience.');
+                toast('Notifications are recommended for the best experience.', {
+                    icon: '⚠️',
+                    duration: 5000
+                });
                 return true;
             }
         }
