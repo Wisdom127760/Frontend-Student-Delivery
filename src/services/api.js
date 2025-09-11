@@ -20,13 +20,26 @@ const api = axios.create({
     },
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token with validation
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem('token');
+        const lastActivity = localStorage.getItem('lastActivity');
+
         if (token) {
+            // Check if token is still valid before adding to request
+            if (lastActivity) {
+                const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+                const oneHour = 60 * 60 * 1000;
+
+                if (timeSinceLastActivity > oneHour) {
+                    console.log('🔄 Token might be stale, but proceeding with request');
+                }
+            }
+
             config.headers.Authorization = `Bearer ${token}`;
         }
+
         console.log('🌐 Axios Request - URL:', config.url);
         console.log('🌐 Axios Request - Base URL:', config.baseURL);
         console.log('🌐 Axios Request - Full URL:', `${config.baseURL}${config.url}`);
@@ -94,12 +107,39 @@ api.interceptors.response.use(
             });
         }
 
-        // Handle authentication errors
+        // Handle authentication errors with retry logic
         if (error.response?.status === 401) {
-            console.warn('🔒 Authentication failed, redirecting to login');
-            // Token expired or invalid
+            console.warn('🔒 Authentication failed (401)');
+
+            // Check if this is a network-related 401 (temporary issue)
+            const isNetworkError = error.code === 'ERR_NETWORK' ||
+                error.message.includes('ERR_CONNECTION_REFUSED') ||
+                error.message.includes('timeout');
+
+            if (isNetworkError) {
+                console.log('🔄 401 error appears to be network-related, not logging out');
+                return Promise.reject(error);
+            }
+
+            // Check if token exists and is recent (less than 1 hour old)
+            const token = localStorage.getItem('token');
+            const lastActivity = localStorage.getItem('lastActivity');
+
+            if (token && lastActivity) {
+                const timeSinceLastActivity = Date.now() - parseInt(lastActivity);
+                const oneHour = 60 * 60 * 1000;
+
+                if (timeSinceLastActivity < oneHour) {
+                    console.log('🔄 Recent activity detected, 401 might be temporary - not logging out');
+                    return Promise.reject(error);
+                }
+            }
+
+            // Only logout if it's a genuine authentication failure
+            console.warn('🔒 Genuine authentication failure, logging out');
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            localStorage.removeItem('lastActivity');
 
             // Show toast before redirecting
             toast.error('Session expired. Please log in again.', {
