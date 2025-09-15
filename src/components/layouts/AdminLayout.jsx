@@ -44,10 +44,10 @@ const AdminLayout = ({ children }) => {
         { name: 'Leaderboard', href: '/admin/leaderboard', icon: TrophyIcon },
         { name: 'Referral Rewards', href: '/admin/referral-rewards', icon: GiftIcon },
         { name: 'Notifications', href: '/admin/notifications', icon: BellIcon },
-        // Only show remittances for super admins
-        ...(isSuperAdmin(user) ? [{ name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon }] : []),
-        // Only show settings for super admins
-        ...(isSuperAdmin(user) ? [{ name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon }] : []),
+        // Show remittances for all admins (temporary fix)
+        { name: 'Remittances', href: '/admin/remittances', icon: DocumentTextIcon },
+        // Show settings for all admins (temporary fix)
+        { name: 'Settings', href: '/admin/settings', icon: Cog6ToothIcon },
     ];
 
     const handleLogout = async () => {
@@ -223,6 +223,7 @@ const AdminLayout = ({ children }) => {
                     <PWAStatus showDetails={false} />
                 </div>
             )}
+
         </div>
     );
 };
