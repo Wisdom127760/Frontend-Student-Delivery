@@ -126,6 +126,19 @@ class NotificationPermissionService {
                     tag: 'permission-granted'
                 });
 
+                // Test delivery notification to ensure it works
+                setTimeout(() => {
+                    pwaService.showDeliveryNotification({
+                        deliveryCode: 'TEST-001',
+                        pickupLocation: 'Test Location',
+                        deliveryLocation: 'Test Destination',
+                        fee: 25,
+                        customerName: 'Test Customer'
+                    }, {
+                        tag: 'test-delivery-notification'
+                    });
+                }, 2000);
+
                 return true;
             } else {
                 this.permissionStatus = 'denied';
@@ -186,7 +199,7 @@ class NotificationPermissionService {
      * Check if notifications are required for the current context
      */
     isNotificationRequired(context = 'general') {
-        const requiredContexts = ['delivery', 'driver', 'broadcast'];
+        const requiredContexts = ['delivery', 'driver', 'broadcast', 'delivery_broadcast', 'delivery_assigned'];
         return requiredContexts.includes(context);
     }
 

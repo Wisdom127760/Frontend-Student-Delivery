@@ -282,23 +282,40 @@ self.addEventListener('push', (event) => {
                     }
                 ]
             };
-        } else if (data.type === 'delivery' || data.type === 'delivery_broadcast') {
-            // Delivery notification
-            const deliveryCode = data.deliveryCode || 'Unknown';
-            const pickupLocation = data.pickupLocation || 'Unknown location';
-            const fee = data.fee || 0;
+        } else if (data.type === 'delivery' || data.type === 'delivery_broadcast' || data.type === 'delivery_assigned') {
+            // Delivery notification - Enhanced for better visibility
+            const deliveryCode = data.deliveryCode || data.code || 'Unknown';
+            const pickupLocation = data.pickupLocation || data.pickupLocationDescription || 'Unknown location';
+            const deliveryLocation = data.deliveryLocation || data.deliveryLocationDescription || 'Unknown destination';
+            const fee = data.fee || data.driverEarning || 0;
+            const customerName = data.customerName || 'Customer';
+
+            // Create more detailed notification body
+            let notificationBody = '';
+            if (data.type === 'delivery_assigned') {
+                notificationBody = `📦 Delivery ${deliveryCode} assigned to you!\nFrom: ${pickupLocation}\nTo: ${deliveryLocation}\nEarning: ₺${fee}`;
+            } else {
+                notificationBody = `🚚 New delivery available!\nCode: ${deliveryCode}\nFrom: ${pickupLocation}\nTo: ${deliveryLocation}\nFee: ₺${fee}\nCustomer: ${customerName}`;
+            }
 
             options = {
                 ...options,
-                title: data.title || `🚚 New Delivery - ${deliveryCode}`,
-                body: data.body || `From: ${pickupLocation}\nFee: ₺${fee}\nTap to view details`,
-                tag: 'delivery-broadcast',
+                title: data.title || (data.type === 'delivery_assigned' ? `📦 Delivery Assigned - ${deliveryCode}` : `🚚 New Delivery - ${deliveryCode}`),
+                body: data.body || notificationBody,
+                tag: data.type === 'delivery_assigned' ? 'delivery-assigned' : 'delivery-broadcast',
                 requireInteraction: true, // Make delivery notifications require interaction
-                vibrate: [200, 100, 200, 100, 200], // More prominent vibration pattern
+                vibrate: [200, 100, 200, 100, 200, 100, 200], // More prominent vibration pattern
+                silent: false, // Ensure sound plays
+                renotify: true, // Allow re-notification with same tag
                 actions: [
                     {
-                        action: 'explore',
+                        action: 'view-delivery',
                         title: 'View Details',
+                        icon: '/icons/icon-96x96.png'
+                    },
+                    {
+                        action: 'accept-delivery',
+                        title: data.type === 'delivery_assigned' ? 'Start Delivery' : 'Accept',
                         icon: '/icons/icon-96x96.png'
                     },
                     {
@@ -344,8 +361,13 @@ self.addEventListener('notificationclick', (event) => {
         event.waitUntil(
             clients.openWindow('/admin')
         );
-    } else if (event.action === 'explore') {
+    } else if (event.action === 'view-delivery' || event.action === 'explore') {
         // Open delivery broadcast for drivers
+        event.waitUntil(
+            clients.openWindow('/driver/broadcast')
+        );
+    } else if (event.action === 'accept-delivery') {
+        // Open delivery broadcast page for accepting delivery
         event.waitUntil(
             clients.openWindow('/driver/broadcast')
         );

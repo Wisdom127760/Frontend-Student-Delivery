@@ -146,6 +146,11 @@ export const DeliveryBroadcastProvider = ({ children }) => {
         // Play delivery sound IMMEDIATELY
         soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
 
+        // Show PWA notification for delivery broadcast
+        if (Notification.permission === 'granted') {
+            pwaService.showDeliveryNotification(deliveryData);
+        }
+
         addBroadcastToState(deliveryData);
     }, [addBroadcastToState]);
 
@@ -188,6 +193,11 @@ export const DeliveryBroadcastProvider = ({ children }) => {
 
         // Play delivery sound
         soundService.playSound('delivery').catch(err => console.log('🔊 Delivery sound failed:', err));
+
+        // Show PWA notification for delivery assignment
+        if (Notification.permission === 'granted') {
+            pwaService.showDeliveryAssignmentNotification(deliveryData);
+        }
 
         // Add to broadcast state
         addBroadcastToState(deliveryData);

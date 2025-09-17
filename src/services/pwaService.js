@@ -321,6 +321,96 @@ class PWAService {
     }
 
     /**
+     * Show delivery broadcast notification
+     */
+    showDeliveryNotification(deliveryData, options = {}) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const deliveryCode = deliveryData.deliveryCode || deliveryData.code || 'Unknown';
+            const pickupLocation = deliveryData.pickupLocation || deliveryData.pickupLocationDescription || 'Unknown location';
+            const deliveryLocation = deliveryData.deliveryLocation || deliveryData.deliveryLocationDescription || 'Unknown destination';
+            const fee = deliveryData.fee || deliveryData.driverEarning || 0;
+            const customerName = deliveryData.customerName || 'Customer';
+
+            const title = `🚚 New Delivery - ${deliveryCode}`;
+            const body = `From: ${pickupLocation}\nTo: ${deliveryLocation}\nFee: ₺${fee}\nCustomer: ${customerName}`;
+
+            const defaultOptions = {
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-72x72.png',
+                tag: 'delivery-broadcast',
+                requireInteraction: true, // Delivery notifications should require interaction
+                silent: false,
+                vibrate: [200, 100, 200, 100, 200, 100, 200], // Prominent vibration
+                renotify: true, // Allow re-notification
+                data: {
+                    type: 'delivery_broadcast',
+                    deliveryId: deliveryData.deliveryId || deliveryData._id || deliveryData.id,
+                    deliveryCode,
+                    pickupLocation,
+                    deliveryLocation,
+                    fee,
+                    customerName,
+                    ...deliveryData
+                },
+                ...options
+            };
+
+            const notification = new Notification(title, {
+                ...defaultOptions,
+                body
+            });
+
+            // Don't auto-close delivery notifications - they should stay until user interacts
+            return notification;
+        }
+        return null;
+    }
+
+    /**
+     * Show delivery assignment notification
+     */
+    showDeliveryAssignmentNotification(deliveryData, options = {}) {
+        if ('Notification' in window && Notification.permission === 'granted') {
+            const deliveryCode = deliveryData.deliveryCode || deliveryData.code || 'Unknown';
+            const pickupLocation = deliveryData.pickupLocation || deliveryData.pickupLocationDescription || 'Unknown location';
+            const deliveryLocation = deliveryData.deliveryLocation || deliveryData.deliveryLocationDescription || 'Unknown destination';
+            const fee = deliveryData.fee || deliveryData.driverEarning || 0;
+
+            const title = `📦 Delivery Assigned - ${deliveryCode}`;
+            const body = `Delivery ${deliveryCode} assigned to you!\nFrom: ${pickupLocation}\nTo: ${deliveryLocation}\nEarning: ₺${fee}`;
+
+            const defaultOptions = {
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-72x72.png',
+                tag: 'delivery-assigned',
+                requireInteraction: true, // Assignment notifications should require interaction
+                silent: false,
+                vibrate: [200, 100, 200, 100, 200, 100, 200], // Prominent vibration
+                renotify: true, // Allow re-notification
+                data: {
+                    type: 'delivery_assigned',
+                    deliveryId: deliveryData.deliveryId || deliveryData._id || deliveryData.id,
+                    deliveryCode,
+                    pickupLocation,
+                    deliveryLocation,
+                    fee,
+                    ...deliveryData
+                },
+                ...options
+            };
+
+            const notification = new Notification(title, {
+                ...defaultOptions,
+                body
+            });
+
+            // Don't auto-close assignment notifications - they should stay until user interacts
+            return notification;
+        }
+        return null;
+    }
+
+    /**
      * Subscribe to push notifications
      */
     async subscribeToPushNotifications() {
